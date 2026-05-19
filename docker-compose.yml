@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: claude-organizer-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-organizer}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-organizer}
+      POSTGRES_DB: ${POSTGRES_DB:-organizer}
+    ports:
+      - "${POSTGRES_PORT:-5544}:5432"
+    volumes:
+      - ./docker/data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-organizer} -d ${POSTGRES_DB:-organizer}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

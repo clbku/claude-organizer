@@ -1,0 +1,115 @@
+<script setup lang="ts">
+import { useProjectStore } from "~/stores/project";
+import type { Card, CardStatus } from "~/types/card";
+import { cardStatusOrder } from "~/types/card";
+
+const store = useProjectStore();
+const { currentProject, currentProjectId } = storeToRefs(store);
+const api = useApi();
+
+const { data: activeSprint, refresh: refreshSprint } = useActiveSprint(
+  () => currentProjectId.value,
+);
+
+const cards = ref<Card[]>([]);
+
+async function loadCards() {
+  if (!activeSprint.value || !currentProjectId.value) {
+    cards.value = [];
+    return;
+  }
+  cards.value = await api<Card[]>("/cards", {
+    query: {
+      projectId: currentProjectId.value,
+      sprintId: activeSprint.value.id,
+    },
+  });
+}
+
+watch(
+  [currentProjectId, activeSprint],
+  async () => {
+    await loadCards();
+  },
+  { immediate: true, deep: true },
+);
+
+useProjectEvents(currentProjectId, (event) => {
+  if (event.type === "card.changed" || event.type === "card.deleted") {
+    loadCards();
+  } else if (event.type === "sprint.changed") {
+    refreshSprint();
+  }
+});
+
+const columns = computed<Record<CardStatus, Card[]>>(() => {
+  const grouped: Record<CardStatus, Card[]> = {
+    todo: [],
+    in_progress: [],
+    review: [],
+    done: [],
+    blocked: [],
+  };
+  for (const c of cards.value) grouped[c.status].push(c);
+  for (const status of cardStatusOrder) {
+    grouped[status].sort((a, b) => a.position - b.position || b.priority - a.priority);
+  }
+  return grouped;
+});
+
+async function onCardMoved(cardId: string, toStatus: CardStatus) {
+  const idx = cards.value.findIndex((c) => c.id === cardId);
+  if (idx === -1) return;
+  const prev = cards.value[idx];
+  if (!prev || prev.status === toStatus) return;
+  cards.value[idx] = { ...prev, status: toStatus };
+  try {
+    await api(`/cards/${cardId}`, {
+      method: "PATCH",
+      body: { status: toStatus },
+    });
+  } catch (err) {
+    console.error("Failed to update card status, reloading", err);
+    await loadCards();
+  }
+}
+</script>
+
+<template>
+  <UDashboardPanel
+    id="board"
+    :ui="{ body: 'flex flex-col flex-1 overflow-hidden p-4 sm:p-6' }"
+  >
+    <template #header>
+      <UDashboardNavbar :title="activeSprint?.name ?? 'Board'">
+        <template #leading>
+          <UIcon name="i-lucide-kanban" class="text-primary" />
+        </template>
+        <template #right>
+          <UBadge v-if="activeSprint" color="info" variant="subtle">
+            active sprint
+          </UBadge>
+        </template>
+      </UDashboardNavbar>
+    </template>
+
+    <template #body>
+      <div v-if="!currentProject" class="text-center text-muted py-12">
+        Pick a project in the sidebar.
+      </div>
+      <div v-else-if="!activeSprint" class="text-center text-muted py-12">
+        No active sprint for <strong>{{ currentProject.name }}</strong>.
+        Start one from /sprints.
+      </div>
+      <div v-else class="flex gap-3 flex-1 min-h-0 min-w-0 overflow-x-auto">
+        <BoardColumn
+          v-for="status in cardStatusOrder"
+          :key="status"
+          :status="status"
+          :cards="columns[status]"
+          @card-moved="onCardMoved"
+        />
+      </div>
+    </template>
+  </UDashboardPanel>
+</template>
