@@ -1,0 +1,2 @@
+ALTER TABLE "docs" ADD COLUMN "body_tsv" "tsvector" GENERATED ALWAYS AS (to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(summary, '') || ' ' || coalesce(body_md, ''))) STORED;--> statement-breakpoint
+CREATE INDEX "docs_body_tsv_idx" ON "docs" USING gin ("body_tsv");

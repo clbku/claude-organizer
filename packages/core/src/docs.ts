@@ -1,5 +1,5 @@
 import { createId, schema, type Database } from "@claude-organizer/db";
-import { and, asc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { notify } from "./events";
 
@@ -117,6 +117,12 @@ export async function searchDocs(
   projectId: string,
   query: string,
 ) {
+  // Full-text ranqueado via tsvector (config `simple`, agnóstica de idioma).
+  // websearch_to_tsquery aceita input livre do usuário sem lançar erro de sintaxe.
+  const tsQuery = sql`websearch_to_tsquery('simple', ${query})`;
+  const rank = sql<number>`ts_rank(${schema.docs.bodyTsv}, ${tsQuery})`;
+  // FTS `simple` casa apenas tokens inteiros; ILIKE no título preserva
+  // matching por substring/prefixo (ex.: "arqu" -> "Arquitetura").
   const term = `%${query}%`;
   return db
     .select(docListColumns)
@@ -124,9 +130,9 @@ export async function searchDocs(
     .where(
       and(
         eq(schema.docs.projectId, projectId),
-        or(ilike(schema.docs.title, term), ilike(schema.docs.bodyMd, term)),
+        or(sql`${schema.docs.bodyTsv} @@ ${tsQuery}`, ilike(schema.docs.title, term)),
       ),
     )
-    .orderBy(asc(schema.docs.title))
+    .orderBy(desc(rank), desc(schema.docs.updatedAt))
     .limit(50);
 }

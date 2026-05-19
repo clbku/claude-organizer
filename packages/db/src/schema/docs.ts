@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  customType,
   index,
   integer,
   pgTable,
@@ -9,6 +10,12 @@ import {
 } from "drizzle-orm/pg-core";
 import { projects } from "./projects";
 import { docKindEnum } from "./enums";
+
+const tsvector = customType<{ data: string }>({
+  dataType() {
+    return "tsvector";
+  },
+});
 
 export const docs = pgTable(
   "docs",
@@ -25,6 +32,11 @@ export const docs = pgTable(
     bodyMd: text("body_md"),
     kind: docKindEnum("kind").notNull().default("note"),
     position: integer("position").notNull().default(0),
+    // Full-text search vector, auto-mantido como generated column STORED.
+    // Config `simple` (sem stemming) cobre pt-BR e en de forma agnóstica.
+    bodyTsv: tsvector("body_tsv").generatedAlwaysAs(
+      sql`to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(summary, '') || ' ' || coalesce(body_md, ''))`,
+    ),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .default(sql`now()`),
@@ -36,6 +48,7 @@ export const docs = pgTable(
     index("docs_project_idx").on(t.projectId),
     index("docs_parent_idx").on(t.parentId),
     index("docs_kind_idx").on(t.projectId, t.kind),
+    index("docs_body_tsv_idx").using("gin", t.bodyTsv),
   ],
 );
 

@@ -33,7 +33,7 @@ export function registerDocTools(server: McpServer, db: Database) {
 
   server.tool(
     "search_docs",
-    "Search docs of a project by title or body content (case-insensitive substring).",
+    "Full-text search docs of a project (title/summary/body), ranked by relevance via Postgres tsvector. Supports web-style queries (quoted phrases, OR, -exclude). Returns metadata WITHOUT bodyMd; use read_doc for full content.",
     { projectId: z.string(), query: z.string().min(1) },
     async ({ projectId, query }) =>
       asJson(await searchDocs(db, projectId, query)),
