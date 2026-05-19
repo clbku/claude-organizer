@@ -9,7 +9,20 @@ const sprintId = computed(() => String(route.params.id));
 
 const sprint = ref<Sprint | null>(null);
 const cards = ref<Card[]>([]);
+const backlogCards = ref<Card[]>([]);
 const error = ref<unknown>(null);
+
+const showBacklog = computed(
+  () => sprint.value?.status === "planned" || sprint.value?.status === "active",
+);
+
+const backlogExpanded = ref(false);
+watch(
+  () => sprint.value?.status,
+  (status) => {
+    backlogExpanded.value = status === "planned";
+  },
+);
 
 async function loadSprint() {
   try {
@@ -23,14 +36,28 @@ async function loadSprint() {
 async function loadCards() {
   if (!sprint.value) {
     cards.value = [];
+    backlogCards.value = [];
     return;
   }
-  cards.value = await api<Card[]>("/cards", {
-    query: {
-      projectId: sprint.value.projectId,
-      sprintId: sprint.value.id,
-    },
-  });
+  const projectId = sprint.value.projectId;
+  const sprintIdLocal = sprint.value.id;
+  if (showBacklog.value) {
+    const [sprintList, backlogList] = await Promise.all([
+      api<Card[]>("/cards", {
+        query: { projectId, sprintId: sprintIdLocal },
+      }),
+      api<Card[]>("/cards", {
+        query: { projectId, backlogOnly: "true" },
+      }),
+    ]);
+    cards.value = sprintList;
+    backlogCards.value = backlogList;
+  } else {
+    cards.value = await api<Card[]>("/cards", {
+      query: { projectId, sprintId: sprintIdLocal },
+    });
+    backlogCards.value = [];
+  }
 }
 
 watch(
@@ -74,18 +101,47 @@ const columns = computed<Record<CardStatus, Card[]>>(() => {
 });
 
 async function onCardMoved(cardId: string, toStatus: CardStatus) {
+  if (!sprint.value) return;
+  const sprintIdLocal = sprint.value.id;
+  // Check if card came from backlog or from another status column
+  const fromBacklogIdx = backlogCards.value.findIndex((c) => c.id === cardId);
+  const fromSprintIdx = cards.value.findIndex((c) => c.id === cardId);
+  const body: Record<string, unknown> = { status: toStatus };
+  if (fromBacklogIdx !== -1) {
+    const card = backlogCards.value[fromBacklogIdx];
+    if (!card) return;
+    body.sprintId = sprintIdLocal;
+    backlogCards.value.splice(fromBacklogIdx, 1);
+    cards.value.push({ ...card, status: toStatus, sprintId: sprintIdLocal });
+  } else if (fromSprintIdx !== -1) {
+    const prev = cards.value[fromSprintIdx];
+    if (!prev || prev.status === toStatus) return;
+    cards.value[fromSprintIdx] = { ...prev, status: toStatus };
+  } else {
+    return;
+  }
+  try {
+    await api(`/cards/${cardId}`, { method: "PATCH", body });
+  } catch (err) {
+    console.error("Failed to update card, reloading", err);
+    await loadCards();
+  }
+}
+
+async function onMoveToBacklog(cardId: string) {
   const idx = cards.value.findIndex((c) => c.id === cardId);
   if (idx === -1) return;
-  const prev = cards.value[idx];
-  if (!prev || prev.status === toStatus) return;
-  cards.value[idx] = { ...prev, status: toStatus };
+  const card = cards.value[idx];
+  if (!card) return;
+  cards.value.splice(idx, 1);
+  backlogCards.value.push({ ...card, sprintId: null });
   try {
     await api(`/cards/${cardId}`, {
       method: "PATCH",
-      body: { status: toStatus },
+      body: { sprintId: null },
     });
   } catch (err) {
-    console.error("Failed to update card status, reloading", err);
+    console.error("Failed to move card to backlog, reloading", err);
     await loadCards();
   }
 }
@@ -167,6 +223,30 @@ async function completeSprint() {
           {{ sprint.goal }}
         </p>
         <div class="flex gap-3 flex-1 min-h-0 min-w-0 overflow-x-auto">
+          <template v-if="showBacklog">
+            <BacklogColumn
+              v-if="backlogExpanded"
+              :cards="backlogCards"
+              :closable="sprint.status === 'active'"
+              @card-moved-to-backlog="onMoveToBacklog"
+              @close="backlogExpanded = false"
+            />
+            <button
+              v-else
+              type="button"
+              class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-default hover:bg-elevated/40 hover:border-primary/40 transition shrink-0 py-3"
+              style="width: 36px;"
+              @click="backlogExpanded = true"
+            >
+              <UIcon name="i-lucide-inbox" class="size-4 text-muted" />
+              <span
+                class="text-xs font-semibold text-muted whitespace-nowrap"
+                style="writing-mode: vertical-rl; transform: rotate(180deg);"
+              >
+                Backlog ({{ backlogCards.length }})
+              </span>
+            </button>
+          </template>
           <BoardColumn
             v-for="status in cardStatusOrder"
             :key="status"

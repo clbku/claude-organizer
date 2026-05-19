@@ -6,6 +6,7 @@ const links = computed<NavigationMenuItem[][]>(() => [
     { label: "Projects", icon: "i-lucide-folder", to: "/" },
     { label: "Board", icon: "i-lucide-kanban", to: "/board" },
     { label: "Sprints", icon: "i-lucide-timer", to: "/sprints" },
+    { label: "Backlog", icon: "i-lucide-inbox", to: "/backlog" },
     { label: "Docs", icon: "i-lucide-book", to: "/docs" },
   ],
 ]);

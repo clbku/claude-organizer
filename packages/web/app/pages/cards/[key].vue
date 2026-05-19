@@ -23,8 +23,17 @@ const descriptionToolbarItems: EditorToolbarItem[] = [
 ];
 
 const route = useRoute();
+const router = useRouter();
 const api = useApi();
 const cardKey = computed(() => String(route.params.key));
+
+function goBack() {
+  if (import.meta.client && window.history.length > 1) {
+    router.back();
+  } else {
+    router.push("/board");
+  }
+}
 
 const card = ref<Card | null>(null);
 const comments = ref<Comment[]>([]);
@@ -253,7 +262,7 @@ function formatDate(iso: string) {
             icon="i-lucide-arrow-left"
             color="neutral"
             variant="ghost"
-            to="/board"
+            @click="goBack"
           />
         </template>
         <template #right>
