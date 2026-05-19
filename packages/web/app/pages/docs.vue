@@ -311,7 +311,7 @@ async function removeDoc() {
             Select a doc on the left, or create a new one.
           </div>
 
-          <div v-else class="max-w-3xl mx-auto space-y-4">
+          <div v-else class="max-w-5xl mx-auto space-y-4">
             <div class="flex items-center gap-2">
               <UInput
                 v-model="editing.title"
