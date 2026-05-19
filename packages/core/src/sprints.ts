@@ -35,6 +35,15 @@ export async function getActiveSprint(db: Database, projectId: string) {
   return row ?? null;
 }
 
+export async function getSprint(db: Database, id: string) {
+  const [row] = await db
+    .select()
+    .from(schema.sprints)
+    .where(eq(schema.sprints.id, id))
+    .limit(1);
+  return row ?? null;
+}
+
 export async function createSprint(db: Database, input: CreateSprintInput) {
   const parsed = createSprintInput.parse(input);
   const [row] = await db

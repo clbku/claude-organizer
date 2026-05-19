@@ -4,6 +4,7 @@ import {
   completeSprint,
   createSprint,
   getActiveSprint,
+  getSprint,
   listSprints,
   startSprint,
 } from "@claude-organizer/core";
@@ -18,6 +19,12 @@ export function registerSprintRoutes(app: FastifyInstance, db: Database) {
     "/sprints/active",
     async (req) => getActiveSprint(db, req.query.projectId),
   );
+
+  app.get<{ Params: { id: string } }>("/sprints/:id", async (req, reply) => {
+    const sprint = await getSprint(db, req.params.id);
+    if (!sprint) return reply.code(404).send({ error: "not_found" });
+    return sprint;
+  });
 
   app.post("/sprints", async (req, reply) => {
     try {
