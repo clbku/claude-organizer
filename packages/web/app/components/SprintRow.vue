@@ -64,9 +64,14 @@ defineEmits<{
       <span class="text-muted">total: {{ stats.total }}</span>
     </div>
 
-    <div class="flex items-center gap-3 mt-2 text-xs text-muted/80">
-      <span>start: {{ formatDate(sprint.startsAt) }}</span>
-      <span>end: {{ formatDate(sprint.endsAt) }}</span>
+    <div
+      v-if="sprint.startsAt || sprint.endsAt"
+      class="flex items-center gap-3 mt-2 text-xs text-muted/80"
+    >
+      <span v-if="sprint.startsAt">
+        start: {{ formatDate(sprint.startsAt) }}
+      </span>
+      <span v-if="sprint.endsAt">end: {{ formatDate(sprint.endsAt) }}</span>
     </div>
   </div>
 </template>

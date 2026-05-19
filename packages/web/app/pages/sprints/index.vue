@@ -2,7 +2,6 @@
 import { useProjectStore } from "~/stores/project";
 import type { Sprint } from "~/composables/useActiveSprint";
 import type { Card, CardStatus } from "~/types/card";
-import { cardStatusMeta } from "~/types/card";
 
 const store = useProjectStore();
 const { currentProject, currentProjectId } = storeToRefs(store);
@@ -45,7 +44,7 @@ useProjectEvents(currentProjectId, (event) => {
   }
 });
 
-const groupedSprints = computed(() => {
+const sections = computed(() => {
   const groups: Record<Sprint["status"], Sprint[]> = {
     active: [],
     planned: [],
@@ -53,7 +52,11 @@ const groupedSprints = computed(() => {
     cancelled: [],
   };
   for (const s of sprints.value) groups[s.status].push(s);
-  return groups;
+  return [
+    { key: "active", label: "Active", items: groups.active },
+    { key: "planned", label: "Planned", items: groups.planned },
+    { key: "completed", label: "Completed", items: groups.completed },
+  ];
 });
 
 function statsFor(sprintId: string) {
@@ -73,25 +76,6 @@ function formatDate(iso: string | null) {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString();
 }
-
-const tabs = computed(() => [
-  {
-    label: `Active (${groupedSprints.value.active.length})`,
-    slot: "active" as const,
-    value: "active",
-  },
-  {
-    label: `Planned (${groupedSprints.value.planned.length})`,
-    slot: "planned" as const,
-    value: "planned",
-  },
-  {
-    label: `Completed (${groupedSprints.value.completed.length})`,
-    slot: "completed" as const,
-    value: "completed",
-  },
-]);
-const selectedTab = ref("active");
 
 async function startSprint(id: string) {
   await api(`/sprints/${id}/start`, { method: "POST" });
@@ -146,59 +130,39 @@ async function createSprint() {
         Pick a project in the sidebar.
       </div>
 
-      <UTabs
-        v-else
-        v-model="selectedTab"
-        :items="tabs"
-        :ui="{ list: 'mb-4' }"
-      >
-        <template #active>
-          <div v-if="!groupedSprints.active.length" class="text-muted text-sm py-6">
-            No active sprint. Start one from the Planned tab.
-          </div>
-          <div v-else class="space-y-3">
-            <SprintRow
-              v-for="s in groupedSprints.active"
-              :key="s.id"
-              :sprint="s"
-              :stats="statsFor(s.id)"
-              :format-date="formatDate"
-              @complete="completeSprint(s.id)"
-            />
-          </div>
-        </template>
+      <div v-else class="space-y-8 w-full">
+        <section v-for="section in sections" :key="section.key">
+          <h2 class="text-xs font-semibold text-muted uppercase tracking-wide mb-3 flex items-center gap-2">
+            {{ section.label }}
+            <span class="text-default">({{ section.items.length }})</span>
+          </h2>
 
-        <template #planned>
-          <div v-if="!groupedSprints.planned.length" class="text-muted text-sm py-6">
-            No planned sprints. Create one above.
+          <div
+            v-if="!section.items.length"
+            class="text-sm text-muted/60 italic"
+          >
+            <template v-if="section.key === 'active'">
+              No active sprint. Start one from the Planned list below.
+            </template>
+            <template v-else-if="section.key === 'planned'">
+              No planned sprints. Create one with the button above.
+            </template>
+            <template v-else>No completed sprints yet.</template>
           </div>
+
           <div v-else class="space-y-3">
             <SprintRow
-              v-for="s in groupedSprints.planned"
+              v-for="s in section.items"
               :key="s.id"
               :sprint="s"
               :stats="statsFor(s.id)"
               :format-date="formatDate"
               @start="startSprint(s.id)"
+              @complete="completeSprint(s.id)"
             />
           </div>
-        </template>
-
-        <template #completed>
-          <div v-if="!groupedSprints.completed.length" class="text-muted text-sm py-6">
-            No completed sprints yet.
-          </div>
-          <div v-else class="space-y-3">
-            <SprintRow
-              v-for="s in groupedSprints.completed"
-              :key="s.id"
-              :sprint="s"
-              :stats="statsFor(s.id)"
-              :format-date="formatDate"
-            />
-          </div>
-        </template>
-      </UTabs>
+        </section>
+      </div>
     </template>
   </UDashboardPanel>
 
@@ -208,7 +172,10 @@ async function createSprint() {
         <UFormField label="Name" required>
           <UInput v-model="newSprint.name" placeholder="Fase 3 - Roadmaps" />
         </UFormField>
-        <UFormField label="Goal" hint="Optional summary of what this sprint aims to achieve">
+        <UFormField
+          label="Goal"
+          hint="Optional summary of what this sprint aims to achieve"
+        >
           <UTextarea v-model="newSprint.goal" :rows="3" />
         </UFormField>
       </div>

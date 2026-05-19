@@ -83,7 +83,11 @@ export async function startSprint(db: Database, sprintId: string) {
 
     const [activated] = await tx
       .update(schema.sprints)
-      .set({ status: "active", updatedAt: sql`now()` })
+      .set({
+        status: "active",
+        startsAt: sql`COALESCE(${schema.sprints.startsAt}, now())`,
+        updatedAt: sql`now()`,
+      })
       .where(eq(schema.sprints.id, sprintId))
       .returning();
     return activated ?? null;
@@ -101,7 +105,11 @@ export async function startSprint(db: Database, sprintId: string) {
 export async function completeSprint(db: Database, sprintId: string) {
   const [row] = await db
     .update(schema.sprints)
-    .set({ status: "completed", updatedAt: sql`now()` })
+    .set({
+      status: "completed",
+      endsAt: sql`COALESCE(${schema.sprints.endsAt}, now())`,
+      updatedAt: sql`now()`,
+    })
     .where(eq(schema.sprints.id, sprintId))
     .returning();
   if (row) {
