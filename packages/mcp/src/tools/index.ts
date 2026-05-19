@@ -4,12 +4,14 @@ import { registerProjectTools } from "./projects";
 import { registerCardTools } from "./cards";
 import { registerSprintTools } from "./sprints";
 import { registerCommentTools } from "./comments";
+import { registerDocTools } from "./docs";
 
 export function registerTools(server: McpServer, db: Database) {
   registerProjectTools(server, db);
   registerSprintTools(server, db);
   registerCardTools(server, db);
   registerCommentTools(server, db);
+  registerDocTools(server, db);
 }
 
 export function asJson(value: unknown) {

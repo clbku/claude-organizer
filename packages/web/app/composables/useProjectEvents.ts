@@ -24,6 +24,11 @@ export type CoEvent =
       sprintId: string;
     }
   | {
+      type: "doc.changed";
+      projectId: string;
+      docId: string;
+    }
+  | {
       type: "project.changed";
       projectId: string;
     }

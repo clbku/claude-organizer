@@ -21,6 +21,7 @@ export const docs = pgTable(
       onDelete: "cascade",
     }),
     title: text("title").notNull(),
+    summary: text("summary"),
     bodyMd: text("body_md"),
     kind: docKindEnum("kind").notNull().default("note"),
     position: integer("position").notNull().default(0),

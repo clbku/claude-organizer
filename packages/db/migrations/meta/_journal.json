@@ -15,6 +15,13 @@
       "when": 1779221281208,
       "tag": "0001_quick_lucky_pierre",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779226879061,
+      "tag": "0002_lush_lady_ursula",
+      "breakpoints": true
     }
   ]
 }
