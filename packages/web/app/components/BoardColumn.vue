@@ -6,7 +6,6 @@ import { cardStatusMeta } from "~/types/card";
 const props = defineProps<{
   status: CardStatus;
   cards: Card[];
-  loading?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -35,14 +34,6 @@ function onAdd(event: { data: Card }) {
 
 <template>
   <div
-    v-if="loading"
-    class="flex flex-col bg-elevated/40 rounded-lg border border-default overflow-hidden h-full"
-    style="flex: 1 1 0; min-width: 200px;"
-  >
-    <USkeleton class="size-full rounded-none" />
-  </div>
-  <div
-    v-else
     class="flex flex-col bg-elevated/40 rounded-lg border border-default overflow-hidden h-full"
     style="flex: 1 1 0; min-width: 200px;"
   >

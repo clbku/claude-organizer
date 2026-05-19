@@ -4,43 +4,27 @@ import type { Card, CardStatus } from "~/types/card";
 import { cardStatusOrder } from "~/types/card";
 
 const store = useProjectStore();
-const { currentProject, currentProjectId, loading: projectsLoading } =
-  storeToRefs(store);
+const { currentProject, currentProjectId } = storeToRefs(store);
 const api = useApi();
 
-const {
-  data: activeSprint,
-  pending: sprintLoading,
-  refresh: refreshSprint,
-} = useActiveSprint(() => currentProjectId.value);
+const { data: activeSprint, refresh: refreshSprint } = useActiveSprint(
+  () => currentProjectId.value,
+);
 
 const cards = ref<Card[]>([]);
-const cardsFetched = ref(false);
 
 async function loadCards() {
   if (!activeSprint.value || !currentProjectId.value) {
     cards.value = [];
-    cardsFetched.value = true;
     return;
   }
-  try {
-    cards.value = await api<Card[]>("/cards", {
-      query: {
-        projectId: currentProjectId.value,
-        sprintId: activeSprint.value.id,
-      },
-    });
-  } finally {
-    cardsFetched.value = true;
-  }
+  cards.value = await api<Card[]>("/cards", {
+    query: {
+      projectId: currentProjectId.value,
+      sprintId: activeSprint.value.id,
+    },
+  });
 }
-
-const boardReady = computed(() => {
-  if (projectsLoading.value) return false;
-  if (sprintLoading.value) return false;
-  if (!currentProjectId.value || !activeSprint.value) return true;
-  return cardsFetched.value;
-});
 
 watch(
   [currentProjectId, activeSprint],
@@ -110,19 +94,7 @@ async function onCardMoved(cardId: string, toStatus: CardStatus) {
     </template>
 
     <template #body>
-      <div
-        v-if="!boardReady"
-        class="flex gap-3 flex-1 min-h-0 min-w-0 overflow-x-auto"
-      >
-        <BoardColumn
-          v-for="status in cardStatusOrder"
-          :key="status"
-          :status="status"
-          :cards="[]"
-          :loading="true"
-        />
-      </div>
-      <div v-else-if="!currentProject" class="text-center text-muted py-12">
+      <div v-if="!currentProject" class="text-center text-muted py-12">
         Pick a project in the sidebar.
       </div>
       <div v-else-if="!activeSprint" class="text-center text-muted py-12">
