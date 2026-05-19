@@ -15,6 +15,7 @@ const CURRENT_PROJECT_COOKIE = "organizer.currentProjectSlug";
 
 export const useProjectStore = defineStore("project", () => {
   const projects = ref<Project[]>([]);
+  const loading = ref(true);
   const currentSlug = useCookie<string | null>(CURRENT_PROJECT_COOKIE, {
     default: () => null,
     sameSite: "lax",
@@ -30,7 +31,11 @@ export const useProjectStore = defineStore("project", () => {
 
   async function loadProjects() {
     const api = useApi();
-    projects.value = await api<Project[]>("/projects");
+    try {
+      projects.value = await api<Project[]>("/projects");
+    } finally {
+      loading.value = false;
+    }
   }
 
   function setCurrent(slug: string) {
@@ -47,6 +52,7 @@ export const useProjectStore = defineStore("project", () => {
 
   return {
     projects,
+    loading,
     currentProject,
     currentProjectId,
     currentSlug,

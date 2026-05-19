@@ -2,7 +2,7 @@
 import { useProjectStore } from "~/stores/project";
 
 const store = useProjectStore();
-const { projects, currentProject } = storeToRefs(store);
+const { projects, currentProject, loading: projectsLoading } = storeToRefs(store);
 
 const api = useApi();
 const open = ref(false);
@@ -76,7 +76,13 @@ function selectProject(slug: string) {
     </template>
 
     <template #body>
-      <div v-if="!projects.length" class="text-center text-muted py-12">
+      <div
+        v-if="projectsLoading && !projects.length"
+        class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
+      >
+        <AppProjectSkeleton v-for="i in 6" :key="`sk-${i}`" />
+      </div>
+      <div v-else-if="!projects.length" class="text-center text-muted py-12">
         No projects yet. Create one to start.
       </div>
       <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

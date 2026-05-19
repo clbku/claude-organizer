@@ -12,7 +12,14 @@ export default defineNuxtConfig({
   typescript: { strict: true },
   vite: {
     optimizeDeps: {
-      include: ["vue-draggable-plus"],
+      include: [
+        "vue-draggable-plus",
+        "@nuxt/ui > prosemirror-state",
+        "@nuxt/ui > prosemirror-transform",
+        "@nuxt/ui > prosemirror-model",
+        "@nuxt/ui > prosemirror-view",
+        "@nuxt/ui > prosemirror-gapcursor",
+      ],
     },
   },
 });

@@ -2,50 +2,35 @@
 import type { Card, CardStatus } from "~/types/card";
 import type { Comment } from "~/types/comment";
 import type { Sprint } from "~/composables/useActiveSprint";
+import type { EditorToolbarItem } from "@nuxt/ui";
 import { cardStatusMeta, cardStatusOrder } from "~/types/card";
+
+const descriptionToolbarItems: EditorToolbarItem[] = [
+  { kind: "mark", mark: "bold", icon: "i-lucide-bold" },
+  { kind: "mark", mark: "italic", icon: "i-lucide-italic" },
+  { kind: "mark", mark: "strike", icon: "i-lucide-strikethrough" },
+  { kind: "mark", mark: "code", icon: "i-lucide-code" },
+  { kind: "heading", level: 2, icon: "i-lucide-heading-2" },
+  { kind: "heading", level: 3, icon: "i-lucide-heading-3" },
+  { kind: "bulletList", icon: "i-lucide-list" },
+  { kind: "orderedList", icon: "i-lucide-list-ordered" },
+  { kind: "blockquote", icon: "i-lucide-quote" },
+  { kind: "codeBlock", icon: "i-lucide-code-2" },
+  { kind: "link", icon: "i-lucide-link" },
+  { kind: "horizontalRule", icon: "i-lucide-minus" },
+  { kind: "undo", icon: "i-lucide-undo" },
+  { kind: "redo", icon: "i-lucide-redo" },
+];
 
 const route = useRoute();
 const api = useApi();
 const cardKey = computed(() => String(route.params.key));
 
-const {
-  data: card,
-  pending: cardPending,
-  error: cardError,
-  refresh: refreshCard,
-} = await useAsyncData<Card | null>(
-  () => `card:${cardKey.value}`,
-  async () => {
-    try {
-      return await api<Card>(`/cards/by-key/${cardKey.value}`);
-    } catch {
-      return null;
-    }
-  },
-  { watch: [cardKey] },
-);
-
-const { data: comments, refresh: refreshComments } = await useAsyncData<Comment[]>(
-  () => `comments:${card.value?.id ?? "none"}`,
-  async () => {
-    if (!card.value) return [];
-    return api<Comment[]>(`/cards/${card.value.id}/comments`, {
-      query: { markAsRead: "false" },
-    });
-  },
-  { watch: [() => card.value?.id] },
-);
-
-const { data: sprints } = await useAsyncData<Sprint[]>(
-  () => `sprints:${card.value?.projectId ?? "none"}`,
-  async () => {
-    if (!card.value?.projectId) return [];
-    return api<Sprint[]>("/sprints", {
-      query: { projectId: card.value.projectId },
-    });
-  },
-  { watch: [() => card.value?.projectId] },
-);
+const card = ref<Card | null>(null);
+const comments = ref<Comment[]>([]);
+const sprints = ref<Sprint[]>([]);
+const cardLoading = ref(true);
+const cardError = ref<unknown>(null);
 
 const editing = reactive({
   title: "",
@@ -53,14 +38,78 @@ const editing = reactive({
   descriptionMd: "",
 });
 
-watch(
-  () => card.value,
-  (c) => {
-    if (c) {
-      editing.title = c.title;
-      editing.summary = c.summary ?? "";
-      editing.descriptionMd = c.descriptionMd ?? "";
+async function fetchCard(): Promise<Card | null> {
+  try {
+    return await api<Card>(`/cards/by-key/${cardKey.value}`);
+  } catch (err) {
+    cardError.value = err;
+    return null;
+  }
+}
+
+async function fetchComments(cardId: string) {
+  return api<Comment[]>(`/cards/${cardId}/comments`, {
+    query: { markAsRead: "false" },
+  });
+}
+
+async function fetchSprints(projectId: string) {
+  return api<Sprint[]>("/sprints", { query: { projectId } });
+}
+
+// Initial load: full state replacement, syncs editing fields, toggles loading.
+async function loadCard() {
+  cardLoading.value = true;
+  cardError.value = null;
+  const fresh = await fetchCard();
+  card.value = fresh;
+  if (fresh) {
+    editing.title = fresh.title;
+    editing.summary = fresh.summary ?? "";
+    editing.descriptionMd = fresh.descriptionMd ?? "";
+    [comments.value, sprints.value] = await Promise.all([
+      fetchComments(fresh.id),
+      fetchSprints(fresh.projectId),
+    ]);
+  }
+  cardLoading.value = false;
+}
+
+// Silent refresh: no loading flag, smart-syncs editing fields only when the
+// user hasn't diverged locally (avoids overwriting mid-edit).
+async function refreshCard() {
+  const fresh = await fetchCard();
+  if (!fresh) return;
+  const previous = card.value;
+  card.value = fresh;
+  if (previous && previous.id === fresh.id) {
+    if (editing.title === previous.title && fresh.title !== editing.title) {
+      editing.title = fresh.title;
     }
+    if (
+      editing.summary === (previous.summary ?? "") &&
+      (fresh.summary ?? "") !== editing.summary
+    ) {
+      editing.summary = fresh.summary ?? "";
+    }
+    if (
+      editing.descriptionMd === (previous.descriptionMd ?? "") &&
+      (fresh.descriptionMd ?? "") !== editing.descriptionMd
+    ) {
+      editing.descriptionMd = fresh.descriptionMd ?? "";
+    }
+  }
+}
+
+async function refreshComments() {
+  if (!card.value) return;
+  comments.value = await fetchComments(card.value.id);
+}
+
+watch(
+  cardKey,
+  () => {
+    loadCard();
   },
   { immediate: true },
 );
@@ -84,7 +133,8 @@ useProjectEvents(
 );
 
 const saving = ref(false);
-const justSavedAt = ref<number | null>(null);
+const justSaved = ref(false);
+let savedTimer: ReturnType<typeof setTimeout> | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function patch(body: Record<string, unknown>) {
@@ -96,30 +146,44 @@ async function patch(body: Record<string, unknown>) {
       body,
     });
     card.value = updated;
-    justSavedAt.value = Date.now();
+    justSaved.value = true;
+    if (savedTimer) clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => {
+      justSaved.value = false;
+    }, 1500);
   } finally {
     saving.value = false;
   }
 }
 
-function scheduleTextSave() {
-  if (!card.value) return;
+function buildDirtyPatch(): Record<string, unknown> | null {
+  if (!card.value) return null;
+  const body: Record<string, unknown> = {};
+  const trimmedTitle = editing.title.trim();
+  if (trimmedTitle && trimmedTitle !== card.value.title) {
+    body.title = trimmedTitle;
+  }
+  if (editing.summary !== (card.value.summary ?? "")) {
+    body.summary = editing.summary.trim() ? editing.summary : null;
+  }
+  if (editing.descriptionMd !== (card.value.descriptionMd ?? "")) {
+    body.descriptionMd = editing.descriptionMd;
+  }
+  return Object.keys(body).length > 0 ? body : null;
+}
+
+function scheduleSave() {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
-    if (!card.value) return;
-    const body: Record<string, unknown> = {};
-    if (editing.title !== card.value.title) body.title = editing.title;
-    if (editing.summary !== (card.value.summary ?? "")) {
-      body.summary = editing.summary.trim() ? editing.summary : null;
-    }
-    if (editing.descriptionMd !== (card.value.descriptionMd ?? "")) {
-      body.descriptionMd = editing.descriptionMd;
-    }
-    if (Object.keys(body).length > 0) patch(body);
+    const body = buildDirtyPatch();
+    if (body) patch(body);
   }, 800);
 }
 
-watch(() => [editing.title, editing.summary, editing.descriptionMd], scheduleTextSave);
+watch(
+  () => [editing.title, editing.summary, editing.descriptionMd],
+  scheduleSave,
+);
 
 const dueDateInput = computed({
   get: () => (card.value?.dueDate ? card.value.dueDate.slice(0, 10) : ""),
@@ -203,8 +267,8 @@ function formatDate(iso: string) {
             <UIcon name="i-lucide-loader-2" class="animate-spin" /> Saving…
           </span>
           <span
-            v-else-if="justSavedAt"
-            class="text-xs text-muted ml-2 flex items-center gap-1"
+            v-else-if="justSaved"
+            class="text-xs text-muted ml-2 flex items-center gap-1 transition-opacity"
           >
             <UIcon name="i-lucide-check" /> Saved
           </span>
@@ -213,7 +277,7 @@ function formatDate(iso: string) {
     </template>
 
     <template #body>
-      <div v-if="cardPending" class="text-muted py-12 text-center">Loading…</div>
+      <div v-if="cardLoading" class="text-muted py-12 text-center">Loading…</div>
       <div v-else-if="cardError" class="text-error py-12 text-center">
         Error loading card.
       </div>
@@ -256,24 +320,22 @@ function formatDate(iso: string) {
             <label class="text-xs font-semibold text-muted uppercase tracking-wide block mb-1.5">
               Description
             </label>
-            <UTextarea
-              v-model="editing.descriptionMd"
-              :rows="10"
-              placeholder="Full markdown description…"
-              class="w-full font-mono text-sm"
-            />
-            <details
-              v-if="editing.descriptionMd"
-              class="mt-2"
-            >
-              <summary class="text-xs text-muted cursor-pointer select-none">
-                Preview
-              </summary>
-              <AppMarkdown
-                :value="editing.descriptionMd"
-                class="mt-2 p-3 border border-default rounded-md text-sm leading-relaxed [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-semibold [&_code]:bg-elevated [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-4 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-3"
-              />
-            </details>
+            <div class="border border-default rounded-md overflow-hidden">
+              <UEditor
+                v-slot="{ editor }"
+                v-model="editing.descriptionMd"
+                content-type="markdown"
+                placeholder="Write a description… (markdown supported)"
+                class="min-h-[200px]"
+                :ui="{ base: 'px-3 py-2 [&_*]:my-2 [&_*:first-child]:!mt-0 [&_*:last-child]:!mb-0' }"
+              >
+                <UEditorToolbar
+                  :editor="editor"
+                  :items="descriptionToolbarItems"
+                  class="border-b border-default bg-elevated/30"
+                />
+              </UEditor>
+            </div>
           </section>
 
           <section>
