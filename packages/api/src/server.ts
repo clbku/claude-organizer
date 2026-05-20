@@ -7,6 +7,7 @@ import { registerProjectRoutes } from "./routes/projects";
 import { registerCardRoutes } from "./routes/cards";
 import { registerSprintRoutes } from "./routes/sprints";
 import { registerCommentRoutes } from "./routes/comments";
+import { registerTagRoutes } from "./routes/tags";
 import { registerDocRoutes } from "./routes/docs";
 import { registerEventsWs } from "./routes/events-ws";
 
@@ -33,6 +34,7 @@ registerProjectRoutes(app, db);
 registerSprintRoutes(app, db);
 registerCardRoutes(app, db);
 registerCommentRoutes(app, db);
+registerTagRoutes(app, db);
 registerDocRoutes(app, db);
 registerEventsWs(app);
 

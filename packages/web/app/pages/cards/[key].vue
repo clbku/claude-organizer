@@ -2,6 +2,7 @@
 import type { Card, CardStatus } from "~/types/card";
 import type { Comment } from "~/types/comment";
 import type { Sprint } from "~/composables/useActiveSprint";
+import type { Tag } from "~/types/tag";
 import type { EditorToolbarItem } from "@nuxt/ui";
 import { cardStatusMeta, cardStatusOrder } from "~/types/card";
 
@@ -137,6 +138,8 @@ useProjectEvents(
       event.cardId === card.value.id
     ) {
       refreshComments();
+    } else if (event.type === "project.changed") {
+      refreshCard();
     }
   },
 );
@@ -239,6 +242,10 @@ async function submitComment() {
   } finally {
     submittingComment.value = false;
   }
+}
+
+function onTagsChange(tags: Tag[]) {
+  if (card.value) card.value = { ...card.value, tags };
 }
 
 const meta = computed(() =>
@@ -469,6 +476,18 @@ function formatDate(iso: string) {
                 v-model="dueDateInput"
                 type="date"
                 class="w-full"
+              />
+            </div>
+
+            <div>
+              <label class="text-xs font-semibold text-muted uppercase tracking-wide block mb-1.5">
+                Tags
+              </label>
+              <TagSelector
+                :card-id="card.id"
+                :project-id="card.projectId"
+                :model-value="card.tags ?? []"
+                @update:model-value="onTagsChange"
               />
             </div>
           </div>

@@ -80,6 +80,9 @@ function onAdd(event: { data: Card }) {
         >
           {{ card.summary }}
         </p>
+        <div v-if="card.tags?.length" class="flex flex-wrap gap-1 mt-1.5">
+          <TagBadge v-for="t in card.tags" :key="t.id" :tag="t" size="xs" />
+        </div>
       </div>
     </VueDraggable>
   </div>

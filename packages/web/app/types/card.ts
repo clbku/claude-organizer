@@ -1,3 +1,5 @@
+import type { Tag } from "~/types/tag";
+
 export type CardStatus =
   | "todo"
   | "in_progress"
@@ -19,6 +21,7 @@ export interface Card {
   position: number;
   createdAt: string;
   updatedAt: string;
+  tags?: Tag[];
 }
 
 export const cardStatusOrder: CardStatus[] = [

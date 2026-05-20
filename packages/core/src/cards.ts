@@ -2,6 +2,7 @@ import { createId, schema, type Database } from "@claude-organizer/db";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { notify } from "./events";
+import { listCardTags, tagsByCardIds } from "./tags";
 
 const cardStatus = z.enum([
   "todo",
@@ -71,11 +72,16 @@ export async function listCards(db: Database, filters: ListCardsFilters) {
   if (filters.status) {
     conditions.push(eq(schema.cards.status, filters.status));
   }
-  return db
+  const rows = await db
     .select(cardSummaryColumns)
     .from(schema.cards)
     .where(and(...conditions))
     .orderBy(asc(schema.cards.position), desc(schema.cards.createdAt));
+  const tagMap = await tagsByCardIds(
+    db,
+    rows.map((r) => r.id),
+  );
+  return rows.map((r) => ({ ...r, tags: tagMap.get(r.id) ?? [] }));
 }
 
 export async function getCard(db: Database, id: string) {
@@ -84,7 +90,8 @@ export async function getCard(db: Database, id: string) {
     .from(schema.cards)
     .where(eq(schema.cards.id, id))
     .limit(1);
-  return row ?? null;
+  if (!row) return null;
+  return { ...row, tags: await listCardTags(db, row.id) };
 }
 
 export async function getCardByKey(db: Database, key: string) {
@@ -93,7 +100,8 @@ export async function getCardByKey(db: Database, key: string) {
     .from(schema.cards)
     .where(eq(schema.cards.key, key))
     .limit(1);
-  return row ?? null;
+  if (!row) return null;
+  return { ...row, tags: await listCardTags(db, row.id) };
 }
 
 export async function createCard(db: Database, input: CreateCardInput) {

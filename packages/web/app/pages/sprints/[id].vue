@@ -83,9 +83,18 @@ useProjectEvents(
       event.sprintId === sprintId.value
     ) {
       loadSprint();
+    } else if (event.type === "project.changed") {
+      loadCards();
     }
   },
 );
+
+const selectedTagIds = ref<string[]>([]);
+const filteredCards = computed(() => {
+  if (!selectedTagIds.value.length) return cards.value;
+  const sel = new Set(selectedTagIds.value);
+  return cards.value.filter((c) => c.tags?.some((t) => sel.has(t.id)));
+});
 
 const columns = computed<Record<CardStatus, Card[]>>(() => {
   const grouped: Record<CardStatus, Card[]> = {
@@ -95,7 +104,7 @@ const columns = computed<Record<CardStatus, Card[]>>(() => {
     done: [],
     blocked: [],
   };
-  for (const c of cards.value) grouped[c.status].push(c);
+  for (const c of filteredCards.value) grouped[c.status].push(c);
   for (const status of cardStatusOrder) {
     grouped[status].sort(
       (a, b) => a.position - b.position || b.priority - a.priority,
@@ -256,6 +265,12 @@ async function completeSprint() {
           class="w-full shrink-0"
           :ui="{ base: 'text-sm text-muted !px-0 resize-none' }"
         />
+        <div class="flex items-center justify-end gap-2 shrink-0">
+          <BoardTagFilter
+            v-model="selectedTagIds"
+            :project-id="sprint.projectId"
+          />
+        </div>
         <div class="flex gap-3 flex-1 min-h-0 min-w-0 overflow-x-auto">
           <template v-if="showBacklog">
             <BacklogColumn

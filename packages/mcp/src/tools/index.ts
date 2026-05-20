@@ -4,6 +4,7 @@ import { registerProjectTools } from "./projects";
 import { registerCardTools } from "./cards";
 import { registerSprintTools } from "./sprints";
 import { registerCommentTools } from "./comments";
+import { registerTagTools } from "./tags";
 import { registerDocTools } from "./docs";
 
 export function registerTools(server: McpServer, db: Database) {
@@ -11,6 +12,7 @@ export function registerTools(server: McpServer, db: Database) {
   registerSprintTools(server, db);
   registerCardTools(server, db);
   registerCommentTools(server, db);
+  registerTagTools(server, db);
   registerDocTools(server, db);
 }
 
