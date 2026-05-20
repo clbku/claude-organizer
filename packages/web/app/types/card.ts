@@ -22,6 +22,27 @@ export interface Card {
   createdAt: string;
   updatedAt: string;
   tags?: Tag[];
+  parentId?: string | null;
+  parentKey?: string | null;
+  subtaskCount?: number;
+  subtaskDone?: number;
+  subtasks?: CardSubtask[];
+  parent?: CardParent | null;
+}
+
+export interface CardSubtask {
+  id: string;
+  key: string;
+  title: string;
+  status: CardStatus;
+  priority: number;
+}
+
+export interface CardParent {
+  id: string;
+  key: string;
+  title: string;
+  status: CardStatus;
 }
 
 export const cardStatusOrder: CardStatus[] = [

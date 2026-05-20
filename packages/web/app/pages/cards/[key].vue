@@ -29,16 +29,21 @@ const api = useApi();
 const cardKey = computed(() => String(route.params.key));
 
 function goBack() {
-  if (import.meta.client && window.history.length > 1) {
-    router.back();
-  } else {
-    router.push("/board");
+  const sprintId = card.value?.sprintId;
+  if (!sprintId) {
+    router.push("/backlog");
+    return;
   }
+  const active = sprints.value.find((s) => s.status === "active");
+  router.push(
+    active && active.id === sprintId ? "/board" : `/sprints/${sprintId}`,
+  );
 }
 
 const card = ref<Card | null>(null);
 const comments = ref<Comment[]>([]);
 const sprints = ref<Sprint[]>([]);
+const allCards = ref<Card[]>([]);
 const cardLoading = ref(true);
 const cardError = ref<unknown>(null);
 
@@ -67,6 +72,10 @@ async function fetchSprints(projectId: string) {
   return api<Sprint[]>("/sprints", { query: { projectId } });
 }
 
+async function fetchProjectCards(projectId: string) {
+  return api<Card[]>("/cards", { query: { projectId } });
+}
+
 // Initial load: full state replacement, syncs editing fields, toggles loading.
 async function loadCard() {
   cardLoading.value = true;
@@ -77,9 +86,10 @@ async function loadCard() {
     editing.title = fresh.title;
     editing.summary = fresh.summary ?? "";
     editing.descriptionMd = fresh.descriptionMd ?? "";
-    [comments.value, sprints.value] = await Promise.all([
+    [comments.value, sprints.value, allCards.value] = await Promise.all([
       fetchComments(fresh.id),
       fetchSprints(fresh.projectId),
+      fetchProjectCards(fresh.projectId),
     ]);
   }
   cardLoading.value = false;
@@ -157,7 +167,7 @@ async function patch(body: Record<string, unknown>) {
       method: "PATCH",
       body,
     });
-    card.value = updated;
+    card.value = { ...card.value, ...updated };
     justSaved.value = true;
     if (savedTimer) clearTimeout(savedTimer);
     savedTimer = setTimeout(() => {
@@ -226,6 +236,55 @@ const sprintOptions = computed(() => {
   ];
 });
 
+// História (parent): top-level cards, excluding this one.
+const storyOptions = computed(() => {
+  const list = allCards.value.filter(
+    (c) => !c.parentId && c.id !== card.value?.id,
+  );
+  return [
+    { label: "Nenhuma", value: null as string | null },
+    ...list.map((c) => ({
+      label: `${c.key} · ${c.title}`,
+      value: c.id as string | null,
+    })),
+  ];
+});
+
+// Candidatos a virar sub-task: cards livres (sem pai e sem filhos), != atual.
+const subtaskCandidateOptions = computed(() =>
+  allCards.value
+    .filter((c) => c.id !== card.value?.id && !c.parentId && !c.subtaskCount)
+    .map((c) => ({ value: c.id, label: `${c.key} · ${c.title}` })),
+);
+
+async function refreshProjectCards() {
+  if (card.value) {
+    allCards.value = await fetchProjectCards(card.value.projectId);
+  }
+}
+
+// Bumped after each add to remount the select, resetting its internal state
+// (otherwise it keeps showing the picked id after the card leaves the list).
+const subtaskSelectKey = ref(0);
+function onAddSubtask(v: string | undefined) {
+  subtaskSelectKey.value++;
+  if (v) addSubtask(v);
+}
+
+async function addSubtask(childId: string) {
+  if (!card.value) return;
+  await api(`/cards/${childId}`, {
+    method: "PATCH",
+    body: { parentId: card.value.id },
+  });
+  await Promise.all([refreshCard(), refreshProjectCards()]);
+}
+
+async function detachSubtask(childId: string) {
+  await api(`/cards/${childId}`, { method: "PATCH", body: { parentId: null } });
+  await Promise.all([refreshCard(), refreshProjectCards()]);
+}
+
 const newComment = ref("");
 const submittingComment = ref(false);
 
@@ -271,6 +330,20 @@ function formatDate(iso: string) {
             variant="ghost"
             @click="goBack"
           />
+        </template>
+        <template v-if="card" #title>
+          <div class="flex items-center gap-1.5 min-w-0 font-mono">
+            <NuxtLink
+              v-if="card.parent"
+              :to="`/cards/${card.parent.key}`"
+              class="shrink-0 text-muted hover:text-default transition"
+              :title="card.parent.title"
+            >
+              {{ card.parent.key }}
+            </NuxtLink>
+            <span v-if="card.parent" class="shrink-0 text-muted">/</span>
+            <span class="truncate font-bold">{{ card.key }}</span>
+          </div>
         </template>
         <template #right>
           <UBadge v-if="meta" :color="meta.color" variant="subtle">
@@ -352,6 +425,60 @@ function formatDate(iso: string) {
                 />
               </UEditor>
             </div>
+          </section>
+
+          <section v-if="!card.parentId">
+            <h2 class="text-xs font-semibold text-muted uppercase tracking-wide mb-3">
+              Sub-tasks
+              <span v-if="card.subtasks?.length" class="text-default ml-1">
+                ({{ card.subtasks.filter((s) => s.status === "done").length }}/{{
+                  card.subtasks.length
+                }})
+              </span>
+            </h2>
+            <ul v-if="card.subtasks?.length" class="space-y-1.5 mb-3">
+              <li
+                v-for="s in card.subtasks"
+                :key="s.id"
+                class="flex items-center gap-2 border border-default rounded-md px-2.5 py-1.5"
+              >
+                <UBadge
+                  :color="cardStatusMeta[s.status].color"
+                  variant="subtle"
+                  size="xs"
+                  class="shrink-0"
+                >
+                  {{ cardStatusMeta[s.status].label }}
+                </UBadge>
+                <NuxtLink
+                  :to="`/cards/${s.key}`"
+                  class="min-w-0 flex-1 truncate text-sm hover:underline"
+                >
+                  <span class="font-mono font-bold mr-1.5">{{ s.key }}</span>{{ s.title }}
+                </NuxtLink>
+                <UButton
+                  icon="i-lucide-x"
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  class="shrink-0"
+                  aria-label="Detach sub-task"
+                  @click="detachSubtask(s.id)"
+                />
+              </li>
+            </ul>
+            <USelectMenu
+              :key="subtaskSelectKey"
+              :items="subtaskCandidateOptions"
+              :model-value="undefined"
+              value-key="value"
+              label-key="label"
+              placeholder="+ Adicionar card como sub-task"
+              :search-input="{ placeholder: 'Buscar card…' }"
+              icon="i-lucide-plus"
+              class="w-full"
+              @update:model-value="onAddSubtask"
+            />
           </section>
 
           <section>
@@ -488,6 +615,19 @@ function formatDate(iso: string) {
                 :project-id="card.projectId"
                 :model-value="card.tags ?? []"
                 @update:model-value="onTagsChange"
+              />
+            </div>
+
+            <div v-if="!card.subtasks?.length">
+              <label class="text-xs font-semibold text-muted uppercase tracking-wide block mb-1.5">
+                História
+              </label>
+              <USelectMenu
+                :model-value="card.parentId ?? null"
+                :items="storyOptions"
+                value-key="value"
+                class="w-full"
+                @update:model-value="(v: string | null) => patch({ parentId: v })"
               />
             </div>
           </div>

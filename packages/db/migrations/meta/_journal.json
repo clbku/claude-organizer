@@ -29,6 +29,13 @@
       "when": 1779228234241,
       "tag": "0003_high_snowbird",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779279866470,
+      "tag": "0004_free_phantom_reporter",
+      "breakpoints": true
     }
   ]
 }

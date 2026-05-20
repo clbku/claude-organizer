@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   index,
   integer,
   pgTable,
@@ -23,6 +24,9 @@ export const cards = pgTable(
     sprintId: text("sprint_id").references(() => sprints.id, {
       onDelete: "set null",
     }),
+    parentId: text("parent_id").references((): AnyPgColumn => cards.id, {
+      onDelete: "set null",
+    }),
     key: text("key").notNull(),
     title: text("title").notNull(),
     summary: text("summary"),
@@ -41,6 +45,7 @@ export const cards = pgTable(
   (t) => [
     index("cards_project_idx").on(t.projectId),
     index("cards_sprint_idx").on(t.sprintId),
+    index("cards_parent_idx").on(t.parentId),
     index("cards_status_idx").on(t.projectId, t.status),
     uniqueIndex("cards_project_key_uk").on(t.projectId, t.key),
   ],

@@ -63,6 +63,10 @@ export function registerCardTools(server: McpServer, db: Database) {
       status: cardStatus.optional(),
       priority: z.number().int().min(0).max(10).optional(),
       dueDate: z.string().datetime().optional(),
+      parentId: z
+        .string()
+        .optional()
+        .describe("Parent story card id (crd_xxx) to make this a sub-task."),
     },
     async (input) =>
       asJson(
@@ -84,6 +88,11 @@ export function registerCardTools(server: McpServer, db: Database) {
       status: cardStatus.optional(),
       priority: z.number().int().min(0).max(10).optional(),
       dueDate: z.string().datetime().nullable().optional(),
+      parentId: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("Parent story card id (crd_xxx), or null to detach."),
     },
     async (input) =>
       asJson(

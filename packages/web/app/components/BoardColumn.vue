@@ -61,6 +61,13 @@ function onAdd(event: { data: Card }) {
         :key="card.id"
         class="cursor-grab active:cursor-grabbing min-w-0 shrink-0 bg-default border border-default rounded-md px-2.5 py-2 hover:border-primary/40 transition"
       >
+        <div
+          v-if="card.parentKey"
+          class="mb-1 flex items-center gap-1 text-xs text-muted"
+        >
+          <UIcon name="i-lucide-corner-down-right" class="size-3 shrink-0" />
+          <span class="font-mono">{{ card.parentKey }}</span>
+        </div>
         <div class="flex items-start justify-between gap-2 min-w-0">
           <NuxtLink
             :to="`/cards/${card.key}`"
@@ -70,9 +77,20 @@ function onAdd(event: { data: Card }) {
             <span class="font-mono font-bold text-default mr-1.5">{{ card.key }}</span>
             <span class="font-medium">{{ card.title }}</span>
           </NuxtLink>
-          <UBadge v-if="card.priority > 0" size="xs" variant="soft" class="shrink-0">
-            P{{ card.priority }}
-          </UBadge>
+          <div class="flex shrink-0 items-center gap-1">
+            <UBadge
+              v-if="card.subtaskCount"
+              size="xs"
+              variant="soft"
+              color="neutral"
+              icon="i-lucide-list-tree"
+            >
+              {{ card.subtaskDone }}/{{ card.subtaskCount }}
+            </UBadge>
+            <UBadge v-if="card.priority > 0" size="xs" variant="soft">
+              P{{ card.priority }}
+            </UBadge>
+          </div>
         </div>
         <p
           v-if="card.summary"
