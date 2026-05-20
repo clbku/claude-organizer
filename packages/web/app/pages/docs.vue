@@ -212,7 +212,7 @@ async function removeDoc() {
 <template>
   <UDashboardPanel
     id="docs"
-    :ui="{ body: 'flex flex-row flex-1 overflow-hidden p-0' }"
+    :ui="{ body: 'flex flex-row flex-1 overflow-hidden gap-0 sm:gap-0 p-0 sm:p-0' }"
   >
     <template #header>
       <UDashboardNavbar title="Docs">
