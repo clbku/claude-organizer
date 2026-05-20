@@ -23,6 +23,10 @@ const descriptionToolbarItems: EditorToolbarItem[] = [
   { kind: "redo", icon: "i-lucide-redo" },
 ];
 
+// Shared typography so the rendered markdown (view) matches the editor on toggle.
+const PROSE =
+  "text-sm leading-relaxed [&_h1]:!text-base [&_h1]:font-bold [&_h1]:!mt-3 [&_h1]:!mb-1 [&_h2]:!text-sm [&_h2]:font-bold [&_h2]:!mt-3 [&_h2]:!mb-1 [&_h3]:!text-sm [&_h3]:font-semibold [&_h3]:!mt-2 [&_h3]:!mb-1 [&_p]:!my-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:!my-1.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:!my-1.5 [&_li]:!my-0.5 [&_a]:text-primary [&_a]:font-medium hover:[&_a]:underline [&_strong]:font-semibold [&_code]:bg-elevated [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono [&_pre]:bg-elevated [&_pre]:p-2 [&_pre]:rounded [&_pre]:overflow-x-auto [&_blockquote]:border-l-2 [&_blockquote]:border-default [&_blockquote]:pl-3 [&_blockquote]:text-muted";
+
 const route = useRoute();
 const router = useRouter();
 const api = useApi();
@@ -44,6 +48,10 @@ const card = ref<Card | null>(null);
 const comments = ref<Comment[]>([]);
 const sprints = ref<Sprint[]>([]);
 const allCards = ref<Card[]>([]);
+const descriptionEditing = ref(false);
+const descriptionEl = ref<HTMLElement | null>(null);
+const titleEditing = ref(false);
+const summaryEditing = ref(false);
 const cardLoading = ref(true);
 const cardError = ref<unknown>(null);
 
@@ -80,6 +88,9 @@ async function fetchProjectCards(projectId: string) {
 async function loadCard() {
   cardLoading.value = true;
   cardError.value = null;
+  descriptionEditing.value = false;
+  titleEditing.value = false;
+  summaryEditing.value = false;
   const fresh = await fetchCard();
   card.value = fresh;
   if (fresh) {
@@ -307,6 +318,38 @@ function onTagsChange(tags: Tag[]) {
   if (card.value) card.value = { ...card.value, tags };
 }
 
+// Description toggles between rendered markdown (with card links) and the
+// editor. Click to edit; click outside the box (toolbar included) to render.
+function enterDescriptionEdit(e: MouseEvent) {
+  if ((e.target as HTMLElement).closest("a")) return; // let card links navigate
+  descriptionEditing.value = true;
+}
+
+function enterTitleEdit(e: MouseEvent) {
+  if ((e.target as HTMLElement).closest("a")) return;
+  titleEditing.value = true;
+}
+
+function enterSummaryEdit(e: MouseEvent) {
+  if ((e.target as HTMLElement).closest("a")) return;
+  summaryEditing.value = true;
+}
+
+function onDescriptionOutside(e: MouseEvent) {
+  if (descriptionEl.value && !descriptionEl.value.contains(e.target as Node)) {
+    descriptionEditing.value = false;
+  }
+}
+
+watch(descriptionEditing, (active) => {
+  if (active) document.addEventListener("mousedown", onDescriptionOutside);
+  else document.removeEventListener("mousedown", onDescriptionOutside);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("mousedown", onDescriptionOutside);
+});
+
 const meta = computed(() =>
   card.value ? cardStatusMeta[card.value.status] : null,
 );
@@ -385,11 +428,21 @@ function formatDate(iso: string) {
                 {{ card.key }}
               </span>
               <UInput
+                v-if="titleEditing"
                 v-model="editing.title"
                 variant="ghost"
                 size="lg"
+                autofocus
                 class="flex-1 [&_input]:!text-lg [&_input]:!font-semibold"
+                @blur="titleEditing = false"
               />
+              <h1
+                v-else
+                class="flex-1 cursor-text text-lg font-semibold"
+                @click="enterTitleEdit"
+              >
+                <InlineCardText :value="editing.title" />
+              </h1>
             </div>
           </section>
 
@@ -398,25 +451,47 @@ function formatDate(iso: string) {
               Summary
             </label>
             <UTextarea
+              v-if="summaryEditing"
               v-model="editing.summary"
               :rows="2"
+              autofocus
               placeholder="One-sentence summary that appears in the board preview"
               class="w-full"
+              @blur="summaryEditing = false"
             />
+            <div
+              v-else
+              class="min-h-[2.5rem] cursor-text rounded-md border border-default px-3 py-2"
+              @click="enterSummaryEdit"
+            >
+              <InlineCardText
+                v-if="editing.summary"
+                :value="editing.summary"
+                class="text-sm"
+              />
+              <span v-else class="text-sm italic text-muted/50">
+                Sem resumo. Clique para editar.
+              </span>
+            </div>
           </section>
 
           <section>
             <label class="text-xs font-semibold text-muted uppercase tracking-wide block mb-1.5">
               Description
             </label>
-            <div class="border border-default rounded-md overflow-hidden">
+            <div
+              ref="descriptionEl"
+              class="border border-default rounded-md overflow-hidden"
+            >
               <UEditor
+                v-if="descriptionEditing"
                 v-slot="{ editor }"
                 v-model="editing.descriptionMd"
                 content-type="markdown"
+                autofocus="end"
                 placeholder="Write a description… (markdown supported)"
                 class="min-h-[200px]"
-                :ui="{ base: 'px-3 py-2 [&_*]:my-2 [&_*:first-child]:!mt-0 [&_*:last-child]:!mb-0' }"
+                :ui="{ base: `px-3 py-2 [&_*:first-child]:!mt-0 [&_*:last-child]:!mb-0 ${PROSE}` }"
               >
                 <UEditorToolbar
                   :editor="editor"
@@ -424,6 +499,20 @@ function formatDate(iso: string) {
                   class="border-b border-default bg-elevated/30"
                 />
               </UEditor>
+              <div
+                v-else
+                class="px-3 py-2 min-h-[80px] cursor-text"
+                @click="enterDescriptionEdit"
+              >
+                <AppMarkdown
+                  v-if="editing.descriptionMd"
+                  :value="editing.descriptionMd"
+                  :class="PROSE"
+                />
+                <span v-else class="text-sm text-muted/50 italic">
+                  Sem descrição. Clique para editar.
+                </span>
+              </div>
             </div>
           </section>
 
@@ -595,6 +684,19 @@ function formatDate(iso: string) {
               />
             </div>
 
+            <div v-if="!card.subtasks?.length">
+              <label class="text-xs font-semibold text-muted uppercase tracking-wide block mb-1.5">
+                História
+              </label>
+              <USelectMenu
+                :model-value="card.parentId ?? null"
+                :items="storyOptions"
+                value-key="value"
+                class="w-full"
+                @update:model-value="(v: string | null) => patch({ parentId: v })"
+              />
+            </div>
+
             <div>
               <label class="text-xs font-semibold text-muted uppercase tracking-wide block mb-1.5">
                 Due date
@@ -615,19 +717,6 @@ function formatDate(iso: string) {
                 :project-id="card.projectId"
                 :model-value="card.tags ?? []"
                 @update:model-value="onTagsChange"
-              />
-            </div>
-
-            <div v-if="!card.subtasks?.length">
-              <label class="text-xs font-semibold text-muted uppercase tracking-wide block mb-1.5">
-                História
-              </label>
-              <USelectMenu
-                :model-value="card.parentId ?? null"
-                :items="storyOptions"
-                value-key="value"
-                class="w-full"
-                @update:model-value="(v: string | null) => patch({ parentId: v })"
               />
             </div>
           </div>
