@@ -26,6 +26,7 @@ export const sprints = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .default(sql`now()`),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
   },
   (t) => [
     index("sprints_project_idx").on(t.projectId),

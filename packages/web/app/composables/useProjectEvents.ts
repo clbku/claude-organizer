@@ -35,7 +35,17 @@ export type CoEvent =
       sprintId: string;
     }
   | {
+      type: "sprint.deleted";
+      projectId: string;
+      sprintId: string;
+    }
+  | {
       type: "doc.changed";
+      projectId: string;
+      docId: string;
+    }
+  | {
+      type: "doc.deleted";
       projectId: string;
       docId: string;
     }

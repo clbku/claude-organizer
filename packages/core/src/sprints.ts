@@ -1,7 +1,8 @@
 import { createId, schema, type Database } from "@claude-organizer/db";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { notify } from "./events";
+import { archivedCondition, type ArchiveFilter } from "./archive";
 
 export const createSprintInput = z.object({
   projectId: z.string(),
@@ -20,11 +21,18 @@ export const updateSprintInput = z.object({
 });
 export type UpdateSprintInput = z.infer<typeof updateSprintInput>;
 
-export async function listSprints(db: Database, projectId: string) {
+export async function listSprints(
+  db: Database,
+  projectId: string,
+  filter?: ArchiveFilter,
+) {
+  const conditions = [eq(schema.sprints.projectId, projectId)];
+  const archived = archivedCondition(schema.sprints.archivedAt, filter);
+  if (archived) conditions.push(archived);
   return db
     .select()
     .from(schema.sprints)
-    .where(eq(schema.sprints.projectId, projectId))
+    .where(and(...conditions))
     .orderBy(schema.sprints.createdAt);
 }
 
@@ -36,6 +44,7 @@ export async function getActiveSprint(db: Database, projectId: string) {
       and(
         eq(schema.sprints.projectId, projectId),
         eq(schema.sprints.status, "active"),
+        isNull(schema.sprints.archivedAt),
       ),
     )
     .limit(1);
@@ -80,6 +89,66 @@ export async function updateSprint(db: Database, input: UpdateSprintInput) {
   if (row) {
     await notify(db, {
       type: "sprint.changed",
+      projectId: row.projectId,
+      sprintId: row.id,
+    });
+  }
+  return row ?? null;
+}
+
+// --- Archive / restore / destroy ---
+
+export async function archiveSprint(db: Database, id: string) {
+  const [row] = await db
+    .update(schema.sprints)
+    .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
+    .where(eq(schema.sprints.id, id))
+    .returning();
+  if (row) {
+    await notify(db, {
+      type: "sprint.changed",
+      projectId: row.projectId,
+      sprintId: row.id,
+    });
+  }
+  return row ?? null;
+}
+
+export async function restoreSprint(db: Database, id: string) {
+  const [row] = await db
+    .update(schema.sprints)
+    .set({ archivedAt: null, updatedAt: sql`now()` })
+    .where(eq(schema.sprints.id, id))
+    .returning();
+  if (row) {
+    await notify(db, {
+      type: "sprint.changed",
+      projectId: row.projectId,
+      sprintId: row.id,
+    });
+  }
+  return row ?? null;
+}
+
+/**
+ * Hard-delete a sprint and its cards. The `cards.sprintId` FK is `set null`,
+ * so cards are deleted explicitly (their comments/tags/blockers cascade).
+ */
+export async function destroySprint(db: Database, id: string) {
+  const row = await db.transaction(async (tx) => {
+    const [sprint] = await tx
+      .select({ id: schema.sprints.id, projectId: schema.sprints.projectId })
+      .from(schema.sprints)
+      .where(eq(schema.sprints.id, id))
+      .limit(1);
+    if (!sprint) return null;
+    await tx.delete(schema.cards).where(eq(schema.cards.sprintId, id));
+    await tx.delete(schema.sprints).where(eq(schema.sprints.id, id));
+    return sprint;
+  });
+  if (row) {
+    await notify(db, {
+      type: "sprint.deleted",
       projectId: row.projectId,
       sprintId: row.id,
     });

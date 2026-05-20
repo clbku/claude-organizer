@@ -41,6 +41,7 @@ export const cards = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .default(sql`now()`),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
   },
   (t) => [
     index("cards_project_idx").on(t.projectId),

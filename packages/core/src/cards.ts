@@ -2,6 +2,7 @@ import { createId, schema, type Database } from "@claude-organizer/db";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { notify } from "./events";
+import { archivedCondition, type ArchiveFilter } from "./archive";
 import { listCardTags, tagsByCardIds } from "./tags";
 import { listBlockedBy, listBlocking, pendingBlockerCounts } from "./blockers";
 
@@ -39,7 +40,7 @@ export const updateCardInput = z.object({
 });
 export type UpdateCardInput = z.infer<typeof updateCardInput>;
 
-export interface ListCardsFilters {
+export interface ListCardsFilters extends ArchiveFilter {
   projectId: string;
   sprintId?: string | null;
   status?: z.infer<typeof cardStatus>;
@@ -76,6 +77,8 @@ export async function listCards(db: Database, filters: ListCardsFilters) {
   if (filters.status) {
     conditions.push(eq(schema.cards.status, filters.status));
   }
+  const archived = archivedCondition(schema.cards.archivedAt, filters);
+  if (archived) conditions.push(archived);
   const rows = await db
     .select(cardSummaryColumns)
     .from(schema.cards)
@@ -197,6 +200,69 @@ export async function moveCardToSprint(
   sprintId: string,
 ) {
   return updateCard(db, { id: cardId, sprintId });
+}
+
+// --- Archive / restore / destroy ---
+
+export async function archiveCard(db: Database, id: string) {
+  const [row] = await db
+    .update(schema.cards)
+    .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
+    .where(eq(schema.cards.id, id))
+    .returning();
+  if (row) {
+    await notify(db, {
+      type: "card.changed",
+      projectId: row.projectId,
+      cardId: row.id,
+      cardKey: row.key,
+    });
+  }
+  return row ?? null;
+}
+
+export async function restoreCard(db: Database, id: string) {
+  const [row] = await db
+    .update(schema.cards)
+    .set({ archivedAt: null, updatedAt: sql`now()` })
+    .where(eq(schema.cards.id, id))
+    .returning();
+  if (row) {
+    await notify(db, {
+      type: "card.changed",
+      projectId: row.projectId,
+      cardId: row.id,
+      cardKey: row.key,
+    });
+  }
+  return row ?? null;
+}
+
+/**
+ * Hard-delete a card. Comments, tags and blocker links cascade via FK.
+ * Sub-tasks reference their parent with `set null`, so they are deleted
+ * explicitly here (hierarchy is one level deep).
+ */
+export async function destroyCard(db: Database, id: string) {
+  const row = await db.transaction(async (tx) => {
+    const [card] = await tx
+      .select({ id: schema.cards.id, projectId: schema.cards.projectId })
+      .from(schema.cards)
+      .where(eq(schema.cards.id, id))
+      .limit(1);
+    if (!card) return null;
+    await tx.delete(schema.cards).where(eq(schema.cards.parentId, id));
+    await tx.delete(schema.cards).where(eq(schema.cards.id, id));
+    return card;
+  });
+  if (row) {
+    await notify(db, {
+      type: "card.deleted",
+      projectId: row.projectId,
+      cardId: row.id,
+    });
+  }
+  return row ?? null;
 }
 
 // --- Hierarchy (parent story / sub-tasks) ---

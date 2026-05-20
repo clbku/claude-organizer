@@ -43,6 +43,13 @@
       "when": 1779282531568,
       "tag": "0005_perpetual_jean_grey",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779290801495,
+      "tag": "0006_cloudy_redwing",
+      "breakpoints": true
     }
   ]
 }

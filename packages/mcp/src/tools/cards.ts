@@ -1,12 +1,15 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
+  archiveCard,
   createCard,
+  destroyCard,
   getCard,
   getCardByKey,
   listCards,
   moveCardToBacklog,
   moveCardToSprint,
+  restoreCard,
   updateCard,
 } from "@claude-organizer/core";
 import type { Database } from "@claude-organizer/db";
@@ -23,12 +26,20 @@ const cardStatus = z.enum([
 export function registerCardTools(server: McpServer, db: Database) {
   server.tool(
     "list_cards",
-    "List cards of a project. Returns key/title/summary/status/etc but NOT descriptionMd (call get_card for full description). Filter by sprint, status, or backlog-only.",
+    "List cards of a project. Returns key/title/summary/status/etc but NOT descriptionMd (call get_card for full description). Filter by sprint, status, or backlog-only. Archived cards are hidden by default.",
     {
       projectId: z.string(),
       sprintId: z.string().nullable().optional(),
       status: cardStatus.optional(),
       backlogOnly: z.boolean().optional(),
+      includeArchived: z
+        .boolean()
+        .optional()
+        .describe("Include archived cards alongside active ones."),
+      archivedOnly: z
+        .boolean()
+        .optional()
+        .describe("Return ONLY archived cards (e.g. archived column of a sprint or the backlog)."),
     },
     async (input) => asJson(await listCards(db, input)),
   );
@@ -127,5 +138,26 @@ export function registerCardTools(server: McpServer, db: Database) {
     "Move a card to a specific sprint.",
     { id: z.string(), sprintId: z.string() },
     async ({ id, sprintId }) => asJson(await moveCardToSprint(db, id, sprintId)),
+  );
+
+  server.tool(
+    "archive_card",
+    "Archive a card (soft-delete): it disappears from normal listings but is kept and can be restored. Shows up in list_cards with archivedOnly=true.",
+    { id: z.string() },
+    async ({ id }) => asJson(await archiveCard(db, id)),
+  );
+
+  server.tool(
+    "restore_card",
+    "Restore (unarchive) a previously archived card.",
+    { id: z.string() },
+    async ({ id }) => asJson(await restoreCard(db, id)),
+  );
+
+  server.tool(
+    "destroy_card",
+    "Permanently delete a card (hard-delete, IRREVERSIBLE), along with its sub-tasks, comments, tags and blocker links. To merely hide a card, use archive_card instead.",
+    { id: z.string() },
+    async ({ id }) => asJson(await destroyCard(db, id)),
   );
 }

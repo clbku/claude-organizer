@@ -1,10 +1,13 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
+  archiveSprint,
   completeSprint,
   createSprint,
+  destroySprint,
   getActiveSprint,
   listSprints,
+  restoreSprint,
   startSprint,
   updateSprint,
 } from "@claude-organizer/core";
@@ -14,9 +17,20 @@ import { asJson } from "./index";
 export function registerSprintTools(server: McpServer, db: Database) {
   server.tool(
     "list_sprints",
-    "List sprints of a project.",
-    { projectId: z.string() },
-    async ({ projectId }) => asJson(await listSprints(db, projectId)),
+    "List sprints of a project. Archived sprints are hidden by default.",
+    {
+      projectId: z.string(),
+      includeArchived: z
+        .boolean()
+        .optional()
+        .describe("Include archived sprints alongside active ones."),
+      archivedOnly: z
+        .boolean()
+        .optional()
+        .describe("Return ONLY archived sprints."),
+    },
+    async ({ projectId, includeArchived, archivedOnly }) =>
+      asJson(await listSprints(db, projectId, { includeArchived, archivedOnly })),
   );
 
   server.tool(
@@ -70,5 +84,26 @@ export function registerSprintTools(server: McpServer, db: Database) {
     "Mark a sprint as completed.",
     { sprintId: z.string() },
     async ({ sprintId }) => asJson(await completeSprint(db, sprintId)),
+  );
+
+  server.tool(
+    "archive_sprint",
+    "Archive a sprint (soft-delete): it disappears from normal listings but is kept and can be restored. Its cards travel with it (they are not individually marked). Shows up in list_sprints with archivedOnly=true.",
+    { id: z.string() },
+    async ({ id }) => asJson(await archiveSprint(db, id)),
+  );
+
+  server.tool(
+    "restore_sprint",
+    "Restore (unarchive) a previously archived sprint.",
+    { id: z.string() },
+    async ({ id }) => asJson(await restoreSprint(db, id)),
+  );
+
+  server.tool(
+    "destroy_sprint",
+    "Permanently delete a sprint and ALL its cards (hard-delete, IRREVERSIBLE), including those cards' comments, tags and blocker links. To merely hide a sprint, use archive_sprint instead.",
+    { id: z.string() },
+    async ({ id }) => asJson(await destroySprint(db, id)),
   );
 }

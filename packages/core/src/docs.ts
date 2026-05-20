@@ -1,7 +1,8 @@
 import { createId, schema, type Database } from "@claude-organizer/db";
-import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNotNull, notInArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { notify } from "./events";
+import type { ArchiveFilter } from "./archive";
 
 const docKind = z.enum(["module", "adr", "guide", "note"]);
 
@@ -43,14 +44,43 @@ export async function listDocs(
   db: Database,
   projectId: string,
   kind?: z.infer<typeof docKind>,
+  filter?: ArchiveFilter,
 ) {
   const conditions = [eq(schema.docs.projectId, projectId)];
   if (kind) conditions.push(eq(schema.docs.kind, kind));
+  if (filter?.archivedOnly) {
+    conditions.push(isNotNull(schema.docs.archivedAt));
+  } else if (!filter?.includeArchived) {
+    // Hide archived docs AND their descendants: a child "travels" with an
+    // archived parent even though it isn't marked archived itself.
+    const hidden = await archivedDocSubtreeIds(db, projectId);
+    if (hidden.length > 0) {
+      conditions.push(notInArray(schema.docs.id, hidden));
+    }
+  }
   return db
     .select(docListColumns)
     .from(schema.docs)
     .where(and(...conditions))
     .orderBy(asc(schema.docs.position), asc(schema.docs.title));
+}
+
+/** Ids of every doc that is archived or descends from an archived doc. */
+async function archivedDocSubtreeIds(
+  db: Database,
+  projectId: string,
+): Promise<string[]> {
+  const rows = (await db.execute(sql`
+    WITH RECURSIVE archived_tree AS (
+      SELECT id FROM docs
+      WHERE project_id = ${projectId} AND archived_at IS NOT NULL
+      UNION ALL
+      SELECT d.id FROM docs d
+      JOIN archived_tree a ON d.parent_id = a.id
+    )
+    SELECT id FROM archived_tree
+  `)) as unknown as Array<{ id: string }>;
+  return rows.map((r) => r.id);
 }
 
 export async function getDoc(db: Database, id: string) {
@@ -97,20 +127,50 @@ export async function updateDoc(db: Database, input: UpdateDocInput) {
   return row ?? null;
 }
 
-export async function deleteDoc(db: Database, id: string) {
+// --- Archive / restore / destroy ---
+
+export async function archiveDoc(db: Database, id: string) {
+  const [row] = await db
+    .update(schema.docs)
+    .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
+    .where(eq(schema.docs.id, id))
+    .returning();
+  if (row) {
+    await notify(db, { type: "doc.changed", projectId: row.projectId, docId: row.id });
+  }
+  return row ?? null;
+}
+
+export async function restoreDoc(db: Database, id: string) {
+  const [row] = await db
+    .update(schema.docs)
+    .set({ archivedAt: null, updatedAt: sql`now()` })
+    .where(eq(schema.docs.id, id))
+    .returning();
+  if (row) {
+    await notify(db, { type: "doc.changed", projectId: row.projectId, docId: row.id });
+  }
+  return row ?? null;
+}
+
+/** Hard-delete a doc and its descendants (children cascade via FK). */
+export async function destroyDoc(db: Database, id: string) {
   const [row] = await db
     .delete(schema.docs)
     .where(eq(schema.docs.id, id))
     .returning({ id: schema.docs.id, projectId: schema.docs.projectId });
   if (row) {
     await notify(db, {
-      type: "doc.changed",
+      type: "doc.deleted",
       projectId: row.projectId,
       docId: row.id,
     });
   }
   return row ?? null;
 }
+
+/** @deprecated use {@link destroyDoc}. Kept for the existing REST delete route. */
+export const deleteDoc = destroyDoc;
 
 export async function searchDocs(
   db: Database,

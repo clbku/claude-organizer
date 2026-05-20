@@ -5,6 +5,7 @@ export * from "./comments";
 export * from "./tags";
 export * from "./blockers";
 export * from "./docs";
+export * from "./archive";
 export * from "./keys";
 export * from "./events";
 export type { Database } from "@claude-organizer/db";

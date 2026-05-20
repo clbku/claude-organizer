@@ -1,10 +1,12 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
+  archiveDoc,
   createDoc,
-  deleteDoc,
+  destroyDoc,
   getDoc,
   listDocs,
+  restoreDoc,
   searchDocs,
   updateDoc,
 } from "@claude-organizer/core";
@@ -16,12 +18,21 @@ const docKind = z.enum(["module", "adr", "guide", "note"]);
 export function registerDocTools(server: McpServer, db: Database) {
   server.tool(
     "list_docs",
-    "List project docs (modules, ADRs, guides, notes). Returns metadata (id/title/kind/parentId) WITHOUT bodyMd. Use read_doc for full content. Optionally filter by kind.",
+    "List project docs (modules, ADRs, guides, notes). Returns metadata (id/title/kind/parentId) WITHOUT bodyMd. Use read_doc for full content. Optionally filter by kind. Archived docs (and their descendants) are hidden by default.",
     {
       projectId: z.string(),
       kind: docKind.optional(),
+      includeArchived: z
+        .boolean()
+        .optional()
+        .describe("Include archived docs (and their subtree) alongside active ones."),
+      archivedOnly: z
+        .boolean()
+        .optional()
+        .describe("Return ONLY archived docs."),
     },
-    async ({ projectId, kind }) => asJson(await listDocs(db, projectId, kind)),
+    async ({ projectId, kind, includeArchived, archivedOnly }) =>
+      asJson(await listDocs(db, projectId, kind, { includeArchived, archivedOnly })),
   );
 
   server.tool(
@@ -81,9 +92,23 @@ export function registerDocTools(server: McpServer, db: Database) {
   );
 
   server.tool(
-    "delete_doc",
-    "Delete a doc (and its children, via cascade) by id.",
+    "archive_doc",
+    "Archive a doc (soft-delete): it (and its subtree) disappears from list_docs but is kept and can be restored. Shows up with archivedOnly=true.",
     { id: z.string() },
-    async ({ id }) => asJson(await deleteDoc(db, id)),
+    async ({ id }) => asJson(await archiveDoc(db, id)),
+  );
+
+  server.tool(
+    "restore_doc",
+    "Restore (unarchive) a previously archived doc.",
+    { id: z.string() },
+    async ({ id }) => asJson(await restoreDoc(db, id)),
+  );
+
+  server.tool(
+    "destroy_doc",
+    "Permanently delete a doc and its children (hard-delete via cascade, IRREVERSIBLE). To merely hide a doc, use archive_doc instead.",
+    { id: z.string() },
+    async ({ id }) => asJson(await destroyDoc(db, id)),
   );
 }
