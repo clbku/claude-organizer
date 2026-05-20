@@ -229,13 +229,13 @@ const sprintOptions = computed(() => {
   ];
 });
 
-// História (parent): top-level cards, excluding this one.
+// Story (parent): top-level cards, excluding this one.
 const storyOptions = computed(() => {
   const list = allCards.value.filter(
     (c) => !c.parentId && c.id !== card.value?.id,
   );
   return [
-    { label: "Nenhuma", value: null as string | null },
+    { label: "None", value: null as string | null },
     ...list.map((c) => ({
       label: `${c.key} · ${c.title}`,
       value: c.id as string | null,
@@ -243,7 +243,7 @@ const storyOptions = computed(() => {
   ];
 });
 
-// Candidatos a virar sub-task: cards livres (sem pai e sem filhos), != atual.
+// Candidates to become sub-tasks: free cards (no parent, no children), != current.
 const subtaskCandidateOptions = computed(() =>
   allCards.value
     .filter((c) => c.id !== card.value?.id && !c.parentId && !c.subtaskCount)
@@ -495,7 +495,7 @@ function formatDate(iso: string) {
               :rows="2"
               bordered
               preview-class="text-sm"
-              placeholder="Sem resumo. Clique para editar."
+              placeholder="No summary. Click to edit."
               editor-placeholder="One-sentence summary that appears in the board preview"
             />
           </section>
@@ -510,7 +510,7 @@ function formatDate(iso: string) {
               type="markdown"
               bordered
               min-height="200px"
-              placeholder="Sem descrição. Clique para editar."
+              placeholder="No description. Click to edit."
               editor-placeholder="Write a description… (markdown supported)"
             />
           </section>
@@ -561,8 +561,8 @@ function formatDate(iso: string) {
               :model-value="undefined"
               value-key="value"
               label-key="label"
-              placeholder="+ Adicionar card como sub-task"
-              :search-input="{ placeholder: 'Buscar card…' }"
+              placeholder="+ Add card as sub-task"
+              :search-input="{ placeholder: 'Search cards…' }"
               icon="i-lucide-plus"
               class="w-full"
               @update:model-value="onAddSubtask"
@@ -571,7 +571,7 @@ function formatDate(iso: string) {
 
           <section>
             <h2 class="text-xs font-semibold text-muted uppercase tracking-wide mb-3">
-              Bloqueado por
+              Blocked by
               <span v-if="card.blockedBy?.length" class="text-default ml-1">
                 ({{ card.blockedBy.length }})
               </span>
@@ -602,7 +602,7 @@ function formatDate(iso: string) {
                   color="neutral"
                   variant="ghost"
                   class="shrink-0"
-                  aria-label="Remover bloqueador"
+                  aria-label="Remove blocker"
                   @click="removeBlocker(b.id)"
                 />
               </li>
@@ -613,8 +613,8 @@ function formatDate(iso: string) {
               :model-value="undefined"
               value-key="value"
               label-key="label"
-              placeholder="+ Marcar como bloqueado por…"
-              :search-input="{ placeholder: 'Buscar card…' }"
+              placeholder="+ Mark as blocked by…"
+              :search-input="{ placeholder: 'Search cards…' }"
               icon="i-lucide-ban"
               class="w-full"
               @update:model-value="onAddBlocker"
@@ -623,7 +623,7 @@ function formatDate(iso: string) {
 
           <section v-if="card.blocking?.length">
             <h2 class="text-xs font-semibold text-muted uppercase tracking-wide mb-3">
-              Bloqueando
+              Blocking
               <span class="text-default ml-1">({{ card.blocking.length }})</span>
             </h2>
             <ul class="space-y-1.5">
@@ -709,7 +709,7 @@ function formatDate(iso: string) {
                       size="xs"
                       color="neutral"
                       variant="ghost"
-                      aria-label="Remover comentário"
+                      aria-label="Remove comment"
                       @click="commentToDelete = c"
                     />
                   </div>
@@ -805,7 +805,7 @@ function formatDate(iso: string) {
 
             <div v-if="!card.subtasks?.length">
               <label class="text-xs font-semibold text-muted uppercase tracking-wide block mb-1.5">
-                História
+                Story
               </label>
               <USelectMenu
                 :model-value="card.parentId ?? null"
@@ -856,23 +856,22 @@ function formatDate(iso: string) {
     </template>
   </UDashboardPanel>
 
-  <UModal v-model:open="deleteCommentOpen" title="Remover comentário">
+  <UModal v-model:open="deleteCommentOpen" title="Remove comment">
     <template #body>
       <p class="text-sm text-muted">
-        Esta ação não pode ser desfeita. O comentário será removido
-        permanentemente.
+        This action can't be undone. The comment will be permanently removed.
       </p>
     </template>
     <template #footer>
       <div class="flex justify-end gap-2 w-full">
         <UButton
           variant="ghost"
-          label="Cancelar"
+          label="Cancel"
           @click="commentToDelete = null"
         />
         <UButton
           color="error"
-          label="Remover"
+          label="Remove"
           :loading="deletingComment"
           @click="confirmDeleteComment"
         />
