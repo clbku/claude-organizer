@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createDb } from "@claude-organizer/db";
 import { registerTools } from "./tools/index";
+import { registerResources } from "./resources/index";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -20,6 +21,7 @@ const server = new McpServer({
 });
 
 registerTools(server, db);
+registerResources(server, db);
 
 const transport = new StdioServerTransport();
 
