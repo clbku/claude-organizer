@@ -1,0 +1,118 @@
+<script setup lang="ts">
+// Shared preview↔edit field used by the card detail and the docs editor.
+// Renders the value (auto-linked plain text or markdown) and, on click, swaps to
+// an editor; the consumer owns the value + auto-save (this only toggles/edits).
+const props = withDefaults(
+  defineProps<{
+    type?: "text" | "multiline" | "markdown";
+    placeholder?: string; // empty-state hint shown in the preview
+    editorPlaceholder?: string; // placeholder inside the editor
+    size?: "xs" | "sm" | "md" | "lg" | "xl"; // text/multiline input size
+    rows?: number; // multiline
+    minHeight?: string; // markdown editor
+    bordered?: boolean; // preview box gets a border (summary/markdown)
+    inputClass?: string; // typography for the input/textarea
+    previewClass?: string; // typography for the rendered preview
+  }>(),
+  {
+    type: "markdown",
+    placeholder: "Empty. Click to edit.",
+    editorPlaceholder: "",
+    size: "md",
+    rows: 2,
+    minHeight: "120px",
+    bordered: false,
+    inputClass: "",
+    previewClass: "",
+  },
+);
+
+const model = defineModel<string>({ default: "" });
+const editing = ref(false);
+const root = ref<HTMLElement | null>(null);
+
+function enterEdit(e: MouseEvent) {
+  if ((e.target as HTMLElement).closest("a")) return; // let card links navigate
+  editing.value = true;
+}
+function stopEdit() {
+  editing.value = false;
+}
+function onOutside(e: MouseEvent) {
+  if (root.value && !root.value.contains(e.target as Node)) {
+    editing.value = false;
+  }
+}
+// The markdown editor has a toolbar (and link popovers), so @blur is unreliable;
+// fall back to click-outside — same behavior the card description had inline.
+watch(editing, (active) => {
+  if (props.type !== "markdown") return;
+  if (active) document.addEventListener("mousedown", onOutside);
+  else document.removeEventListener("mousedown", onOutside);
+});
+onBeforeUnmount(() => document.removeEventListener("mousedown", onOutside));
+</script>
+
+<template>
+  <div ref="root">
+    <!-- Markdown: AppMarkdown (PROSE) preview ↔ MarkdownEditor -->
+    <template v-if="type === 'markdown'">
+      <MarkdownEditor
+        v-if="editing"
+        v-model="model"
+        autofocus
+        :min-height="minHeight"
+        :placeholder="editorPlaceholder"
+      />
+      <div
+        v-else
+        class="rounded-md px-3 py-2 min-h-[80px] cursor-text"
+        :class="bordered ? 'border border-default' : ''"
+        @click="enterEdit"
+      >
+        <AppMarkdown
+          v-if="model"
+          :value="model"
+          :class="previewClass || PROSE"
+        />
+        <span v-else class="text-sm text-muted/50 italic">{{ placeholder }}</span>
+      </div>
+    </template>
+
+    <!-- Plain text: InlineCardText (auto-linked) preview ↔ UInput/UTextarea -->
+    <template v-else>
+      <UTextarea
+        v-if="editing && type === 'multiline'"
+        v-model="model"
+        :rows="rows"
+        autofocus
+        :placeholder="editorPlaceholder"
+        :class="['w-full', inputClass]"
+        @blur="stopEdit"
+      />
+      <UInput
+        v-else-if="editing"
+        v-model="model"
+        variant="ghost"
+        :size="size"
+        autofocus
+        :placeholder="editorPlaceholder"
+        :class="['w-full', inputClass]"
+        @blur="stopEdit"
+      />
+      <div
+        v-else
+        class="cursor-text"
+        :class="
+          bordered
+            ? 'rounded-md border border-default px-3 py-2 min-h-[2.5rem]'
+            : ''
+        "
+        @click="enterEdit"
+      >
+        <InlineCardText v-if="model" :value="model" :class="previewClass" />
+        <span v-else class="text-sm text-muted/50 italic">{{ placeholder }}</span>
+      </div>
+    </template>
+  </div>
+</template>

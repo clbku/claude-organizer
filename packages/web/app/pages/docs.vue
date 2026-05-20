@@ -1,25 +1,11 @@
 <script setup lang="ts">
 import { useProjectStore } from "~/stores/project";
-import type { EditorToolbarItem } from "@nuxt/ui";
 import type { Doc, DocSummary, DocKind } from "~/types/doc";
 import { buildDocTree, docKindMeta } from "~/types/doc";
 
 const store = useProjectStore();
 const { currentProject, currentProjectId } = storeToRefs(store);
 const api = useApi();
-
-const toolbarItems: EditorToolbarItem[] = [
-  { kind: "mark", mark: "bold", icon: "i-lucide-bold" },
-  { kind: "mark", mark: "italic", icon: "i-lucide-italic" },
-  { kind: "mark", mark: "code", icon: "i-lucide-code" },
-  { kind: "heading", level: 2, icon: "i-lucide-heading-2" },
-  { kind: "heading", level: 3, icon: "i-lucide-heading-3" },
-  { kind: "bulletList", icon: "i-lucide-list" },
-  { kind: "orderedList", icon: "i-lucide-list-ordered" },
-  { kind: "blockquote", icon: "i-lucide-quote" },
-  { kind: "codeBlock", icon: "i-lucide-code-2" },
-  { kind: "link", icon: "i-lucide-link" },
-];
 
 const docs = ref<DocSummary[]>([]);
 const archivedDocs = ref<DocSummary[]>([]);
@@ -365,12 +351,15 @@ async function onDocRemoved() {
 
           <div v-else class="max-w-5xl mx-auto space-y-4">
             <div class="flex items-center gap-2">
-              <UInput
+              <InlineEditable
+                :key="current.id"
                 v-model="editing.title"
-                variant="ghost"
+                type="text"
                 size="xl"
+                class="flex-1"
+                input-class="[&_input]:!text-xl [&_input]:!font-bold"
+                preview-class="text-xl font-bold"
                 placeholder="Untitled"
-                class="flex-1 [&_input]:!text-xl [&_input]:!font-bold"
               />
               <ArchiveDestroyMenu
                 kind="doc"
@@ -397,30 +386,26 @@ async function onDocRemoved() {
               />
             </div>
 
-            <UInput
+            <InlineEditable
+              :key="current.id"
               v-model="editing.summary"
-              variant="ghost"
-              size="md"
+              type="multiline"
+              :rows="2"
+              bordered
+              preview-class="text-sm text-muted"
               placeholder="One-line summary (shown in lists)"
-              class="w-full [&_input]:!text-sm [&_input]:text-muted"
+              editor-placeholder="One-line summary (shown in lists)"
             />
 
-            <div class="border border-default rounded-md overflow-hidden">
-              <UEditor
-                v-slot="{ editor }"
-                v-model="editing.bodyMd"
-                content-type="markdown"
-                placeholder="Write documentation… (markdown supported)"
-                class="min-h-[400px]"
-                :ui="{ base: 'px-3 py-2 [&_*]:my-2 [&_*:first-child]:!mt-0' }"
-              >
-                <UEditorToolbar
-                  :editor="editor"
-                  :items="toolbarItems"
-                  class="border-b border-default bg-elevated/30"
-                />
-              </UEditor>
-            </div>
+            <InlineEditable
+              :key="current.id"
+              v-model="editing.bodyMd"
+              type="markdown"
+              bordered
+              min-height="400px"
+              placeholder="Write documentation… (markdown supported)"
+              editor-placeholder="Write documentation… (markdown supported)"
+            />
           </div>
         </div>
       </template>
