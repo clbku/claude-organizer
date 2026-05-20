@@ -1,0 +1,11 @@
+{
+  "name": "claude-organizer",
+  "displayName": "Claude Organizer",
+  "description": "Jira para Claude Code: gestão de tarefas via MCP. Entrega duas skills — usar o board e planejar demandas (plan).",
+  "version": "0.1.0",
+  "author": {
+    "name": "Felipe Milioni"
+  },
+  "license": "MIT",
+  "skills": "./skills/"
+}

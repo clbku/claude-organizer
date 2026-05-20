@@ -1,64 +1,59 @@
 # Claude Organizer
 
-"Jira para Claude Code": project-management exposto via MCP. A própria IA usa esse
-sistema pra organizar o desenvolvimento dele mesmo (auto-inception).
+"Jira for Claude Code": project management exposed over MCP. The AI uses the
+system to organize its own development (auto-inception). **International** product.
 
-## Use a skill `claude-organizer`
+## Skills
 
-**Como** trabalhar (orientar-se no início, fluxo de cards, comentários, docs) está na
-skill `claude-organizer` — ela dispara sozinha. **O que** fazer (sprint ativa, cards,
-backlog, comentários, docs) é a fonte da verdade e vive **no MCP**, não aqui. Não
-duplique estado neste arquivo: consulte via `mcp__claude-organizer__*`.
+Two skills drive the work (packaged in `plugins/claude-organizer`):
 
-Este projeto neste MCP:
+- **`claude-organizer`** — how to work the board: orient at the start of a session,
+  work cards, comment with signal, docs.
+- **`plan`** — turn a new demand into sprints/histories/tasks (auto-triggers
+  when you describe something to build).
+
+Let the skills drive. **What** to do (active sprint, cards, backlog, comments,
+docs) is the source of truth and lives **in the MCP**, not here — query it via
+`mcp__claude-organizer__*`. Don't duplicate state into this file.
+
+This project in the MCP:
 
 - **slug**: `claude-organizer`
-- **keyPrefix**: `CO` (cards são `CO-1`, `CO-2`...)
+- **keyPrefix**: `CO` (cards are `CO-1`, `CO-2`…)
 - **projectId**: `prj_zrvn6leze9r3`
 
-Detalhes de arquitetura, modelo de dados e decisões (ADRs) estão nos **docs** do
-projeto (via `list_docs`/`read_doc`). Leia de lá antes de reinventar.
+## Knowledge lives in the docs, not here
 
-## Stack
+Architecture, data model, decisions (ADRs), code/UI patterns and per-module
+details live in the project's **docs** (`list_docs` / `read_doc`, grouped under
+Modules / Decisions / Guides / Notes). Read there before reinventing or
+re-deciding. Keep this file lean — it holds only the project-wide rules and
+overrides below, and points to the docs for the rest.
 
-- **Monorepo pnpm**: `packages/{db,core,mcp,api,web}`
-- **DB**: Postgres 16 (Docker `claude-organizer-postgres`, porta 5544) + Drizzle ORM
-- **API**: Fastify v5 em `127.0.0.1:4400`
-- **MCP**: `@modelcontextprotocol/sdk` stdio, roda via tsx
-- **Web**: Nuxt 4 + Nuxt UI v4 + Pinia 3 em `127.0.0.1:4401`
+## Project rules (overrides)
 
-## Padrões obrigatórios (específicos deste projeto)
+- **Language**: write **skills and code in English** (the product is
+  international). Content authored for the user — **tasks, comments and docs** —
+  follows the user's language.
+- **Commits**: one commit per card/task, **only after the user confirms** it
+  works; the message references the key (e.g. `feat(tags): … (CO-4)`).
+- **Gotchas** (detailed in the docs): consult the `nuxt-ui-remote` MCP before
+  using a new Nuxt UI component; relative TS imports have **no `.js`** extension;
+  markdown via `<AppMarkdown>` (never `@nuxtjs/mdc`).
 
-1. **Nuxt UI v4 — consulte o MCP `nuxt-ui-remote` antes de usar componente novo**
-   (`search-components`/`get-component`). Não existem (eram v3):
-   `UDashboardSidebarLinks`, `UDashboardPanelContent`. Layout: `UDashboardGroup >
-   UDashboardSidebar + <slot/>`; cada página com seu `UDashboardPanel` (slots
-   `#header`/`#body`).
-2. **Imports TS sem extensão `.js`** — drizzle-kit usa require CJS e falha com `.js`
-   em imports relativos. Use `from "./y"`, não `from "./y.js"`.
-3. **Markdown**: `<AppMarkdown :value="..." />` (marked) no client; editor é `UEditor`
-   com `content-type="markdown"`. NÃO usar `@nuxtjs/mdc` (quebra interop ESM).
-4. **IDs prefixados** (`prj_`, `crd_`, `spr_`, `cmt_`, `tag_`, `doc_`, `rdm_`) +
-   `key` legível (`CO-N`) gerado em transação atômica.
-
-## Comandos do dia-a-dia
+## Day to day
 
 ```bash
-pnpm db:up        # Postgres (se reboot)
+pnpm db:up        # Postgres (after reboot)
 pnpm dev:api      # http://127.0.0.1:4400
 pnpm dev:web      # http://127.0.0.1:4401
 pnpm typecheck    # backend + web
-pnpm db:generate  # gera SQL após mudar schema
-pnpm db:migrate   # aplica
+pnpm db:generate  # after schema changes
+pnpm db:migrate   # apply
 ```
 
-## Convenção de commits
+## After restarting Claude Code
 
-1 commit por card/task, **só após o usuário confirmar** que funcionou. Mensagem
-referencia a key (ex: `feat(docs): ... (CO-9)`).
-
-## Após reiniciar Claude Code
-
-O MCP `claude-organizer` carrega automaticamente (user scope). Postgres precisa
-estar UP. Se uma tool MCP nova não aparecer, o processo subiu com versão antiga —
-reinicie o Claude Code de novo.
+The `claude-organizer` MCP loads automatically (user scope); Postgres must be UP.
+If a new MCP tool doesn't show up, the process started with the old code — restart
+Claude Code again.
