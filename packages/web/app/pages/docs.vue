@@ -193,16 +193,27 @@ async function createDoc() {
   await selectDoc(created.id);
 }
 
-async function removeDoc() {
-  if (!current.value) return;
-  if (
-    !confirm(
-      `Delete "${current.value.title}" and all its children? This cannot be undone.`,
-    )
-  ) {
-    return;
+// Descendants hard-deleted along with the current doc (children cascade in DB).
+const currentDescendantCount = computed(() => {
+  if (!current.value) return 0;
+  const childrenOf = new Map<string | null, string[]>();
+  for (const d of docs.value) {
+    const arr = childrenOf.get(d.parentId) ?? [];
+    arr.push(d.id);
+    childrenOf.set(d.parentId, arr);
   }
-  await api(`/docs/${current.value.id}`, { method: "DELETE" });
+  let count = 0;
+  const stack = [...(childrenOf.get(current.value.id) ?? [])];
+  while (stack.length) {
+    const id = stack.pop()!;
+    count++;
+    const kids = childrenOf.get(id);
+    if (kids) stack.push(...kids);
+  }
+  return count;
+});
+
+async function onDocRemoved() {
   selectedId.value = null;
   current.value = null;
   await loadDocs();
@@ -320,12 +331,15 @@ async function removeDoc() {
                 placeholder="Untitled"
                 class="flex-1 [&_input]:!text-xl [&_input]:!font-bold"
               />
-              <UButton
-                icon="i-lucide-trash-2"
-                color="error"
-                variant="ghost"
-                size="sm"
-                @click="removeDoc"
+              <ArchiveDestroyMenu
+                kind="doc"
+                :entity-id="current.id"
+                :entity-label="current.title || 'este doc'"
+                :cascade-count="currentDescendantCount"
+                cascade-noun="doc filho"
+                cascade-noun-plural="docs filhos"
+                @archived="onDocRemoved"
+                @destroyed="onDocRemoved"
               />
             </div>
 

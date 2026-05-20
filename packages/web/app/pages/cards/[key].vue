@@ -464,6 +464,17 @@ function formatDate(iso: string) {
           >
             <UIcon name="i-lucide-check" /> Saved
           </span>
+          <ArchiveDestroyMenu
+            v-if="card"
+            kind="card"
+            :entity-id="card.id"
+            :entity-label="card.key"
+            :cascade-count="card.subtasks?.length ?? 0"
+            cascade-noun="sub-task"
+            class="ml-1"
+            @archived="goBack"
+            @destroyed="goBack"
+          />
         </template>
       </UDashboardNavbar>
     </template>

@@ -4,6 +4,7 @@ import type { Sprint } from "~/composables/useActiveSprint";
 import { cardStatusOrder } from "~/types/card";
 
 const route = useRoute();
+const router = useRouter();
 const api = useApi();
 const sprintId = computed(() => String(route.params.id));
 
@@ -182,6 +183,10 @@ async function completeSprint() {
   await api(`/sprints/${sprint.value.id}/complete`, { method: "POST" });
   await loadSprint();
 }
+
+function onSprintRemoved() {
+  router.push("/sprints");
+}
 </script>
 
 <template>
@@ -246,6 +251,17 @@ async function completeSprint() {
             label="Complete"
             class="ml-2"
             @click="completeSprint"
+          />
+          <ArchiveDestroyMenu
+            v-if="sprint"
+            kind="sprint"
+            :entity-id="sprint.id"
+            :entity-label="sprint.name"
+            :cascade-count="cards.length"
+            cascade-noun="card"
+            class="ml-1"
+            @archived="onSprintRemoved"
+            @destroyed="onSprintRemoved"
           />
         </template>
       </UDashboardNavbar>
