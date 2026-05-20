@@ -20,6 +20,7 @@
     "dev": "pnpm db:up && pnpm -r --parallel --filter './packages/*' dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter @claude-organizer/core test",
     "lint": "pnpm -r lint"
   },
   "devDependencies": {

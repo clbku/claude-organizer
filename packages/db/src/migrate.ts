@@ -1,8 +1,8 @@
-import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { loadEnvFile } from "node:process";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { createDb } from "./client";
+import { runMigrations } from "./migrator";
 
 try {
   loadEnvFile(resolve(fileURLToPath(import.meta.url), "../../../../.env"));
@@ -19,7 +19,7 @@ if (!url) {
 const { db, close } = createDb({ url, max: 1 });
 
 try {
-  await migrate(db, { migrationsFolder: "./migrations" });
+  await runMigrations(db);
   console.log("Migrations applied");
 } catch (err) {
   console.error("Migration failed:", err);
