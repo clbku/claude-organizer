@@ -232,7 +232,7 @@ async function restoreCard(cardId: string) {
             variant="ghost"
             size="lg"
             placeholder="Sprint name"
-            class="w-full [&_input]:!text-lg [&_input]:!font-semibold [&_input]:!px-0"
+            class="w-full [&_input]:text-lg! [&_input]:font-semibold! [&_input]:px-0!"
           />
         </template>
         <template #right>
@@ -387,7 +387,7 @@ async function restoreCard(cardId: string) {
                 >
                   <NuxtLink
                     :to="`/cards/${card.key}`"
-                    class="text-sm leading-snug break-words min-w-0 hover:underline decoration-primary/40 underline-offset-2"
+                    class="text-sm leading-snug wrap-break-word min-w-0 hover:underline decoration-primary/40 underline-offset-2"
                   >
                     <span class="font-mono font-bold text-default mr-1.5">{{ card.key }}</span>
                     <span class="font-medium">{{ card.title }}</span>

@@ -66,7 +66,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
       />
       <div
         v-else
-        class="rounded-md px-3 py-2 min-h-[80px] cursor-text"
+        class="rounded-md px-3 py-2 min-h-20 cursor-text"
         :class="bordered ? 'border border-default' : ''"
         @click="enterEdit"
       >
@@ -105,7 +105,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
         class="cursor-text"
         :class="
           bordered
-            ? 'rounded-md border border-default px-3 py-2 min-h-[2.5rem]'
+            ? 'rounded-md border border-default px-3 py-2 min-h-10'
             : ''
         "
         @click="enterEdit"

@@ -148,7 +148,7 @@ async function onMoveToBacklog(cardId: string) {
             variant="ghost"
             size="lg"
             placeholder="Sprint name"
-            class="w-full [&_input]:!text-lg [&_input]:!font-semibold [&_input]:!px-0"
+            class="w-full [&_input]:text-lg! [&_input]:font-semibold! [&_input]:px-0!"
           />
         </template>
         <template #right>

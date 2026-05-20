@@ -70,7 +70,7 @@ function onAdd(event: { data: Card }) {
         <div class="flex items-start justify-between gap-2 min-w-0">
           <NuxtLink
             :to="`/cards/${card.key}`"
-            class="text-sm leading-snug break-words min-w-0 hover:underline decoration-primary/40 underline-offset-2"
+            class="text-sm leading-snug wrap-break-word min-w-0 hover:underline decoration-primary/40 underline-offset-2"
             @mousedown.stop
           >
             <span class="font-mono font-bold text-default mr-1.5">{{ card.key }}</span>
