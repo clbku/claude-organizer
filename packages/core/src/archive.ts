@@ -1,12 +1,12 @@
-import { isNotNull, isNull, type SQL } from "drizzle-orm";
-import type { PgColumn } from "drizzle-orm/pg-core";
+import { isNotNull, isNull, type SQL } from 'drizzle-orm'
+import type { PgColumn } from 'drizzle-orm/pg-core'
 
 /** Filter for soft-deleted (archived) rows. Default behavior hides archived. */
 export interface ArchiveFilter {
   /** Include archived rows alongside active ones. */
-  includeArchived?: boolean;
+  includeArchived?: boolean
   /** Return ONLY archived rows. Takes precedence over `includeArchived`. */
-  archivedOnly?: boolean;
+  archivedOnly?: boolean
 }
 
 /**
@@ -17,9 +17,9 @@ export interface ArchiveFilter {
  */
 export function archivedCondition(
   column: PgColumn,
-  filter?: ArchiveFilter,
+  filter?: ArchiveFilter
 ): SQL | undefined {
-  if (filter?.archivedOnly) return isNotNull(column);
-  if (filter?.includeArchived) return undefined;
-  return isNull(column);
+  if (filter?.archivedOnly) return isNotNull(column)
+  if (filter?.includeArchived) return undefined
+  return isNull(column)
 }

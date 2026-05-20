@@ -1,10 +1,12 @@
-import { createId, schema, type Database } from "@claude-organizer/db";
-import { and, asc, desc, eq, ilike, isNotNull, notInArray, or, sql } from "drizzle-orm";
-import { z } from "zod";
-import { notify } from "./events";
-import type { ArchiveFilter } from "./archive";
+import { and, asc, desc, eq, ilike, isNotNull, notInArray, or, sql } from 'drizzle-orm'
+import { z } from 'zod'
 
-const docKind = z.enum(["module", "adr", "guide", "note"]);
+import { createId, type Database, schema } from '@claude-organizer/db'
+
+import type { ArchiveFilter } from './archive'
+import { notify } from './events'
+
+const docKind = z.enum(['module', 'adr', 'guide', 'note'])
 
 export const createDocInput = z.object({
   projectId: z.string(),
@@ -13,9 +15,9 @@ export const createDocInput = z.object({
   summary: z.string().max(200).optional(),
   bodyMd: z.string().optional(),
   kind: docKind.optional(),
-  position: z.number().int().min(0).optional(),
-});
-export type CreateDocInput = z.infer<typeof createDocInput>;
+  position: z.number().int().min(0).optional()
+})
+export type CreateDocInput = z.infer<typeof createDocInput>
 
 export const updateDocInput = z.object({
   id: z.string(),
@@ -24,9 +26,9 @@ export const updateDocInput = z.object({
   bodyMd: z.string().nullable().optional(),
   kind: docKind.optional(),
   parentId: z.string().nullable().optional(),
-  position: z.number().int().min(0).optional(),
-});
-export type UpdateDocInput = z.infer<typeof updateDocInput>;
+  position: z.number().int().min(0).optional()
+})
+export type UpdateDocInput = z.infer<typeof updateDocInput>
 
 const docListColumns = {
   id: schema.docs.id,
@@ -37,38 +39,38 @@ const docListColumns = {
   kind: schema.docs.kind,
   position: schema.docs.position,
   createdAt: schema.docs.createdAt,
-  updatedAt: schema.docs.updatedAt,
-};
+  updatedAt: schema.docs.updatedAt
+}
 
 export async function listDocs(
   db: Database,
   projectId: string,
   kind?: z.infer<typeof docKind>,
-  filter?: ArchiveFilter,
+  filter?: ArchiveFilter
 ) {
-  const conditions = [eq(schema.docs.projectId, projectId)];
-  if (kind) conditions.push(eq(schema.docs.kind, kind));
+  const conditions = [eq(schema.docs.projectId, projectId)]
+  if (kind) conditions.push(eq(schema.docs.kind, kind))
   if (filter?.archivedOnly) {
-    conditions.push(isNotNull(schema.docs.archivedAt));
+    conditions.push(isNotNull(schema.docs.archivedAt))
   } else if (!filter?.includeArchived) {
     // Hide archived docs AND their descendants: a child "travels" with an
     // archived parent even though it isn't marked archived itself.
-    const hidden = await archivedDocSubtreeIds(db, projectId);
+    const hidden = await archivedDocSubtreeIds(db, projectId)
     if (hidden.length > 0) {
-      conditions.push(notInArray(schema.docs.id, hidden));
+      conditions.push(notInArray(schema.docs.id, hidden))
     }
   }
   return db
     .select(docListColumns)
     .from(schema.docs)
     .where(and(...conditions))
-    .orderBy(asc(schema.docs.position), asc(schema.docs.title));
+    .orderBy(asc(schema.docs.position), asc(schema.docs.title))
 }
 
 /** Ids of every doc that is archived or descends from an archived doc. */
 async function archivedDocSubtreeIds(
   db: Database,
-  projectId: string,
+  projectId: string
 ): Promise<string[]> {
   const rows = (await db.execute(sql`
     WITH RECURSIVE archived_tree AS (
@@ -79,8 +81,8 @@ async function archivedDocSubtreeIds(
       JOIN archived_tree a ON d.parent_id = a.id
     )
     SELECT id FROM archived_tree
-  `)) as unknown as Array<{ id: string }>;
-  return rows.map((r) => r.id);
+  `)) as unknown as Array<{ id: string }>
+  return rows.map(r => r.id)
 }
 
 export async function getDoc(db: Database, id: string) {
@@ -88,43 +90,43 @@ export async function getDoc(db: Database, id: string) {
     .select()
     .from(schema.docs)
     .where(eq(schema.docs.id, id))
-    .limit(1);
-  return row ?? null;
+    .limit(1)
+  return row ?? null
 }
 
 export async function createDoc(db: Database, input: CreateDocInput) {
-  const parsed = createDocInput.parse(input);
+  const parsed = createDocInput.parse(input)
   const [row] = await db
     .insert(schema.docs)
     .values({
-      id: createId("doc"),
+      id: createId('doc'),
       projectId: parsed.projectId,
       parentId: parsed.parentId ?? null,
       title: parsed.title,
       summary: parsed.summary,
       bodyMd: parsed.bodyMd,
-      kind: parsed.kind ?? "note",
-      position: parsed.position ?? 0,
+      kind: parsed.kind ?? 'note',
+      position: parsed.position ?? 0
     })
-    .returning();
+    .returning()
   if (row) {
-    await notify(db, { type: "doc.changed", projectId: row.projectId, docId: row.id });
+    await notify(db, { type: 'doc.changed', projectId: row.projectId, docId: row.id })
   }
-  return row;
+  return row
 }
 
 export async function updateDoc(db: Database, input: UpdateDocInput) {
-  const parsed = updateDocInput.parse(input);
-  const { id, ...rest } = parsed;
+  const parsed = updateDocInput.parse(input)
+  const { id, ...rest } = parsed
   const [row] = await db
     .update(schema.docs)
     .set({ ...rest, updatedAt: sql`now()` })
     .where(eq(schema.docs.id, id))
-    .returning();
+    .returning()
   if (row) {
-    await notify(db, { type: "doc.changed", projectId: row.projectId, docId: row.id });
+    await notify(db, { type: 'doc.changed', projectId: row.projectId, docId: row.id })
   }
-  return row ?? null;
+  return row ?? null
 }
 
 // --- Archive / restore / destroy ---
@@ -134,11 +136,11 @@ export async function archiveDoc(db: Database, id: string) {
     .update(schema.docs)
     .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
     .where(eq(schema.docs.id, id))
-    .returning();
+    .returning()
   if (row) {
-    await notify(db, { type: "doc.changed", projectId: row.projectId, docId: row.id });
+    await notify(db, { type: 'doc.changed', projectId: row.projectId, docId: row.id })
   }
-  return row ?? null;
+  return row ?? null
 }
 
 export async function restoreDoc(db: Database, id: string) {
@@ -146,11 +148,11 @@ export async function restoreDoc(db: Database, id: string) {
     .update(schema.docs)
     .set({ archivedAt: null, updatedAt: sql`now()` })
     .where(eq(schema.docs.id, id))
-    .returning();
+    .returning()
   if (row) {
-    await notify(db, { type: "doc.changed", projectId: row.projectId, docId: row.id });
+    await notify(db, { type: 'doc.changed', projectId: row.projectId, docId: row.id })
   }
-  return row ?? null;
+  return row ?? null
 }
 
 /** Hard-delete a doc and its descendants (children cascade via FK). */
@@ -158,38 +160,38 @@ export async function destroyDoc(db: Database, id: string) {
   const [row] = await db
     .delete(schema.docs)
     .where(eq(schema.docs.id, id))
-    .returning({ id: schema.docs.id, projectId: schema.docs.projectId });
+    .returning({ id: schema.docs.id, projectId: schema.docs.projectId })
   if (row) {
     await notify(db, {
-      type: "doc.deleted",
+      type: 'doc.deleted',
       projectId: row.projectId,
-      docId: row.id,
-    });
+      docId: row.id
+    })
   }
-  return row ?? null;
+  return row ?? null
 }
 
 export async function searchDocs(
   db: Database,
   projectId: string,
-  query: string,
+  query: string
 ) {
   // Full-text ranqueado via tsvector (config `simple`, agnóstica de idioma).
   // websearch_to_tsquery aceita input livre do usuário sem lançar erro de sintaxe.
-  const tsQuery = sql`websearch_to_tsquery('simple', ${query})`;
-  const rank = sql<number>`ts_rank(${schema.docs.bodyTsv}, ${tsQuery})`;
+  const tsQuery = sql`websearch_to_tsquery('simple', ${query})`
+  const rank = sql<number>`ts_rank(${schema.docs.bodyTsv}, ${tsQuery})`
   // FTS `simple` casa apenas tokens inteiros; ILIKE no título preserva
   // matching por substring/prefixo (ex.: "arqu" -> "Arquitetura").
-  const term = `%${query}%`;
+  const term = `%${query}%`
   return db
     .select(docListColumns)
     .from(schema.docs)
     .where(
       and(
         eq(schema.docs.projectId, projectId),
-        or(sql`${schema.docs.bodyTsv} @@ ${tsQuery}`, ilike(schema.docs.title, term)),
-      ),
+        or(sql`${schema.docs.bodyTsv} @@ ${tsQuery}`, ilike(schema.docs.title, term))
+      )
     )
     .orderBy(desc(rank), desc(schema.docs.updatedAt))
-    .limit(50);
+    .limit(50)
 }

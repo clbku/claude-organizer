@@ -1,29 +1,30 @@
-import { loadEnvFile } from "node:process";
-import { fileURLToPath } from "node:url";
-import { resolve } from "node:path";
-import { createDb } from "./client";
-import { runMigrations } from "./migrator";
+import { resolve } from 'node:path'
+import { loadEnvFile } from 'node:process'
+import { fileURLToPath } from 'node:url'
+
+import { createDb } from './client'
+import { runMigrations } from './migrator'
 
 try {
-  loadEnvFile(resolve(fileURLToPath(import.meta.url), "../../../../.env"));
+  loadEnvFile(resolve(fileURLToPath(import.meta.url), '../../../../.env'))
 } catch {
   // env file optional, falls back to process env
 }
 
-const url = process.env.DATABASE_URL;
+const url = process.env.DATABASE_URL
 if (!url) {
-  console.error("DATABASE_URL is required to run migrations");
-  process.exit(1);
+  console.error('DATABASE_URL is required to run migrations')
+  process.exit(1)
 }
 
-const { db, close } = createDb({ url, max: 1 });
+const { db, close } = createDb({ url, max: 1 })
 
 try {
-  await runMigrations(db);
-  console.log("Migrations applied");
+  await runMigrations(db)
+  console.log('Migrations applied')
 } catch (err) {
-  console.error("Migration failed:", err);
-  process.exitCode = 1;
+  console.error('Migration failed:', err)
+  process.exitCode = 1
 } finally {
-  await close();
+  await close()
 }

@@ -1,10 +1,13 @@
-import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, inject } from "vitest";
-import { createDb, type Database } from "@claude-organizer/db";
-import { createProject } from "../src/index";
+import { randomUUID } from 'node:crypto'
+
+import { afterAll, beforeAll, inject } from 'vitest'
+
+import { createDb, type Database } from '@claude-organizer/db'
+
+import { createProject } from '../src/index'
 
 export interface TestDb {
-  db: Database;
+  db: Database
 }
 
 /**
@@ -12,20 +15,20 @@ export interface TestDb {
  * file and closes it afterwards. Call at the top level of a test file.
  */
 export function useTestDb(): TestDb {
-  const ctx: TestDb = {} as TestDb;
-  let close: () => Promise<void>;
+  const ctx: TestDb = {} as TestDb
+  let close: () => Promise<void>
 
   beforeAll(() => {
-    const conn = createDb({ url: inject("databaseUrl") });
-    ctx.db = conn.db;
-    close = conn.close;
-  });
+    const conn = createDb({ url: inject('databaseUrl') })
+    ctx.db = conn.db
+    close = conn.close
+  })
 
   afterAll(async () => {
-    await close();
-  });
+    await close()
+  })
 
-  return ctx;
+  return ctx
 }
 
 /**
@@ -33,11 +36,11 @@ export function useTestDb(): TestDb {
  * The slug uses a random UUID so it stays unique even when test files run in
  * parallel workers (Vitest's default).
  */
-export function freshProject(db: Database, keyPrefix = "CO") {
-  const suffix = randomUUID().replace(/-/g, "").slice(0, 12);
+export function freshProject(db: Database, keyPrefix = 'CO') {
+  const suffix = randomUUID().replace(/-/g, '').slice(0, 12)
   return createProject(db, {
     name: `Test Project ${suffix}`,
     slug: `test-${suffix}`,
-    keyPrefix,
-  });
+    keyPrefix
+  })
 }

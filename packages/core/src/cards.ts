@@ -1,18 +1,20 @@
-import { createId, schema, type Database } from "@claude-organizer/db";
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { z } from "zod";
-import { notify } from "./events";
-import { archivedCondition, type ArchiveFilter } from "./archive";
-import { listCardTags, tagsByCardIds } from "./tags";
-import { listBlockedBy, listBlocking, pendingBlockerCounts } from "./blockers";
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { z } from 'zod'
+
+import { createId, type Database, schema } from '@claude-organizer/db'
+
+import { archivedCondition, type ArchiveFilter } from './archive'
+import { listBlockedBy, listBlocking, pendingBlockerCounts } from './blockers'
+import { notify } from './events'
+import { listCardTags, tagsByCardIds } from './tags'
 
 const cardStatus = z.enum([
-  "todo",
-  "in_progress",
-  "review",
-  "done",
-  "blocked",
-]);
+  'todo',
+  'in_progress',
+  'review',
+  'done',
+  'blocked'
+])
 
 export const createCardInput = z.object({
   projectId: z.string(),
@@ -23,9 +25,9 @@ export const createCardInput = z.object({
   status: cardStatus.optional(),
   priority: z.number().int().min(0).max(10).optional(),
   dueDate: z.coerce.date().optional(),
-  parentId: z.string().optional(),
-});
-export type CreateCardInput = z.infer<typeof createCardInput>;
+  parentId: z.string().optional()
+})
+export type CreateCardInput = z.infer<typeof createCardInput>
 
 export const updateCardInput = z.object({
   id: z.string(),
@@ -36,15 +38,15 @@ export const updateCardInput = z.object({
   priority: z.number().int().min(0).max(10).optional(),
   dueDate: z.coerce.date().nullable().optional(),
   sprintId: z.string().nullable().optional(),
-  parentId: z.string().nullable().optional(),
-});
-export type UpdateCardInput = z.infer<typeof updateCardInput>;
+  parentId: z.string().nullable().optional()
+})
+export type UpdateCardInput = z.infer<typeof updateCardInput>
 
 export interface ListCardsFilters extends ArchiveFilter {
-  projectId: string;
-  sprintId?: string | null;
-  status?: z.infer<typeof cardStatus>;
-  backlogOnly?: boolean;
+  projectId: string
+  sprintId?: string | null
+  status?: z.infer<typeof cardStatus>
+  backlogOnly?: boolean
 }
 
 const cardSummaryColumns = {
@@ -60,45 +62,45 @@ const cardSummaryColumns = {
   dueDate: schema.cards.dueDate,
   position: schema.cards.position,
   createdAt: schema.cards.createdAt,
-  updatedAt: schema.cards.updatedAt,
-};
+  updatedAt: schema.cards.updatedAt
+}
 
 export async function listCards(db: Database, filters: ListCardsFilters) {
-  const conditions = [eq(schema.cards.projectId, filters.projectId)];
+  const conditions = [eq(schema.cards.projectId, filters.projectId)]
   if (filters.backlogOnly) {
-    conditions.push(isNull(schema.cards.sprintId));
+    conditions.push(isNull(schema.cards.sprintId))
   } else if (filters.sprintId !== undefined) {
     conditions.push(
       filters.sprintId === null
         ? isNull(schema.cards.sprintId)
-        : eq(schema.cards.sprintId, filters.sprintId),
-    );
+        : eq(schema.cards.sprintId, filters.sprintId)
+    )
   }
   if (filters.status) {
-    conditions.push(eq(schema.cards.status, filters.status));
+    conditions.push(eq(schema.cards.status, filters.status))
   }
-  const archived = archivedCondition(schema.cards.archivedAt, filters);
-  if (archived) conditions.push(archived);
+  const archived = archivedCondition(schema.cards.archivedAt, filters)
+  if (archived) conditions.push(archived)
   const rows = await db
     .select(cardSummaryColumns)
     .from(schema.cards)
     .where(and(...conditions))
-    .orderBy(asc(schema.cards.position), desc(schema.cards.createdAt));
-  const ids = rows.map((r) => r.id);
+    .orderBy(asc(schema.cards.position), desc(schema.cards.createdAt))
+  const ids = rows.map(r => r.id)
   const [tagMap, counts, parentKeys, blockerCounts] = await Promise.all([
     tagsByCardIds(db, ids),
     subtaskCounts(db, ids),
     parentKeysFor(db, rows),
-    pendingBlockerCounts(db, ids),
-  ]);
-  return rows.map((r) => ({
+    pendingBlockerCounts(db, ids)
+  ])
+  return rows.map(r => ({
     ...r,
     tags: tagMap.get(r.id) ?? [],
     subtaskCount: counts.get(r.id)?.total ?? 0,
     subtaskDone: counts.get(r.id)?.done ?? 0,
     parentKey: r.parentId ? (parentKeys.get(r.parentId) ?? null) : null,
-    blockedByPending: blockerCounts.get(r.id) ?? 0,
-  }));
+    blockedByPending: blockerCounts.get(r.id) ?? 0
+  }))
 }
 
 export async function getCard(db: Database, id: string) {
@@ -106,9 +108,9 @@ export async function getCard(db: Database, id: string) {
     .select()
     .from(schema.cards)
     .where(eq(schema.cards.id, id))
-    .limit(1);
-  if (!row) return null;
-  return enrichCard(db, row);
+    .limit(1)
+  if (!row) return null
+  return enrichCard(db, row)
 }
 
 export async function getCardByKey(db: Database, key: string) {
@@ -116,15 +118,15 @@ export async function getCardByKey(db: Database, key: string) {
     .select()
     .from(schema.cards)
     .where(eq(schema.cards.key, key))
-    .limit(1);
-  if (!row) return null;
-  return enrichCard(db, row);
+    .limit(1)
+  if (!row) return null
+  return enrichCard(db, row)
 }
 
 export async function createCard(db: Database, input: CreateCardInput) {
-  const parsed = createCardInput.parse(input);
+  const parsed = createCardInput.parse(input)
   if (parsed.parentId) {
-    await assertParentIsTopLevel(db, parsed.parentId);
+    await assertParentIsTopLevel(db, parsed.parentId)
   }
   const row = await db.transaction(async (tx) => {
     const [project] = await tx
@@ -133,16 +135,16 @@ export async function createCard(db: Database, input: CreateCardInput) {
       .where(eq(schema.projects.id, parsed.projectId))
       .returning({
         keyPrefix: schema.projects.keyPrefix,
-        nextSeq: schema.projects.nextKeySeq,
-      });
+        nextSeq: schema.projects.nextKeySeq
+      })
     if (!project) {
-      throw new Error(`Project ${parsed.projectId} not found`);
+      throw new Error(`Project ${parsed.projectId} not found`)
     }
-    const cardKey = `${project.keyPrefix}-${project.nextSeq - 1}`;
+    const cardKey = `${project.keyPrefix}-${project.nextSeq - 1}`
     const [created] = await tx
       .insert(schema.cards)
       .values({
-        id: createId("crd"),
+        id: createId('crd'),
         projectId: parsed.projectId,
         sprintId: parsed.sprintId,
         parentId: parsed.parentId,
@@ -150,56 +152,56 @@ export async function createCard(db: Database, input: CreateCardInput) {
         title: parsed.title,
         summary: parsed.summary,
         descriptionMd: parsed.descriptionMd,
-        status: parsed.status ?? "todo",
+        status: parsed.status ?? 'todo',
         priority: parsed.priority ?? 0,
-        dueDate: parsed.dueDate,
+        dueDate: parsed.dueDate
       })
-      .returning();
-    return created;
-  });
+      .returning()
+    return created
+  })
   if (row) {
     await notify(db, {
-      type: "card.changed",
+      type: 'card.changed',
       projectId: row.projectId,
       cardId: row.id,
-      cardKey: row.key,
-    });
+      cardKey: row.key
+    })
   }
-  return row;
+  return row
 }
 
 export async function updateCard(db: Database, input: UpdateCardInput) {
-  const parsed = updateCardInput.parse(input);
-  const { id, ...rest } = parsed;
+  const parsed = updateCardInput.parse(input)
+  const { id, ...rest } = parsed
   if (rest.parentId != null) {
-    await assertValidParent(db, id, rest.parentId);
+    await assertValidParent(db, id, rest.parentId)
   }
   const [row] = await db
     .update(schema.cards)
     .set({ ...rest, updatedAt: sql`now()` })
     .where(eq(schema.cards.id, id))
-    .returning();
+    .returning()
   if (row) {
     await notify(db, {
-      type: "card.changed",
+      type: 'card.changed',
       projectId: row.projectId,
       cardId: row.id,
-      cardKey: row.key,
-    });
+      cardKey: row.key
+    })
   }
-  return row ?? null;
+  return row ?? null
 }
 
 export async function moveCardToBacklog(db: Database, cardId: string) {
-  return updateCard(db, { id: cardId, sprintId: null });
+  return updateCard(db, { id: cardId, sprintId: null })
 }
 
 export async function moveCardToSprint(
   db: Database,
   cardId: string,
-  sprintId: string,
+  sprintId: string
 ) {
-  return updateCard(db, { id: cardId, sprintId });
+  return updateCard(db, { id: cardId, sprintId })
 }
 
 // --- Archive / restore / destroy ---
@@ -209,16 +211,16 @@ export async function archiveCard(db: Database, id: string) {
     .update(schema.cards)
     .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
     .where(eq(schema.cards.id, id))
-    .returning();
+    .returning()
   if (row) {
     await notify(db, {
-      type: "card.changed",
+      type: 'card.changed',
       projectId: row.projectId,
       cardId: row.id,
-      cardKey: row.key,
-    });
+      cardKey: row.key
+    })
   }
-  return row ?? null;
+  return row ?? null
 }
 
 export async function restoreCard(db: Database, id: string) {
@@ -226,16 +228,16 @@ export async function restoreCard(db: Database, id: string) {
     .update(schema.cards)
     .set({ archivedAt: null, updatedAt: sql`now()` })
     .where(eq(schema.cards.id, id))
-    .returning();
+    .returning()
   if (row) {
     await notify(db, {
-      type: "card.changed",
+      type: 'card.changed',
       projectId: row.projectId,
       cardId: row.id,
-      cardKey: row.key,
-    });
+      cardKey: row.key
+    })
   }
-  return row ?? null;
+  return row ?? null
 }
 
 /**
@@ -249,20 +251,20 @@ export async function destroyCard(db: Database, id: string) {
       .select({ id: schema.cards.id, projectId: schema.cards.projectId })
       .from(schema.cards)
       .where(eq(schema.cards.id, id))
-      .limit(1);
-    if (!card) return null;
-    await tx.delete(schema.cards).where(eq(schema.cards.parentId, id));
-    await tx.delete(schema.cards).where(eq(schema.cards.id, id));
-    return card;
-  });
+      .limit(1)
+    if (!card) return null
+    await tx.delete(schema.cards).where(eq(schema.cards.parentId, id))
+    await tx.delete(schema.cards).where(eq(schema.cards.id, id))
+    return card
+  })
   if (row) {
     await notify(db, {
-      type: "card.deleted",
+      type: 'card.deleted',
       projectId: row.projectId,
-      cardId: row.id,
-    });
+      cardId: row.id
+    })
   }
-  return row ?? null;
+  return row ?? null
 }
 
 // --- Hierarchy (parent story / sub-tasks) ---
@@ -272,15 +274,15 @@ const subtaskColumns = {
   key: schema.cards.key,
   title: schema.cards.title,
   status: schema.cards.status,
-  priority: schema.cards.priority,
-};
+  priority: schema.cards.priority
+}
 
 export async function listSubtasks(db: Database, parentId: string) {
   return db
     .select(subtaskColumns)
     .from(schema.cards)
     .where(eq(schema.cards.parentId, parentId))
-    .orderBy(asc(schema.cards.position), asc(schema.cards.key));
+    .orderBy(asc(schema.cards.position), asc(schema.cards.key))
 }
 
 async function enrichCard(db: Database, row: typeof schema.cards.$inferSelect) {
@@ -293,17 +295,17 @@ async function enrichCard(db: Database, row: typeof schema.cards.$inferSelect) {
             id: schema.cards.id,
             key: schema.cards.key,
             title: schema.cards.title,
-            status: schema.cards.status,
+            status: schema.cards.status
           })
           .from(schema.cards)
           .where(eq(schema.cards.id, row.parentId))
           .limit(1)
-          .then((r) => r[0] ?? null)
+          .then(r => r[0] ?? null)
       : Promise.resolve(null),
     listBlockedBy(db, row.id),
-    listBlocking(db, row.id),
-  ]);
-  return { ...row, tags, subtasks, parent, blockedBy, blocking };
+    listBlocking(db, row.id)
+  ])
+  return { ...row, tags, subtasks, parent, blockedBy, blocking }
 }
 
 async function assertParentIsTopLevel(db: Database, parentId: string) {
@@ -311,64 +313,64 @@ async function assertParentIsTopLevel(db: Database, parentId: string) {
     .select({ parentId: schema.cards.parentId })
     .from(schema.cards)
     .where(eq(schema.cards.id, parentId))
-    .limit(1);
-  if (!parent) throw new Error(`Parent card ${parentId} not found`);
+    .limit(1)
+  if (!parent) throw new Error(`Parent card ${parentId} not found`)
   if (parent.parentId) {
-    throw new Error("Cannot nest under a card that is already a sub-task");
+    throw new Error('Cannot nest under a card that is already a sub-task')
   }
 }
 
 async function assertValidParent(
   db: Database,
   childId: string,
-  parentId: string,
+  parentId: string
 ) {
   if (parentId === childId) {
-    throw new Error("A card cannot be its own parent");
+    throw new Error('A card cannot be its own parent')
   }
-  await assertParentIsTopLevel(db, parentId);
+  await assertParentIsTopLevel(db, parentId)
   const [childCount] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(schema.cards)
-    .where(eq(schema.cards.parentId, childId));
+    .where(eq(schema.cards.parentId, childId))
   if (childCount && childCount.count > 0) {
-    throw new Error("A card with sub-tasks cannot become a sub-task itself");
+    throw new Error('A card with sub-tasks cannot become a sub-task itself')
   }
 }
 
 async function subtaskCounts(db: Database, parentIds: string[]) {
-  const map = new Map<string, { total: number; done: number }>();
-  if (parentIds.length === 0) return map;
+  const map = new Map<string, { total: number, done: number }>()
+  if (parentIds.length === 0) return map
   const rows = await db
     .select({
       parentId: schema.cards.parentId,
       total: sql<number>`count(*)::int`,
-      done: sql<number>`count(*) filter (where ${schema.cards.status} = 'done')::int`,
+      done: sql<number>`count(*) filter (where ${schema.cards.status} = 'done')::int`
     })
     .from(schema.cards)
     .where(inArray(schema.cards.parentId, parentIds))
-    .groupBy(schema.cards.parentId);
+    .groupBy(schema.cards.parentId)
   for (const r of rows) {
-    if (r.parentId) map.set(r.parentId, { total: r.total, done: r.done });
+    if (r.parentId) map.set(r.parentId, { total: r.total, done: r.done })
   }
-  return map;
+  return map
 }
 
 async function parentKeysFor(
   db: Database,
-  rows: { parentId: string | null }[],
+  rows: { parentId: string | null }[]
 ) {
-  const map = new Map<string, string>();
+  const map = new Map<string, string>()
   const parentIds = [
     ...new Set(
-      rows.map((r) => r.parentId).filter((p): p is string => p !== null),
-    ),
-  ];
-  if (parentIds.length === 0) return map;
+      rows.map(r => r.parentId).filter((p): p is string => p !== null)
+    )
+  ]
+  if (parentIds.length === 0) return map
   const parents = await db
     .select({ id: schema.cards.id, key: schema.cards.key })
     .from(schema.cards)
-    .where(inArray(schema.cards.id, parentIds));
-  for (const p of parents) map.set(p.id, p.key);
-  return map;
+    .where(inArray(schema.cards.id, parentIds))
+  for (const p of parents) map.set(p.id, p.key)
+  return map
 }

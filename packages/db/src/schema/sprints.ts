@@ -1,47 +1,48 @@
-import { relations, sql } from "drizzle-orm";
-import { index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
-import { projects } from "./projects";
-import { roadmaps } from "./roadmaps";
-import { cards } from "./cards";
-import { sprintStatusEnum } from "./enums";
+import { relations, sql } from 'drizzle-orm'
+import { index, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+
+import { cards } from './cards'
+import { sprintStatusEnum } from './enums'
+import { projects } from './projects'
+import { roadmaps } from './roadmaps'
 
 export const sprints = pgTable(
-  "sprints",
+  'sprints',
   {
-    id: text("id").primaryKey(),
-    projectId: text("project_id")
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
       .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
-    roadmapId: text("roadmap_id").references(() => roadmaps.id, {
-      onDelete: "set null",
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    roadmapId: text('roadmap_id').references(() => roadmaps.id, {
+      onDelete: 'set null'
     }),
-    name: text("name").notNull(),
-    goal: text("goal"),
-    status: sprintStatusEnum("status").notNull().default("planned"),
-    startsAt: timestamp("starts_at", { withTimezone: true }),
-    endsAt: timestamp("ends_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true })
+    name: text('name').notNull(),
+    goal: text('goal'),
+    status: sprintStatusEnum('status').notNull().default('planned'),
+    startsAt: timestamp('starts_at', { withTimezone: true }),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .default(sql`now()`),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
+    updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .default(sql`now()`),
-    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    archivedAt: timestamp('archived_at', { withTimezone: true })
   },
-  (t) => [
-    index("sprints_project_idx").on(t.projectId),
-    index("sprints_status_idx").on(t.projectId, t.status),
-  ],
-);
+  t => [
+    index('sprints_project_idx').on(t.projectId),
+    index('sprints_status_idx').on(t.projectId, t.status)
+  ]
+)
 
 export const sprintsRelations = relations(sprints, ({ one, many }) => ({
   project: one(projects, {
     fields: [sprints.projectId],
-    references: [projects.id],
+    references: [projects.id]
   }),
   roadmap: one(roadmaps, {
     fields: [sprints.roadmapId],
-    references: [roadmaps.id],
+    references: [roadmaps.id]
   }),
-  cards: many(cards),
-}));
+  cards: many(cards)
+}))

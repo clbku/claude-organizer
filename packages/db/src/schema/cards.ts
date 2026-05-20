@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { relations, sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
   index,
@@ -6,61 +6,62 @@ import {
   pgTable,
   text,
   timestamp,
-  uniqueIndex,
-} from "drizzle-orm/pg-core";
-import { projects } from "./projects";
-import { sprints } from "./sprints";
-import { cardTags } from "./tags";
-import { comments } from "./comments";
-import { cardStatusEnum } from "./enums";
+  uniqueIndex
+} from 'drizzle-orm/pg-core'
+
+import { comments } from './comments'
+import { cardStatusEnum } from './enums'
+import { projects } from './projects'
+import { sprints } from './sprints'
+import { cardTags } from './tags'
 
 export const cards = pgTable(
-  "cards",
+  'cards',
   {
-    id: text("id").primaryKey(),
-    projectId: text("project_id")
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
       .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
-    sprintId: text("sprint_id").references(() => sprints.id, {
-      onDelete: "set null",
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    sprintId: text('sprint_id').references(() => sprints.id, {
+      onDelete: 'set null'
     }),
-    parentId: text("parent_id").references((): AnyPgColumn => cards.id, {
-      onDelete: "set null",
+    parentId: text('parent_id').references((): AnyPgColumn => cards.id, {
+      onDelete: 'set null'
     }),
-    key: text("key").notNull(),
-    title: text("title").notNull(),
-    summary: text("summary"),
-    descriptionMd: text("description_md"),
-    status: cardStatusEnum("status").notNull().default("todo"),
-    priority: integer("priority").notNull().default(0),
-    dueDate: timestamp("due_date", { withTimezone: true }),
-    position: integer("position").notNull().default(0),
-    createdAt: timestamp("created_at", { withTimezone: true })
+    key: text('key').notNull(),
+    title: text('title').notNull(),
+    summary: text('summary'),
+    descriptionMd: text('description_md'),
+    status: cardStatusEnum('status').notNull().default('todo'),
+    priority: integer('priority').notNull().default(0),
+    dueDate: timestamp('due_date', { withTimezone: true }),
+    position: integer('position').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .default(sql`now()`),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
+    updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .default(sql`now()`),
-    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    archivedAt: timestamp('archived_at', { withTimezone: true })
   },
-  (t) => [
-    index("cards_project_idx").on(t.projectId),
-    index("cards_sprint_idx").on(t.sprintId),
-    index("cards_parent_idx").on(t.parentId),
-    index("cards_status_idx").on(t.projectId, t.status),
-    uniqueIndex("cards_project_key_uk").on(t.projectId, t.key),
-  ],
-);
+  t => [
+    index('cards_project_idx').on(t.projectId),
+    index('cards_sprint_idx').on(t.sprintId),
+    index('cards_parent_idx').on(t.parentId),
+    index('cards_status_idx').on(t.projectId, t.status),
+    uniqueIndex('cards_project_key_uk').on(t.projectId, t.key)
+  ]
+)
 
 export const cardsRelations = relations(cards, ({ one, many }) => ({
   project: one(projects, {
     fields: [cards.projectId],
-    references: [projects.id],
+    references: [projects.id]
   }),
   sprint: one(sprints, {
     fields: [cards.sprintId],
-    references: [sprints.id],
+    references: [sprints.id]
   }),
   tags: many(cardTags),
-  comments: many(comments),
-}));
+  comments: many(comments)
+}))

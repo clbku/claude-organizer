@@ -1,116 +1,118 @@
-import { createId, schema, type Database } from "@claude-organizer/db";
-import { and, asc, eq, inArray } from "drizzle-orm";
-import { z } from "zod";
-import { notify } from "./events";
+import { and, asc, eq, inArray } from 'drizzle-orm'
+import { z } from 'zod'
+
+import { createId, type Database, schema } from '@claude-organizer/db'
+
+import { notify } from './events'
 
 export const addCommentInput = z.object({
   cardId: z.string(),
-  author: z.enum(["ai", "user"]),
-  bodyMd: z.string().min(1),
-});
-export type AddCommentInput = z.infer<typeof addCommentInput>;
+  author: z.enum(['ai', 'user']),
+  bodyMd: z.string().min(1)
+})
+export type AddCommentInput = z.infer<typeof addCommentInput>
 
 export const updateCommentInput = z.object({
   id: z.string(),
-  bodyMd: z.string().min(1),
-});
-export type UpdateCommentInput = z.infer<typeof updateCommentInput>;
+  bodyMd: z.string().min(1)
+})
+export type UpdateCommentInput = z.infer<typeof updateCommentInput>
 
 export async function listComments(
   db: Database,
   cardId: string,
-  options: { markAsRead?: boolean } = {},
+  options: { markAsRead?: boolean } = {}
 ) {
   const rows = await db
     .select()
     .from(schema.comments)
     .where(eq(schema.comments.cardId, cardId))
-    .orderBy(asc(schema.comments.createdAt));
+    .orderBy(asc(schema.comments.createdAt))
 
   if (options.markAsRead) {
     const unreadIds = rows
-      .filter((r) => r.author === "user" && !r.readByAi)
-      .map((r) => r.id);
+      .filter(r => r.author === 'user' && !r.readByAi)
+      .map(r => r.id)
     if (unreadIds.length) {
       await db
         .update(schema.comments)
         .set({ readByAi: true })
-        .where(inArray(schema.comments.id, unreadIds));
+        .where(inArray(schema.comments.id, unreadIds))
       const [card] = await db
         .select({ projectId: schema.cards.projectId })
         .from(schema.cards)
         .where(eq(schema.cards.id, cardId))
-        .limit(1);
+        .limit(1)
       if (card) {
         await notify(db, {
-          type: "comment.read",
+          type: 'comment.read',
           projectId: card.projectId,
-          cardId,
-        });
+          cardId
+        })
       }
     }
   }
-  return rows;
+  return rows
 }
 
 export async function addComment(db: Database, input: AddCommentInput) {
-  const parsed = addCommentInput.parse(input);
+  const parsed = addCommentInput.parse(input)
   const [row] = await db
     .insert(schema.comments)
     .values({
-      id: createId("cmt"),
+      id: createId('cmt'),
       cardId: parsed.cardId,
       author: parsed.author,
       bodyMd: parsed.bodyMd,
-      readByAi: parsed.author === "ai",
+      readByAi: parsed.author === 'ai'
     })
-    .returning();
+    .returning()
   if (row) {
     const [card] = await db
       .select({ projectId: schema.cards.projectId })
       .from(schema.cards)
       .where(eq(schema.cards.id, row.cardId))
-      .limit(1);
+      .limit(1)
     if (card) {
       await notify(db, {
-        type: "comment.added",
+        type: 'comment.added',
         projectId: card.projectId,
         cardId: row.cardId,
-        commentId: row.id,
-      });
+        commentId: row.id
+      })
     }
   }
-  return row;
+  return row
 }
 
 export async function updateComment(db: Database, input: UpdateCommentInput) {
-  const parsed = updateCommentInput.parse(input);
+  const parsed = updateCommentInput.parse(input)
   const [row] = await db
     .update(schema.comments)
     .set({ bodyMd: parsed.bodyMd })
     .where(eq(schema.comments.id, parsed.id))
-    .returning();
+    .returning()
   if (row) {
     const [card] = await db
       .select({ projectId: schema.cards.projectId })
       .from(schema.cards)
       .where(eq(schema.cards.id, row.cardId))
-      .limit(1);
+      .limit(1)
     if (card) {
       await notify(db, {
-        type: "comment.updated",
+        type: 'comment.updated',
         projectId: card.projectId,
         cardId: row.cardId,
-        commentId: row.id,
-      });
+        commentId: row.id
+      })
     }
   }
-  return row ?? null;
+  return row ?? null
 }
 
 export async function listUnreadCommentsForProject(
   db: Database,
-  projectId: string,
+  projectId: string
 ) {
   return db
     .select({
@@ -118,65 +120,65 @@ export async function listUnreadCommentsForProject(
       cardId: schema.comments.cardId,
       bodyMd: schema.comments.bodyMd,
       createdAt: schema.comments.createdAt,
-      cardTitle: schema.cards.title,
+      cardTitle: schema.cards.title
     })
     .from(schema.comments)
     .innerJoin(schema.cards, eq(schema.cards.id, schema.comments.cardId))
     .where(
       and(
         eq(schema.cards.projectId, projectId),
-        eq(schema.comments.author, "user"),
-        eq(schema.comments.readByAi, false),
-      ),
+        eq(schema.comments.author, 'user'),
+        eq(schema.comments.readByAi, false)
+      )
     )
-    .orderBy(asc(schema.comments.createdAt));
+    .orderBy(asc(schema.comments.createdAt))
 }
 
 export async function deleteComment(db: Database, id: string) {
   const [row] = await db
     .delete(schema.comments)
     .where(eq(schema.comments.id, id))
-    .returning();
+    .returning()
   if (row) {
     const [card] = await db
       .select({ projectId: schema.cards.projectId })
       .from(schema.cards)
       .where(eq(schema.cards.id, row.cardId))
-      .limit(1);
+      .limit(1)
     if (card) {
       await notify(db, {
-        type: "comment.deleted",
+        type: 'comment.deleted',
         projectId: card.projectId,
         cardId: row.cardId,
-        commentId: row.id,
-      });
+        commentId: row.id
+      })
     }
   }
-  return row ?? null;
+  return row ?? null
 }
 
 export async function markCommentsAsRead(db: Database, commentIds: string[]) {
-  if (!commentIds.length) return 0;
+  if (!commentIds.length) return 0
   const rows = await db
     .update(schema.comments)
     .set({ readByAi: true })
     .where(inArray(schema.comments.id, commentIds))
-    .returning({ id: schema.comments.id, cardId: schema.comments.cardId });
+    .returning({ id: schema.comments.id, cardId: schema.comments.cardId })
   // Comments may span multiple cards; notify each affected card so open card
   // views drop the "unread by AI" badge live.
-  const cardIds = [...new Set(rows.map((r) => r.cardId))];
+  const cardIds = [...new Set(rows.map(r => r.cardId))]
   if (cardIds.length) {
     const cards = await db
       .select({ id: schema.cards.id, projectId: schema.cards.projectId })
       .from(schema.cards)
-      .where(inArray(schema.cards.id, cardIds));
+      .where(inArray(schema.cards.id, cardIds))
     for (const card of cards) {
       await notify(db, {
-        type: "comment.read",
+        type: 'comment.read',
         projectId: card.projectId,
-        cardId: card.id,
-      });
+        cardId: card.id
+      })
     }
   }
-  return rows.length;
+  return rows.length
 }

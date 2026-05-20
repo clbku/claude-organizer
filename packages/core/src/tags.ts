@@ -1,13 +1,15 @@
-import { createId, schema, type Database } from "@claude-organizer/db";
-import { and, asc, eq, inArray } from "drizzle-orm";
-import { z } from "zod";
-import { notify } from "./events";
+import { and, asc, eq, inArray } from 'drizzle-orm'
+import { z } from 'zod'
+
+import { createId, type Database, schema } from '@claude-organizer/db'
+
+import { notify } from './events'
 
 export interface Tag {
-  id: string;
-  projectId: string;
-  name: string;
-  color: string;
+  id: string
+  projectId: string
+  name: string
+  color: string
 }
 
 export const createTagInput = z.object({
@@ -15,69 +17,69 @@ export const createTagInput = z.object({
   name: z.string().min(1).max(50),
   color: z
     .string()
-    .regex(/^#[0-9a-fA-F]{6}$/, "color must be a hex like #ef4444")
-    .optional(),
-});
-export type CreateTagInput = z.infer<typeof createTagInput>;
+    .regex(/^#[0-9a-fA-F]{6}$/, 'color must be a hex like #ef4444')
+    .optional()
+})
+export type CreateTagInput = z.infer<typeof createTagInput>
 
 export const updateTagInput = z.object({
   id: z.string(),
   name: z.string().min(1).max(50).optional(),
   color: z
     .string()
-    .regex(/^#[0-9a-fA-F]{6}$/, "color must be a hex like #ef4444")
-    .optional(),
-});
-export type UpdateTagInput = z.infer<typeof updateTagInput>;
+    .regex(/^#[0-9a-fA-F]{6}$/, 'color must be a hex like #ef4444')
+    .optional()
+})
+export type UpdateTagInput = z.infer<typeof updateTagInput>
 
 export async function listTags(db: Database, projectId: string) {
   return db
     .select()
     .from(schema.tags)
     .where(eq(schema.tags.projectId, projectId))
-    .orderBy(asc(schema.tags.name));
+    .orderBy(asc(schema.tags.name))
 }
 
 export async function createTag(db: Database, input: CreateTagInput) {
-  const parsed = createTagInput.parse(input);
+  const parsed = createTagInput.parse(input)
   const [row] = await db
     .insert(schema.tags)
     .values({
-      id: createId("tag"),
+      id: createId('tag'),
       projectId: parsed.projectId,
       name: parsed.name,
-      color: parsed.color,
+      color: parsed.color
     })
-    .returning();
+    .returning()
   if (row) {
-    await notify(db, { type: "project.changed", projectId: row.projectId });
+    await notify(db, { type: 'project.changed', projectId: row.projectId })
   }
-  return row;
+  return row
 }
 
 export async function updateTag(db: Database, input: UpdateTagInput) {
-  const parsed = updateTagInput.parse(input);
-  const { id, ...rest } = parsed;
+  const parsed = updateTagInput.parse(input)
+  const { id, ...rest } = parsed
   const [row] = await db
     .update(schema.tags)
     .set(rest)
     .where(eq(schema.tags.id, id))
-    .returning();
+    .returning()
   if (row) {
-    await notify(db, { type: "project.changed", projectId: row.projectId });
+    await notify(db, { type: 'project.changed', projectId: row.projectId })
   }
-  return row ?? null;
+  return row ?? null
 }
 
 export async function deleteTag(db: Database, tagId: string) {
   const [row] = await db
     .delete(schema.tags)
     .where(eq(schema.tags.id, tagId))
-    .returning();
+    .returning()
   if (row) {
-    await notify(db, { type: "project.changed", projectId: row.projectId });
+    await notify(db, { type: 'project.changed', projectId: row.projectId })
   }
-  return row ?? null;
+  return row ?? null
 }
 
 async function notifyCardChanged(db: Database, cardId: string) {
@@ -85,87 +87,87 @@ async function notifyCardChanged(db: Database, cardId: string) {
     .select({ projectId: schema.cards.projectId, key: schema.cards.key })
     .from(schema.cards)
     .where(eq(schema.cards.id, cardId))
-    .limit(1);
+    .limit(1)
   if (card) {
     await notify(db, {
-      type: "card.changed",
+      type: 'card.changed',
       projectId: card.projectId,
       cardId,
-      cardKey: card.key,
-    });
+      cardKey: card.key
+    })
   }
 }
 
 export async function listCardTags(
   db: Database,
-  cardId: string,
+  cardId: string
 ): Promise<Tag[]> {
   return db
     .select({
       id: schema.tags.id,
       projectId: schema.tags.projectId,
       name: schema.tags.name,
-      color: schema.tags.color,
+      color: schema.tags.color
     })
     .from(schema.cardTags)
     .innerJoin(schema.tags, eq(schema.cardTags.tagId, schema.tags.id))
     .where(eq(schema.cardTags.cardId, cardId))
-    .orderBy(asc(schema.tags.name));
+    .orderBy(asc(schema.tags.name))
 }
 
 export async function addTagToCard(
   db: Database,
   cardId: string,
-  tagId: string,
+  tagId: string
 ) {
   await db
     .insert(schema.cardTags)
     .values({ cardId, tagId })
-    .onConflictDoNothing();
-  await notifyCardChanged(db, cardId);
-  return listCardTags(db, cardId);
+    .onConflictDoNothing()
+  await notifyCardChanged(db, cardId)
+  return listCardTags(db, cardId)
 }
 
 export async function removeTagFromCard(
   db: Database,
   cardId: string,
-  tagId: string,
+  tagId: string
 ) {
   await db
     .delete(schema.cardTags)
     .where(
       and(
         eq(schema.cardTags.cardId, cardId),
-        eq(schema.cardTags.tagId, tagId),
-      ),
-    );
-  await notifyCardChanged(db, cardId);
-  return listCardTags(db, cardId);
+        eq(schema.cardTags.tagId, tagId)
+      )
+    )
+  await notifyCardChanged(db, cardId)
+  return listCardTags(db, cardId)
 }
 
 /** Map of cardId -> tags, for attaching tags to a batch of cards. */
 export async function tagsByCardIds(
   db: Database,
-  cardIds: string[],
+  cardIds: string[]
 ): Promise<Map<string, Tag[]>> {
-  const map = new Map<string, Tag[]>();
-  if (cardIds.length === 0) return map;
+  const map = new Map<string, Tag[]>()
+  if (cardIds.length === 0) return map
   const rows = await db
     .select({
       cardId: schema.cardTags.cardId,
       id: schema.tags.id,
       projectId: schema.tags.projectId,
       name: schema.tags.name,
-      color: schema.tags.color,
+      color: schema.tags.color
     })
     .from(schema.cardTags)
     .innerJoin(schema.tags, eq(schema.cardTags.tagId, schema.tags.id))
     .where(inArray(schema.cardTags.cardId, cardIds))
-    .orderBy(asc(schema.tags.name));
+    .orderBy(asc(schema.tags.name))
   for (const { cardId, ...tag } of rows) {
-    const arr = map.get(cardId) ?? [];
-    arr.push(tag);
-    map.set(cardId, arr);
+    const arr = map.get(cardId) ?? []
+    arr.push(tag)
+    map.set(cardId, arr)
   }
-  return map;
+  return map
 }

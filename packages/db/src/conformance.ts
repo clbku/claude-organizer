@@ -4,7 +4,8 @@
  * asserts below stops compiling and `pnpm typecheck` fails until the matching
  * field in shared is updated. Pure types — this module emits nothing at runtime.
  */
-import type { InferSelectModel } from "drizzle-orm";
+import type { InferSelectModel } from 'drizzle-orm'
+
 import type {
   CardRow,
   CardStatus,
@@ -16,21 +17,22 @@ import type {
   RoadmapRow,
   SprintRow,
   SprintStatus,
-  TagRow,
-} from "@claude-organizer/shared";
+  TagRow
+} from '@claude-organizer/shared'
+
 import {
-  cardStatusEnum,
   cards,
+  cardStatusEnum,
   commentAuthorEnum,
   comments,
   docKindEnum,
   docs,
   projects,
   roadmaps,
-  sprintStatusEnum,
   sprints,
-  tags,
-} from "./schema/index";
+  sprintStatusEnum,
+  tags
+} from './schema/index'
 
 /** Drizzle row (Date columns) → its JSON wire form (ISO strings). */
 type Wire<T> = {
@@ -39,13 +41,13 @@ type Wire<T> = {
     : T[K] extends Date | null
       ? string | null
       : T[K];
-};
+}
 
-type Equal<A, B> =
-  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
+type Equal<A, B>
+  = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
     ? true
-    : false;
-type Assert<T extends true> = T;
+    : false
+type Assert<T extends true> = T
 
 /**
  * Every entry must stay `true`. A mismatch makes the corresponding `Assert`
@@ -57,12 +59,12 @@ export type SchemaConformance = [
   Assert<Equal<CardRow, Wire<InferSelectModel<typeof cards>>>>,
   Assert<Equal<SprintRow, Wire<InferSelectModel<typeof sprints>>>>,
   Assert<Equal<CommentRow, Wire<InferSelectModel<typeof comments>>>>,
-  Assert<Equal<DocRow, Wire<Omit<InferSelectModel<typeof docs>, "bodyTsv">>>>,
+  Assert<Equal<DocRow, Wire<Omit<InferSelectModel<typeof docs>, 'bodyTsv'>>>>,
   Assert<Equal<ProjectRow, Wire<InferSelectModel<typeof projects>>>>,
   Assert<Equal<TagRow, Wire<InferSelectModel<typeof tags>>>>,
   Assert<Equal<RoadmapRow, Wire<InferSelectModel<typeof roadmaps>>>>,
   Assert<Equal<CardStatus, (typeof cardStatusEnum.enumValues)[number]>>,
   Assert<Equal<SprintStatus, (typeof sprintStatusEnum.enumValues)[number]>>,
   Assert<Equal<CommentAuthor, (typeof commentAuthorEnum.enumValues)[number]>>,
-  Assert<Equal<DocKind, (typeof docKindEnum.enumValues)[number]>>,
-];
+  Assert<Equal<DocKind, (typeof docKindEnum.enumValues)[number]>>
+]

@@ -1,35 +1,36 @@
-import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import { createDb, runMigrations } from "@claude-organizer/db";
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql'
+import { PostgreSqlContainer } from '@testcontainers/postgresql'
 
-let container: StartedPostgreSqlContainer;
+import { createDb, runMigrations } from '@claude-organizer/db'
+
+let container: StartedPostgreSqlContainer
 
 // Spins one ephemeral Postgres for the whole suite, applies the real
 // migrations, and hands the connection URL to the tests via `provide`/`inject`.
 export default async function setup({
-  provide,
+  provide
 }: {
-  provide: (key: "databaseUrl", value: string) => void;
+  provide: (key: 'databaseUrl', value: string) => void
 }) {
-  container = await new PostgreSqlContainer("postgres:16-alpine").start();
-  const url = container.getConnectionUri();
+  container = await new PostgreSqlContainer('postgres:16-alpine').start()
+  const url = container.getConnectionUri()
 
-  const { db, close } = createDb({ url, max: 1 });
+  const { db, close } = createDb({ url, max: 1 })
   try {
-    await runMigrations(db);
+    await runMigrations(db)
   } finally {
-    await close();
+    await close()
   }
 
-  provide("databaseUrl", url);
+  provide('databaseUrl', url)
 
   return async () => {
-    await container.stop();
-  };
+    await container.stop()
+  }
 }
 
-declare module "vitest" {
+declare module 'vitest' {
   interface ProvidedContext {
-    databaseUrl: string;
+    databaseUrl: string
   }
 }
