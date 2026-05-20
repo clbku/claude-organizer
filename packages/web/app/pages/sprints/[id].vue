@@ -11,6 +11,8 @@ const sprintId = computed(() => String(route.params.id));
 const sprint = ref<Sprint | null>(null);
 const cards = ref<Card[]>([]);
 const backlogCards = ref<Card[]>([]);
+const archivedCards = ref<Card[]>([]);
+const archivedExpanded = ref(false);
 const error = ref<unknown>(null);
 
 const { editing, saving, justSaved } = useSprintInlineEdit(sprint, (updated) => {
@@ -42,26 +44,37 @@ async function loadCards() {
   if (!sprint.value) {
     cards.value = [];
     backlogCards.value = [];
+    archivedCards.value = [];
     return;
   }
   const projectId = sprint.value.projectId;
   const sprintIdLocal = sprint.value.id;
+  const fetchArchived = api<Card[]>("/cards", {
+    query: { projectId, sprintId: sprintIdLocal, archivedOnly: "true" },
+  });
   if (showBacklog.value) {
-    const [sprintList, backlogList] = await Promise.all([
+    const [sprintList, backlogList, archivedList] = await Promise.all([
       api<Card[]>("/cards", {
         query: { projectId, sprintId: sprintIdLocal },
       }),
       api<Card[]>("/cards", {
         query: { projectId, backlogOnly: "true" },
       }),
+      fetchArchived,
     ]);
     cards.value = sprintList;
     backlogCards.value = backlogList;
+    archivedCards.value = archivedList;
   } else {
-    cards.value = await api<Card[]>("/cards", {
-      query: { projectId, sprintId: sprintIdLocal },
-    });
+    const [sprintList, archivedList] = await Promise.all([
+      api<Card[]>("/cards", {
+        query: { projectId, sprintId: sprintIdLocal },
+      }),
+      fetchArchived,
+    ]);
+    cards.value = sprintList;
     backlogCards.value = [];
+    archivedCards.value = archivedList;
   }
 }
 
@@ -186,6 +199,11 @@ async function completeSprint() {
 
 function onSprintRemoved() {
   router.push("/sprints");
+}
+
+async function restoreCard(cardId: string) {
+  await api(`/cards/${cardId}/restore`, { method: "POST" });
+  await loadCards();
 }
 </script>
 
@@ -319,6 +337,78 @@ function onSprintRemoved() {
             :cards="columns[status]"
             @card-moved="onCardMoved"
           />
+          <template v-if="archivedCards.length">
+            <button
+              v-if="!archivedExpanded"
+              type="button"
+              class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-default hover:bg-elevated/40 hover:border-primary/40 transition shrink-0 py-3"
+              style="width: 36px;"
+              @click="archivedExpanded = true"
+            >
+              <UIcon name="i-lucide-archive" class="size-4 text-muted" />
+              <span
+                class="text-xs font-semibold text-muted whitespace-nowrap"
+                style="writing-mode: vertical-rl; transform: rotate(180deg);"
+              >
+                Archived ({{ archivedCards.length }})
+              </span>
+            </button>
+            <div
+              v-else
+              class="flex flex-col bg-elevated/20 rounded-lg border border-dashed border-default overflow-hidden h-full"
+              style="flex: 1 1 0; min-width: 200px;"
+            >
+              <div
+                class="flex items-center justify-between px-3 py-2 border-b border-default border-dashed shrink-0"
+              >
+                <div class="flex items-center gap-2">
+                  <UIcon name="i-lucide-archive" class="text-muted size-4" />
+                  <span class="text-sm font-semibold text-muted">Archived</span>
+                  <span class="text-xs text-muted">{{ archivedCards.length }}</span>
+                </div>
+                <UButton
+                  icon="i-lucide-x"
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  @click="archivedExpanded = false"
+                />
+              </div>
+              <div
+                class="flex flex-col gap-2 p-2 flex-1 overflow-y-auto overflow-x-hidden"
+              >
+                <div
+                  v-for="card in archivedCards"
+                  :key="card.id"
+                  class="min-w-0 shrink-0 bg-default border border-default rounded-md px-2.5 py-2"
+                >
+                  <NuxtLink
+                    :to="`/cards/${card.key}`"
+                    class="text-sm leading-snug break-words min-w-0 hover:underline decoration-primary/40 underline-offset-2"
+                  >
+                    <span class="font-mono font-bold text-default mr-1.5">{{ card.key }}</span>
+                    <span class="font-medium">{{ card.title }}</span>
+                  </NuxtLink>
+                  <p
+                    v-if="card.summary"
+                    class="text-xs text-muted leading-snug line-clamp-2 mt-1"
+                  >
+                    {{ card.summary }}
+                  </p>
+                  <div class="mt-2 flex justify-end">
+                    <UButton
+                      icon="i-lucide-archive-restore"
+                      size="xs"
+                      color="neutral"
+                      variant="soft"
+                      label="Restore"
+                      @click="restoreCard(card.id)"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
       </template>
     </template>

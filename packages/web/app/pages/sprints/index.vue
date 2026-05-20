@@ -8,16 +8,21 @@ const { currentProject, currentProjectId } = storeToRefs(store);
 const api = useApi();
 
 const sprints = ref<Sprint[]>([]);
+const archivedSprints = ref<Sprint[]>([]);
 const cards = ref<Card[]>([]);
 
 async function loadSprints() {
   if (!currentProjectId.value) {
     sprints.value = [];
+    archivedSprints.value = [];
     return;
   }
-  sprints.value = await api<Sprint[]>("/sprints", {
-    query: { projectId: currentProjectId.value },
-  });
+  [sprints.value, archivedSprints.value] = await Promise.all([
+    api<Sprint[]>("/sprints", { query: { projectId: currentProjectId.value } }),
+    api<Sprint[]>("/sprints", {
+      query: { projectId: currentProjectId.value, archivedOnly: "true" },
+    }),
+  ]);
 }
 
 async function loadCards() {
@@ -85,6 +90,17 @@ async function startSprint(id: string) {
 async function completeSprint(id: string) {
   await api(`/sprints/${id}/complete`, { method: "POST" });
   await loadSprints();
+}
+
+async function restoreSprint(id: string) {
+  await api(`/sprints/${id}/restore`, { method: "POST" });
+  await loadSprints();
+}
+
+function formatStatus(status: Sprint["status"]) {
+  return { active: "Active", planned: "Planned", completed: "Completed", cancelled: "Cancelled" }[
+    status
+  ];
 }
 
 const createOpen = ref(false);
@@ -162,6 +178,33 @@ async function createSprint() {
             />
           </div>
         </section>
+
+        <ArchivedDisclosure :count="archivedSprints.length" label="Archived">
+          <div class="space-y-2">
+            <div
+              v-for="s in archivedSprints"
+              :key="s.id"
+              class="border border-dashed border-default rounded-md px-4 py-3 flex items-center justify-between gap-3"
+            >
+              <NuxtLink
+                :to="`/sprints/${s.id}`"
+                class="min-w-0 flex-1 hover:underline decoration-primary/40 underline-offset-2"
+              >
+                <h3 class="font-semibold text-sm truncate">{{ s.name }}</h3>
+                <p class="text-xs text-muted">{{ formatStatus(s.status) }}</p>
+              </NuxtLink>
+              <UButton
+                icon="i-lucide-archive-restore"
+                size="xs"
+                color="neutral"
+                variant="soft"
+                label="Restore"
+                class="shrink-0"
+                @click="restoreSprint(s.id)"
+              />
+            </div>
+          </div>
+        </ArchivedDisclosure>
       </div>
     </template>
   </UDashboardPanel>

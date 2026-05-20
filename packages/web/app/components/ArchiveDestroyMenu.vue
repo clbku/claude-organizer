@@ -34,14 +34,14 @@ const destroying = ref(false);
 
 const items = computed<DropdownMenuItem[]>(() => [
   {
-    label: "Arquivar",
+    label: "Archive",
     icon: "i-lucide-archive",
     onSelect: () => {
       archiveOpen.value = true;
     },
   },
   {
-    label: "Destruir",
+    label: "Destroy",
     icon: "i-lucide-trash-2",
     color: "error",
     onSelect: () => {
@@ -55,7 +55,7 @@ const cascadeText = computed(() => {
   if (!n) return "";
   const noun =
     n === 1 ? props.cascadeNoun : (props.cascadeNounPlural ?? `${props.cascadeNoun}s`);
-  return ` e ${n} ${noun}`;
+  return ` and ${n} ${noun}`;
 });
 
 async function confirmArchive() {
@@ -88,24 +88,24 @@ async function confirmDestroy() {
       color="neutral"
       variant="ghost"
       :size="size"
-      aria-label="Mais ações"
+      aria-label="More actions"
     />
   </UDropdownMenu>
 
-  <UModal v-model:open="archiveOpen" :title="`Arquivar ${KIND_LABEL[kind]}?`">
+  <UModal v-model:open="archiveOpen" :title="`Archive ${KIND_LABEL[kind]}?`">
     <template #body>
       <p class="text-sm text-muted">
         <span class="font-medium text-default">{{ entityLabel }}</span>
-        some das visões, mas você pode restaurar depois.
+        will be hidden from view, but you can restore it later.
       </p>
     </template>
     <template #footer>
       <div class="flex justify-end gap-2 w-full">
-        <UButton variant="ghost" label="Cancelar" @click="archiveOpen = false" />
+        <UButton variant="ghost" label="Cancel" @click="archiveOpen = false" />
         <UButton
           color="primary"
           icon="i-lucide-archive"
-          label="Arquivar"
+          label="Archive"
           :loading="archiving"
           @click="confirmArchive"
         />
@@ -113,22 +113,22 @@ async function confirmDestroy() {
     </template>
   </UModal>
 
-  <UModal v-model:open="destroyOpen" :title="`Destruir ${KIND_LABEL[kind]}?`">
+  <UModal v-model:open="destroyOpen" :title="`Destroy ${KIND_LABEL[kind]}?`">
     <template #body>
       <p class="text-sm text-muted">
-        Isto vai apagar
+        This will permanently delete
         <span class="font-medium text-default">{{ entityLabel }}</span
         >{{ cascadeText }}.
-        <strong class="text-error">Não dá pra desfazer.</strong>
+        <strong class="text-error">This can't be undone.</strong>
       </p>
     </template>
     <template #footer>
       <div class="flex justify-end gap-2 w-full">
-        <UButton variant="ghost" label="Cancelar" @click="destroyOpen = false" />
+        <UButton variant="ghost" label="Cancel" @click="destroyOpen = false" />
         <UButton
           color="error"
           icon="i-lucide-trash-2"
-          label="Destruir"
+          label="Destroy"
           :loading="destroying"
           @click="confirmDestroy"
         />

@@ -22,6 +22,7 @@ const toolbarItems: EditorToolbarItem[] = [
 ];
 
 const docs = ref<DocSummary[]>([]);
+const archivedDocs = ref<DocSummary[]>([]);
 const search = ref("");
 const selectedId = ref<string | null>(null);
 const current = ref<Doc | null>(null);
@@ -72,11 +73,22 @@ const filteredTree = computed(() =>
 async function loadDocs() {
   if (!currentProjectId.value) {
     docs.value = [];
+    archivedDocs.value = [];
     return;
   }
-  docs.value = await api<DocSummary[]>("/docs", {
-    query: { projectId: currentProjectId.value },
-  });
+  [docs.value, archivedDocs.value] = await Promise.all([
+    api<DocSummary[]>("/docs", {
+      query: { projectId: currentProjectId.value },
+    }),
+    api<DocSummary[]>("/docs", {
+      query: { projectId: currentProjectId.value, archivedOnly: "true" },
+    }),
+  ]);
+}
+
+async function restoreDoc(id: string) {
+  await api(`/docs/${id}/restore`, { method: "POST" });
+  await loadDocs();
 }
 
 async function selectDoc(id: string) {
@@ -305,6 +317,35 @@ async function onDocRemoved() {
               </button>
             </template>
           </div>
+
+          <div
+            v-if="archivedDocs.length"
+            class="border-t border-default p-2 shrink-0"
+          >
+            <ArchivedDisclosure :count="archivedDocs.length">
+              <div class="space-y-0.5">
+                <div
+                  v-for="d in archivedDocs"
+                  :key="d.id"
+                  class="flex items-center gap-2 px-2 py-1 rounded-md text-sm hover:bg-elevated/50"
+                >
+                  <UIcon
+                    :name="docKindMeta[d.kind].icon"
+                    class="size-4 shrink-0 text-muted"
+                  />
+                  <span class="truncate flex-1 text-muted">{{ d.title }}</span>
+                  <UButton
+                    icon="i-lucide-archive-restore"
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                    aria-label="Restore"
+                    @click="restoreDoc(d.id)"
+                  />
+                </div>
+              </div>
+            </ArchivedDisclosure>
+          </div>
         </div>
 
         <!-- Resize handle -->
@@ -334,10 +375,10 @@ async function onDocRemoved() {
               <ArchiveDestroyMenu
                 kind="doc"
                 :entity-id="current.id"
-                :entity-label="current.title || 'este doc'"
+                :entity-label="current.title || 'this doc'"
                 :cascade-count="currentDescendantCount"
-                cascade-noun="doc filho"
-                cascade-noun-plural="docs filhos"
+                cascade-noun="child doc"
+                cascade-noun-plural="child docs"
                 @archived="onDocRemoved"
                 @destroyed="onDocRemoved"
               />
