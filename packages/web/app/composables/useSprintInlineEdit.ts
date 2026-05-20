@@ -1,5 +1,5 @@
 import type { Ref } from "vue";
-import type { Sprint } from "~/composables/useActiveSprint";
+import type { Sprint } from "~/types/sprint";
 
 /**
  * Inline editing (name + goal) for a sprint with debounced auto-save.

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useProjectStore } from "~/stores/project";
-import type { Sprint } from "~/composables/useActiveSprint";
+import type { Sprint } from "~/types/sprint";
 import type { Card, CardStatus } from "~/types/card";
 
 const store = useProjectStore();

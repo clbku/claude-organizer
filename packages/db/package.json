@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@claude-organizer/shared": "workspace:*",
     "drizzle-orm": "^0.40.0",
     "nanoid": "^5.0.9",
     "postgres": "^3.4.5"

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useProjectStore } from "~/stores/project";
 import type { Card } from "~/types/card";
-import type { Sprint } from "~/composables/useActiveSprint";
+import type { Sprint } from "~/types/sprint";
 import { cardStatusMeta } from "~/types/card";
 
 const store = useProjectStore();

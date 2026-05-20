@@ -1,5 +1,5 @@
 {
-  "name": "@claude-organizer/core",
+  "name": "@claude-organizer/shared",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -11,14 +11,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "@claude-organizer/db": "workspace:*",
-    "@claude-organizer/shared": "workspace:*",
-    "drizzle-orm": "^0.40.0",
-    "zod": "^3.24.1"
-  },
   "devDependencies": {
-    "@types/node": "^22.10.0",
     "typescript": "^5.7.2"
   }
 }

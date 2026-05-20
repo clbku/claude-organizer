@@ -1,9 +1,4 @@
-export interface Tag {
-  id: string;
-  projectId: string;
-  name: string;
-  color: string;
-}
+export type { Tag } from "@claude-organizer/shared";
 
 /** Fixed palette offered when creating a tag (stored as hex). */
 export const TAG_COLORS: string[] = [

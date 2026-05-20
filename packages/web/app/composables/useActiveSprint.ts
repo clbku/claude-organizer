@@ -1,17 +1,5 @@
 import type { MaybeRefOrGetter } from "vue";
-
-export interface Sprint {
-  id: string;
-  projectId: string;
-  roadmapId: string | null;
-  name: string;
-  goal: string | null;
-  status: "planned" | "active" | "completed" | "cancelled";
-  startsAt: string | null;
-  endsAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
+import type { Sprint } from "~/types/sprint";
 
 export function useActiveSprint(projectId: MaybeRefOrGetter<string | null>) {
   const api = useApi();

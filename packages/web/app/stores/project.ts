@@ -1,15 +1,5 @@
 import { defineStore } from "pinia";
-
-export interface Project {
-  id: string;
-  slug: string;
-  name: string;
-  description: string | null;
-  keyPrefix: string;
-  nextKeySeq: number;
-  createdAt: string;
-  updatedAt: string;
-}
+import type { Project } from "@claude-organizer/shared";
 
 const CURRENT_PROJECT_COOKIE = "organizer.currentProjectSlug";
 

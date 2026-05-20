@@ -1,52 +1,11 @@
-import type { Tag } from "~/types/tag";
+import type { CardStatus } from "@claude-organizer/shared";
 
-export type CardStatus =
-  | "todo"
-  | "in_progress"
-  | "review"
-  | "done"
-  | "blocked";
-
-export interface Card {
-  id: string;
-  projectId: string;
-  sprintId: string | null;
-  key: string;
-  title: string;
-  summary: string | null;
-  descriptionMd?: string | null;
-  status: CardStatus;
-  priority: number;
-  dueDate: string | null;
-  position: number;
-  createdAt: string;
-  updatedAt: string;
-  tags?: Tag[];
-  parentId?: string | null;
-  parentKey?: string | null;
-  subtaskCount?: number;
-  subtaskDone?: number;
-  subtasks?: CardSubtask[];
-  parent?: CardParent | null;
-  blockedBy?: CardParent[];
-  blocking?: CardParent[];
-  blockedByPending?: number;
-}
-
-export interface CardSubtask {
-  id: string;
-  key: string;
-  title: string;
-  status: CardStatus;
-  priority: number;
-}
-
-export interface CardParent {
-  id: string;
-  key: string;
-  title: string;
-  status: CardStatus;
-}
+export type {
+  Card,
+  CardParent,
+  CardStatus,
+  CardSubtask,
+} from "@claude-organizer/shared";
 
 export const cardStatusOrder: CardStatus[] = [
   "todo",

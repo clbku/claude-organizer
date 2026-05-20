@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Card, CardStatus } from "~/types/card";
 import type { Comment } from "~/types/comment";
-import type { Sprint } from "~/composables/useActiveSprint";
+import type { Sprint } from "~/types/sprint";
 import type { Tag } from "~/types/tag";
 import { cardStatusMeta, cardStatusOrder } from "~/types/card";
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Card, CardStatus } from "~/types/card";
-import type { Sprint } from "~/composables/useActiveSprint";
+import type { Sprint } from "~/types/sprint";
 import { cardStatusOrder } from "~/types/card";
 
 const route = useRoute();

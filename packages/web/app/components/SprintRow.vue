@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Sprint } from "~/composables/useActiveSprint";
+import type { Sprint } from "~/types/sprint";
 import type { CardStatus } from "~/types/card";
 import { cardStatusMeta, cardStatusOrder } from "~/types/card";
 

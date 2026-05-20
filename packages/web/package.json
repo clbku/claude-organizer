@@ -11,6 +11,7 @@
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
+    "@claude-organizer/shared": "workspace:*",
     "@nuxt/ui": "^4.0.0",
     "@pinia/nuxt": "^0.11.0",
     "marked": "^15.0.4",

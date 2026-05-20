@@ -1,21 +1,8 @@
-export type DocKind = "module" | "adr" | "guide" | "note";
+import type { DocKind, DocSummary } from "@claude-organizer/shared";
 
-export interface DocSummary {
-  id: string;
-  projectId: string;
-  parentId: string | null;
-  title: string;
-  summary: string | null;
-  kind: DocKind;
-  position: number;
-  createdAt: string;
-  updatedAt: string;
-}
+export type { Doc, DocKind, DocSummary } from "@claude-organizer/shared";
 
-export interface Doc extends DocSummary {
-  bodyMd: string | null;
-}
-
+/** Front-only tree node built from a flat list of docs. */
 export interface DocNode extends DocSummary {
   children: DocNode[];
 }
