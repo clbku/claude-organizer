@@ -155,7 +155,9 @@ useProjectEvents(
     ) {
       refreshCard();
     } else if (
-      (event.type === "comment.added" || event.type === "comment.deleted") &&
+      (event.type === "comment.added" ||
+        event.type === "comment.deleted" ||
+        event.type === "comment.read") &&
       event.cardId === card.value.id
     ) {
       refreshComments();

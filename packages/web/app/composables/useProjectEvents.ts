@@ -25,6 +25,11 @@ export type CoEvent =
       commentId: string;
     }
   | {
+      type: "comment.read";
+      projectId: string;
+      cardId: string;
+    }
+  | {
       type: "sprint.changed";
       projectId: string;
       sprintId: string;

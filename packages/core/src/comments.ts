@@ -30,6 +30,18 @@ export async function listComments(
         .update(schema.comments)
         .set({ readByAi: true })
         .where(inArray(schema.comments.id, unreadIds));
+      const [card] = await db
+        .select({ projectId: schema.cards.projectId })
+        .from(schema.cards)
+        .where(eq(schema.cards.id, cardId))
+        .limit(1);
+      if (card) {
+        await notify(db, {
+          type: "comment.read",
+          projectId: card.projectId,
+          cardId,
+        });
+      }
     }
   }
   return rows;
@@ -118,6 +130,22 @@ export async function markCommentsAsRead(db: Database, commentIds: string[]) {
     .update(schema.comments)
     .set({ readByAi: true })
     .where(inArray(schema.comments.id, commentIds))
-    .returning({ id: schema.comments.id });
+    .returning({ id: schema.comments.id, cardId: schema.comments.cardId });
+  // Comments may span multiple cards; notify each affected card so open card
+  // views drop the "unread by AI" badge live.
+  const cardIds = [...new Set(rows.map((r) => r.cardId))];
+  if (cardIds.length) {
+    const cards = await db
+      .select({ id: schema.cards.id, projectId: schema.cards.projectId })
+      .from(schema.cards)
+      .where(inArray(schema.cards.id, cardIds));
+    for (const card of cards) {
+      await notify(db, {
+        type: "comment.read",
+        projectId: card.projectId,
+        cardId: card.id,
+      });
+    }
+  }
   return rows.length;
 }
