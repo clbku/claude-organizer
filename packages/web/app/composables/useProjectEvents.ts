@@ -19,6 +19,12 @@ export type CoEvent =
       commentId: string;
     }
   | {
+      type: "comment.updated";
+      projectId: string;
+      cardId: string;
+      commentId: string;
+    }
+  | {
       type: "comment.deleted";
       projectId: string;
       cardId: string;

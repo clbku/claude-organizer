@@ -6,6 +6,7 @@ import {
   listComments,
   listUnreadCommentsForProject,
   markCommentsAsRead,
+  updateComment,
 } from "@claude-organizer/core";
 import type { Database } from "@claude-organizer/db";
 import { asJson } from "./index";
@@ -39,6 +40,13 @@ export function registerCommentTools(server: McpServer, db: Database) {
     },
     async ({ cardId, bodyMd }) =>
       asJson(await addComment(db, { cardId, bodyMd, author: "ai" })),
+  );
+
+  server.tool(
+    "update_comment",
+    "Edit the body (markdown) of an existing comment. Preserves author, timestamp and order. To remove a comment instead, use delete_comment.",
+    { id: z.string(), bodyMd: z.string().min(1) },
+    async ({ id, bodyMd }) => asJson(await updateComment(db, { id, bodyMd })),
   );
 
   server.tool(

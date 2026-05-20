@@ -10,6 +10,12 @@ export const addCommentInput = z.object({
 });
 export type AddCommentInput = z.infer<typeof addCommentInput>;
 
+export const updateCommentInput = z.object({
+  id: z.string(),
+  bodyMd: z.string().min(1),
+});
+export type UpdateCommentInput = z.infer<typeof updateCommentInput>;
+
 export async function listComments(
   db: Database,
   cardId: string,
@@ -75,6 +81,31 @@ export async function addComment(db: Database, input: AddCommentInput) {
     }
   }
   return row;
+}
+
+export async function updateComment(db: Database, input: UpdateCommentInput) {
+  const parsed = updateCommentInput.parse(input);
+  const [row] = await db
+    .update(schema.comments)
+    .set({ bodyMd: parsed.bodyMd })
+    .where(eq(schema.comments.id, parsed.id))
+    .returning();
+  if (row) {
+    const [card] = await db
+      .select({ projectId: schema.cards.projectId })
+      .from(schema.cards)
+      .where(eq(schema.cards.id, row.cardId))
+      .limit(1);
+    if (card) {
+      await notify(db, {
+        type: "comment.updated",
+        projectId: card.projectId,
+        cardId: row.cardId,
+        commentId: row.id,
+      });
+    }
+  }
+  return row ?? null;
 }
 
 export async function listUnreadCommentsForProject(
