@@ -24,6 +24,12 @@ Do this sequence *before* exploring the codebase or making changes:
 
 If no project matches the current repo, ask the user before creating one.
 
+## Before you analyze or act — read the tasks first, code second
+
+Whether you're **starting a single card** or **analyzing a group of them** (the backlog, a sprint, a set of tech-debt cards, "what's left to do?"), read what the board already knows *before* you open the codebase: each card's full **description** (`get_card` / `get_card_by_key`) **and its comments** (`list_comments`), plus which **sprint** it sits in. `list_cards` returns only short summaries — never base an analysis on summaries alone.
+
+Comments routinely carry the decisive context: a card may be flagged *"consolidated into CO-31 — don't execute in isolation"*, already resolved, deferred, or superseded by another card. Skipping the comments and jumping to the code produces redundant or wrong conclusions (e.g. recommending work that's already planned elsewhere). **Order: tasks first (description + comments + sprint), then code only if still needed.**
+
 ## Working a card
 
 1. **`set_card_status(id, "in_progress")`** before you start, so the board reflects reality.
