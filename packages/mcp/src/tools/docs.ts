@@ -18,51 +18,62 @@ import { asJson } from './index'
 const docKind = z.enum(['module', 'adr', 'guide', 'note'])
 
 export function registerDocTools(server: McpServer, db: Database) {
-  server.tool(
+  server.registerTool(
     'list_docs',
-    'List project docs (modules, ADRs, guides, notes). Returns metadata (id/title/kind/parentId) WITHOUT bodyMd. Use read_doc for full content. Optionally filter by kind. Archived docs (and their descendants) are hidden by default.',
     {
-      projectId: z.string(),
-      kind: docKind.optional(),
-      includeArchived: z
-        .boolean()
-        .optional()
-        .describe('Include archived docs (and their subtree) alongside active ones.'),
-      archivedOnly: z
-        .boolean()
-        .optional()
-        .describe('Return ONLY archived docs.')
+      description:
+        'List project docs (modules, ADRs, guides, notes). Returns metadata (id/title/kind/parentId) WITHOUT bodyMd. Use read_doc for full content. Optionally filter by kind. Archived docs (and their descendants) are hidden by default.',
+      inputSchema: {
+        projectId: z.string(),
+        kind: docKind.optional(),
+        includeArchived: z
+          .boolean()
+          .optional()
+          .describe('Include archived docs (and their subtree) alongside active ones.'),
+        archivedOnly: z
+          .boolean()
+          .optional()
+          .describe('Return ONLY archived docs.')
+      }
     },
     async ({ projectId, kind, includeArchived, archivedOnly }) =>
       asJson(await listDocs(db, projectId, kind, { includeArchived, archivedOnly }))
   )
 
-  server.tool(
+  server.registerTool(
     'read_doc',
-    'Read a single doc by id, including full bodyMd (markdown).',
-    { id: z.string() },
+    {
+      description: 'Read a single doc by id, including full bodyMd (markdown).',
+      inputSchema: { id: z.string() }
+    },
     async ({ id }) => asJson(await getDoc(db, id))
   )
 
-  server.tool(
+  server.registerTool(
     'search_docs',
-    'Full-text search docs of a project (title/summary/body), ranked by relevance via Postgres tsvector. Supports web-style queries (quoted phrases, OR, -exclude). Returns metadata WITHOUT bodyMd; use read_doc for full content.',
-    { projectId: z.string(), query: z.string().min(1) },
+    {
+      description:
+        'Full-text search docs of a project (title/summary/body), ranked by relevance via Postgres tsvector. Supports web-style queries (quoted phrases, OR, -exclude). Returns metadata WITHOUT bodyMd; use read_doc for full content.',
+      inputSchema: { projectId: z.string(), query: z.string().min(1) }
+    },
     async ({ projectId, query }) =>
       asJson(await searchDocs(db, projectId, query))
   )
 
-  server.tool(
+  server.registerTool(
     'write_doc',
-    'Create a new doc, or update an existing one if `id` is provided. Use `kind` to classify: module (a code domain/area), adr (architecture decision record), guide (how-to), note (anything else). `parentId` nests the doc under another. `summary` is a one-line description shown in lists.',
     {
-      id: z.string().optional(),
-      projectId: z.string().optional(),
-      parentId: z.string().nullable().optional(),
-      title: z.string().min(1).max(200).optional(),
-      summary: z.string().max(200).optional(),
-      bodyMd: z.string().optional(),
-      kind: docKind.optional()
+      description:
+        'Create a new doc, or update an existing one if `id` is provided. Use `kind` to classify: module (a code domain/area), adr (architecture decision record), guide (how-to), note (anything else). `parentId` nests the doc under another. `summary` is a one-line description shown in lists.',
+      inputSchema: {
+        id: z.string().optional(),
+        projectId: z.string().optional(),
+        parentId: z.string().nullable().optional(),
+        title: z.string().min(1).max(200).optional(),
+        summary: z.string().max(200).optional(),
+        bodyMd: z.string().optional(),
+        kind: docKind.optional()
+      }
     },
     async (input) => {
       if (input.id) {
@@ -93,24 +104,32 @@ export function registerDocTools(server: McpServer, db: Database) {
     }
   )
 
-  server.tool(
+  server.registerTool(
     'archive_doc',
-    'Archive a doc (soft-delete): it (and its subtree) disappears from list_docs but is kept and can be restored. Shows up with archivedOnly=true.',
-    { id: z.string() },
+    {
+      description:
+        'Archive a doc (soft-delete): it (and its subtree) disappears from list_docs but is kept and can be restored. Shows up with archivedOnly=true.',
+      inputSchema: { id: z.string() }
+    },
     async ({ id }) => asJson(await archiveDoc(db, id))
   )
 
-  server.tool(
+  server.registerTool(
     'restore_doc',
-    'Restore (unarchive) a previously archived doc.',
-    { id: z.string() },
+    {
+      description: 'Restore (unarchive) a previously archived doc.',
+      inputSchema: { id: z.string() }
+    },
     async ({ id }) => asJson(await restoreDoc(db, id))
   )
 
-  server.tool(
+  server.registerTool(
     'destroy_doc',
-    'Permanently delete a doc and its children (hard-delete via cascade, IRREVERSIBLE). To merely hide a doc, use archive_doc instead.',
-    { id: z.string() },
+    {
+      description:
+        'Permanently delete a doc and its children (hard-delete via cascade, IRREVERSIBLE). To merely hide a doc, use archive_doc instead.',
+      inputSchema: { id: z.string() }
+    },
     async ({ id }) => asJson(await destroyDoc(db, id))
   )
 }

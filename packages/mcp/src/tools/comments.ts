@@ -14,57 +14,72 @@ import type { Database } from '@claude-organizer/db'
 import { asJson } from './index'
 
 export function registerCommentTools(server: McpServer, db: Database) {
-  server.tool(
+  server.registerTool(
     'list_comments',
-    'List comments of a card. By default, marks user comments as read by AI.',
     {
-      cardId: z.string(),
-      markAsRead: z.boolean().optional().default(true)
+      description:
+        'List comments of a card. By default, marks user comments as read by AI.',
+      inputSchema: {
+        cardId: z.string(),
+        markAsRead: z.boolean().optional().default(true)
+      }
     },
     async ({ cardId, markAsRead }) =>
       asJson(await listComments(db, cardId, { markAsRead }))
   )
 
-  server.tool(
+  server.registerTool(
     'list_unread_comments',
-    'List all user comments not yet read by the AI for a project. Does NOT mark them as read.',
-    { projectId: z.string() },
+    {
+      description:
+        'List all user comments not yet read by the AI for a project. Does NOT mark them as read.',
+      inputSchema: { projectId: z.string() }
+    },
     async ({ projectId }) =>
       asJson(await listUnreadCommentsForProject(db, projectId))
   )
 
-  server.tool(
+  server.registerTool(
     'add_comment',
-    'Add a comment authored by the AI to a card.',
     {
-      cardId: z.string(),
-      bodyMd: z.string().min(1)
+      description: 'Add a comment authored by the AI to a card.',
+      inputSchema: {
+        cardId: z.string(),
+        bodyMd: z.string().min(1)
+      }
     },
     async ({ cardId, bodyMd }) =>
       asJson(await addComment(db, { cardId, bodyMd, author: 'ai' }))
   )
 
-  server.tool(
+  server.registerTool(
     'update_comment',
-    'Edit the body (markdown) of an existing comment. Preserves author, timestamp and order. To remove a comment instead, use delete_comment.',
-    { id: z.string(), bodyMd: z.string().min(1) },
+    {
+      description:
+        'Edit the body (markdown) of an existing comment. Preserves author, timestamp and order. To remove a comment instead, use delete_comment.',
+      inputSchema: { id: z.string(), bodyMd: z.string().min(1) }
+    },
     async ({ id, bodyMd }) => asJson(await updateComment(db, { id, bodyMd }))
   )
 
-  server.tool(
+  server.registerTool(
     'mark_comments_read',
-    'Mark a list of comments as read by the AI.',
-    { commentIds: z.array(z.string()).min(1) },
+    {
+      description: 'Mark a list of comments as read by the AI.',
+      inputSchema: { commentIds: z.array(z.string()).min(1) }
+    },
     async ({ commentIds }) => {
       const updated = await markCommentsAsRead(db, commentIds)
       return asJson({ updated })
     }
   )
 
-  server.tool(
+  server.registerTool(
     'delete_comment',
-    'Delete a comment from a card by its id. Permanent.',
-    { id: z.string() },
+    {
+      description: 'Delete a comment from a card by its id. Permanent.',
+      inputSchema: { id: z.string() }
+    },
     async ({ id }) => asJson(await deleteComment(db, id))
   )
 }

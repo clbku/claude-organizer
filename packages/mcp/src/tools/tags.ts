@@ -13,52 +13,66 @@ import type { Database } from '@claude-organizer/db'
 import { asJson } from './index'
 
 export function registerTagTools(server: McpServer, db: Database) {
-  server.tool(
+  server.registerTool(
     'list_tags',
-    'List all tags of a project (id, name, color).',
-    { projectId: z.string() },
+    {
+      description: 'List all tags of a project (id, name, color).',
+      inputSchema: { projectId: z.string() }
+    },
     async ({ projectId }) => asJson(await listTags(db, projectId))
   )
 
-  server.tool(
+  server.registerTool(
     'create_tag',
-    'Create a colored tag in a project. `color` is a hex string like #ef4444; defaults to a neutral gray if omitted. Tag names are unique per project.',
     {
-      projectId: z.string(),
-      name: z.string().min(1).max(50),
-      color: z
-        .string()
-        .regex(/^#[0-9a-fA-F]{6}$/)
-        .optional()
+      description:
+        'Create a colored tag in a project. `color` is a hex string like #ef4444; defaults to a neutral gray if omitted. Tag names are unique per project.',
+      inputSchema: {
+        projectId: z.string(),
+        name: z.string().min(1).max(50),
+        color: z
+          .string()
+          .regex(/^#[0-9a-fA-F]{6}$/)
+          .optional()
+      }
     },
     async input => asJson(await createTag(db, input))
   )
 
-  server.tool(
+  server.registerTool(
     'update_tag',
-    'Rename a tag or change its color. Pass the tag id (tag_xxx) plus the fields to change (`name` and/or `color` hex). Affects every card that has the tag.',
     {
-      id: z.string(),
-      name: z.string().min(1).max(50).optional(),
-      color: z
-        .string()
-        .regex(/^#[0-9a-fA-F]{6}$/)
-        .optional()
+      description:
+        'Rename a tag or change its color. Pass the tag id (tag_xxx) plus the fields to change (`name` and/or `color` hex). Affects every card that has the tag.',
+      inputSchema: {
+        id: z.string(),
+        name: z.string().min(1).max(50).optional(),
+        color: z
+          .string()
+          .regex(/^#[0-9a-fA-F]{6}$/)
+          .optional()
+      }
     },
     async input => asJson(await updateTag(db, input))
   )
 
-  server.tool(
+  server.registerTool(
     'add_tag_to_card',
-    'Attach an existing tag to a card. Returns the card\'s tags after the change.',
-    { cardId: z.string(), tagId: z.string() },
+    {
+      description:
+        'Attach an existing tag to a card. Returns the card\'s tags after the change.',
+      inputSchema: { cardId: z.string(), tagId: z.string() }
+    },
     async ({ cardId, tagId }) => asJson(await addTagToCard(db, cardId, tagId))
   )
 
-  server.tool(
+  server.registerTool(
     'remove_tag_from_card',
-    'Remove a tag from a card. Returns the card\'s tags after the change.',
-    { cardId: z.string(), tagId: z.string() },
+    {
+      description:
+        'Remove a tag from a card. Returns the card\'s tags after the change.',
+      inputSchema: { cardId: z.string(), tagId: z.string() }
+    },
     async ({ cardId, tagId }) =>
       asJson(await removeTagFromCard(db, cardId, tagId))
   )
