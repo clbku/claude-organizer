@@ -314,21 +314,13 @@ async function restoreCard(cardId: string) {
               @card-moved-to-backlog="onMoveToBacklog"
               @close="backlogExpanded = false"
             />
-            <button
+            <CollapsedColumn
               v-else
-              type="button"
-              class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-default hover:bg-elevated/40 hover:border-primary/40 transition shrink-0 py-3"
-              style="width: 36px;"
-              @click="backlogExpanded = true"
-            >
-              <UIcon name="i-lucide-inbox" class="size-4 text-muted" />
-              <span
-                class="text-xs font-semibold text-muted whitespace-nowrap"
-                style="writing-mode: vertical-rl; transform: rotate(180deg);"
-              >
-                Backlog ({{ backlogCards.length }})
-              </span>
-            </button>
+              icon="i-lucide-inbox"
+              label="Backlog"
+              :count="backlogCards.length"
+              @expand="backlogExpanded = true"
+            />
           </template>
           <BoardColumn
             v-for="status in cardStatusOrder"
@@ -338,21 +330,13 @@ async function restoreCard(cardId: string) {
             @card-moved="onCardMoved"
           />
           <template v-if="archivedCards.length">
-            <button
+            <CollapsedColumn
               v-if="!archivedExpanded"
-              type="button"
-              class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-default hover:bg-elevated/40 hover:border-primary/40 transition shrink-0 py-3"
-              style="width: 36px;"
-              @click="archivedExpanded = true"
-            >
-              <UIcon name="i-lucide-archive" class="size-4 text-muted" />
-              <span
-                class="text-xs font-semibold text-muted whitespace-nowrap"
-                style="writing-mode: vertical-rl; transform: rotate(180deg);"
-              >
-                Archived ({{ archivedCards.length }})
-              </span>
-            </button>
+              icon="i-lucide-archive"
+              label="Archived"
+              :count="archivedCards.length"
+              @expand="archivedExpanded = true"
+            />
             <div
               v-else
               class="flex flex-col bg-elevated/20 rounded-lg border border-dashed border-default overflow-hidden h-full"

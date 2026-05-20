@@ -19,6 +19,8 @@ const { editing, saving, justSaved } = useSprintInlineEdit(
 );
 
 const cards = ref<Card[]>([]);
+const backlogCards = ref<Card[]>([]);
+const backlogExpanded = ref(false);
 const selectedTagIds = ref<string[]>([]);
 
 const filteredCards = computed(() => {
@@ -30,14 +32,20 @@ const filteredCards = computed(() => {
 async function loadCards() {
   if (!activeSprint.value || !currentProjectId.value) {
     cards.value = [];
+    backlogCards.value = [];
     return;
   }
-  cards.value = await api<Card[]>("/cards", {
-    query: {
-      projectId: currentProjectId.value,
-      sprintId: activeSprint.value.id,
-    },
-  });
+  const projectId = currentProjectId.value;
+  const [sprintList, backlogList] = await Promise.all([
+    api<Card[]>("/cards", {
+      query: { projectId, sprintId: activeSprint.value.id },
+    }),
+    api<Card[]>("/cards", {
+      query: { projectId, backlogOnly: "true" },
+    }),
+  ]);
+  cards.value = sprintList;
+  backlogCards.value = backlogList;
 }
 
 watch(
@@ -74,18 +82,47 @@ const columns = computed<Record<CardStatus, Card[]>>(() => {
 });
 
 async function onCardMoved(cardId: string, toStatus: CardStatus) {
+  if (!activeSprint.value) return;
+  const sprintIdLocal = activeSprint.value.id;
+  // A card can arrive from the backlog or from another status column.
+  const fromBacklogIdx = backlogCards.value.findIndex((c) => c.id === cardId);
+  const fromSprintIdx = cards.value.findIndex((c) => c.id === cardId);
+  const body: Record<string, unknown> = { status: toStatus };
+  if (fromBacklogIdx !== -1) {
+    const card = backlogCards.value[fromBacklogIdx];
+    if (!card) return;
+    body.sprintId = sprintIdLocal;
+    backlogCards.value.splice(fromBacklogIdx, 1);
+    cards.value.push({ ...card, status: toStatus, sprintId: sprintIdLocal });
+  } else if (fromSprintIdx !== -1) {
+    const prev = cards.value[fromSprintIdx];
+    if (!prev || prev.status === toStatus) return;
+    cards.value[fromSprintIdx] = { ...prev, status: toStatus };
+  } else {
+    return;
+  }
+  try {
+    await api(`/cards/${cardId}`, { method: "PATCH", body });
+  } catch (err) {
+    console.error("Failed to update card, reloading", err);
+    await loadCards();
+  }
+}
+
+async function onMoveToBacklog(cardId: string) {
   const idx = cards.value.findIndex((c) => c.id === cardId);
   if (idx === -1) return;
-  const prev = cards.value[idx];
-  if (!prev || prev.status === toStatus) return;
-  cards.value[idx] = { ...prev, status: toStatus };
+  const card = cards.value[idx];
+  if (!card) return;
+  cards.value.splice(idx, 1);
+  backlogCards.value.push({ ...card, sprintId: null });
   try {
     await api(`/cards/${cardId}`, {
       method: "PATCH",
-      body: { status: toStatus },
+      body: { sprintId: null },
     });
   } catch (err) {
-    console.error("Failed to update card status, reloading", err);
+    console.error("Failed to move card to backlog, reloading", err);
     await loadCards();
   }
 }
@@ -158,6 +195,20 @@ async function onCardMoved(cardId: string, toStatus: CardStatus) {
           />
         </div>
         <div class="flex gap-3 flex-1 min-h-0 min-w-0 overflow-x-auto">
+          <BacklogColumn
+            v-if="backlogExpanded"
+            :cards="backlogCards"
+            closable
+            @card-moved-to-backlog="onMoveToBacklog"
+            @close="backlogExpanded = false"
+          />
+          <CollapsedColumn
+            v-else
+            icon="i-lucide-inbox"
+            label="Backlog"
+            :count="backlogCards.length"
+            @expand="backlogExpanded = true"
+          />
           <BoardColumn
             v-for="status in cardStatusOrder"
             :key="status"
