@@ -33,6 +33,10 @@ If no project matches the current repo, ask the user before creating one.
 5. **`set_card_status(id, "review")`** when you believe it's done — and post a **test plan** comment (see below). Then **wait for the user to validate**. Don't self-approve.
 6. **`set_card_status(id, "done")`** only after the user confirms.
 
+## Keep a history's status honest
+
+A **history** (a parent card with sub-tasks) is a container, and its status should track its children instead of lagging behind them. The moment work starts on any child — you move the first sub-task to `in_progress`, or one is already `done` — move the history to `in_progress` too: a history sitting in `todo` while its tasks are underway misreads the board. Move it to `done` only when **every** child is `done`. The board shows each history's child counts, so an out-of-sync status is visible and confusing.
+
 ## Comments — write signal, not noise
 
 A comment exists to change what the **next reader** (a memoryless future session, or the user) knows. The criterion: **record what is NOT deducible from the card's state; omit what is.**
@@ -40,7 +44,7 @@ A comment exists to change what the **next reader** (a memoryless future session
 **Worth a comment (signal):**
 - Decisions made and **why**.
 - Scope changes — what entered/left and why.
-- What was deferred or became another task, with the reference (e.g. `→ CO-2`); card keys auto-link.
+- What was deferred or became another task, with the reference (e.g. `→ CO-2`); card keys auto-link. Write each key **in full** — `CO-53, CO-54`, never a shorthand range like `CO-53/54` (only the `CO-53` half becomes a link).
 - What **differed** from what the card asked, or from the plan.
 - Domain insights, edge cases, relevant fixes.
 
