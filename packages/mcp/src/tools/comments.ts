@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
   addComment,
+  deleteComment,
   listComments,
   listUnreadCommentsForProject,
   markCommentsAsRead,
@@ -48,5 +49,12 @@ export function registerCommentTools(server: McpServer, db: Database) {
       const updated = await markCommentsAsRead(db, commentIds);
       return asJson({ updated });
     },
+  );
+
+  server.tool(
+    "delete_comment",
+    "Delete a comment from a card by its id. Permanent.",
+    { id: z.string() },
+    async ({ id }) => asJson(await deleteComment(db, id)),
   );
 }

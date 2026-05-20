@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { Database } from "@claude-organizer/db";
 import {
   addComment,
+  deleteComment,
   listComments,
   listUnreadCommentsForProject,
   markCommentsAsRead,
@@ -44,6 +45,18 @@ export function registerCommentRoutes(app: FastifyInstance, db: Database) {
     async (req) => {
       const updated = await markCommentsAsRead(db, req.body.commentIds);
       return { updated };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    "/comments/:id",
+    async (req, reply) => {
+      const deleted = await deleteComment(db, req.params.id);
+      if (!deleted) {
+        reply.code(404);
+        return { error: "Comment not found" };
+      }
+      return { ok: true };
     },
   );
 }

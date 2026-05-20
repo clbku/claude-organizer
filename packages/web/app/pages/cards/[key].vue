@@ -155,7 +155,7 @@ useProjectEvents(
     ) {
       refreshCard();
     } else if (
-      event.type === "comment.added" &&
+      (event.type === "comment.added" || event.type === "comment.deleted") &&
       event.cardId === card.value.id
     ) {
       refreshComments();
@@ -348,6 +348,27 @@ async function submitComment() {
     await refreshComments();
   } finally {
     submittingComment.value = false;
+  }
+}
+
+const commentToDelete = ref<Comment | null>(null);
+const deletingComment = ref(false);
+const deleteCommentOpen = computed({
+  get: () => commentToDelete.value !== null,
+  set: (open) => {
+    if (!open) commentToDelete.value = null;
+  },
+});
+
+async function confirmDeleteComment() {
+  if (!commentToDelete.value) return;
+  deletingComment.value = true;
+  try {
+    await api(`/comments/${commentToDelete.value.id}`, { method: "DELETE" });
+    await refreshComments();
+    commentToDelete.value = null;
+  } finally {
+    deletingComment.value = false;
   }
 }
 
@@ -730,7 +751,17 @@ function formatDate(iso: string) {
                       unread by AI
                     </UBadge>
                   </div>
-                  <span class="text-xs text-muted/70">{{ formatDate(c.createdAt) }}</span>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <span class="text-xs text-muted/70">{{ formatDate(c.createdAt) }}</span>
+                    <UButton
+                      icon="i-lucide-trash-2"
+                      size="xs"
+                      color="neutral"
+                      variant="ghost"
+                      aria-label="Remover comentário"
+                      @click="commentToDelete = c"
+                    />
+                  </div>
                 </div>
                 <AppMarkdown
                   :value="c.bodyMd"
@@ -854,4 +885,28 @@ function formatDate(iso: string) {
       </div>
     </template>
   </UDashboardPanel>
+
+  <UModal v-model:open="deleteCommentOpen" title="Remover comentário">
+    <template #body>
+      <p class="text-sm text-muted">
+        Esta ação não pode ser desfeita. O comentário será removido
+        permanentemente.
+      </p>
+    </template>
+    <template #footer>
+      <div class="flex justify-end gap-2 w-full">
+        <UButton
+          variant="ghost"
+          label="Cancelar"
+          @click="commentToDelete = null"
+        />
+        <UButton
+          color="error"
+          label="Remover"
+          :loading="deletingComment"
+          @click="confirmDeleteComment"
+        />
+      </div>
+    </template>
+  </UModal>
 </template>

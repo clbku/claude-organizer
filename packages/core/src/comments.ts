@@ -89,6 +89,29 @@ export async function listUnreadCommentsForProject(
     .orderBy(asc(schema.comments.createdAt));
 }
 
+export async function deleteComment(db: Database, id: string) {
+  const [row] = await db
+    .delete(schema.comments)
+    .where(eq(schema.comments.id, id))
+    .returning();
+  if (row) {
+    const [card] = await db
+      .select({ projectId: schema.cards.projectId })
+      .from(schema.cards)
+      .where(eq(schema.cards.id, row.cardId))
+      .limit(1);
+    if (card) {
+      await notify(db, {
+        type: "comment.deleted",
+        projectId: card.projectId,
+        cardId: row.cardId,
+        commentId: row.id,
+      });
+    }
+  }
+  return row ?? null;
+}
+
 export async function markCommentsAsRead(db: Database, commentIds: string[]) {
   if (!commentIds.length) return 0;
   const rows = await db
