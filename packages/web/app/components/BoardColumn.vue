@@ -26,7 +26,11 @@ watch(
 
 function onAdd(event: { data: Card }) {
   const card = event.data;
-  if (card.status !== props.status) {
+  // `add` only fires on cross-column drops. Emit when the status changes OR
+  // when the card comes from the backlog (sprintId null): a backlog card
+  // dropped into the column matching its current status (todo → To do) still
+  // needs to be assigned to the sprint, which only happens via this event.
+  if (card.status !== props.status || card.sprintId === null) {
     emit("card-moved", card.id, props.status);
   }
 }
