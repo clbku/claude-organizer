@@ -12,6 +12,10 @@ const cards = ref<Card[]>([]);
 const backlogCards = ref<Card[]>([]);
 const error = ref<unknown>(null);
 
+const { editing, saving, justSaved } = useSprintInlineEdit(sprint, (updated) => {
+  sprint.value = updated;
+});
+
 const showBacklog = computed(
   () => sprint.value?.status === "planned" || sprint.value?.status === "active",
 );
@@ -174,10 +178,13 @@ async function completeSprint() {
 <template>
   <UDashboardPanel
     id="sprint-detail"
-    :ui="{ body: 'flex flex-col flex-1 overflow-hidden p-4 sm:p-6' }"
+    :ui="{ body: 'flex flex-col gap-4 sm:gap-6 flex-1 overflow-hidden p-4 sm:p-6' }"
   >
     <template #header>
-      <UDashboardNavbar :title="sprint?.name ?? 'Sprint'">
+      <UDashboardNavbar
+        :title="sprint?.name ?? 'Sprint'"
+        :ui="{ left: 'flex-1 min-w-0', title: 'flex-1 min-w-0' }"
+      >
         <template #leading>
           <UButton
             icon="i-lucide-arrow-left"
@@ -186,7 +193,28 @@ async function completeSprint() {
             to="/sprints"
           />
         </template>
+        <template v-if="sprint" #title>
+          <UInput
+            v-model="editing.name"
+            variant="ghost"
+            size="lg"
+            placeholder="Sprint name"
+            class="w-full [&_input]:!text-lg [&_input]:!font-semibold [&_input]:!px-0"
+          />
+        </template>
         <template #right>
+          <span
+            v-if="saving"
+            class="text-xs text-muted mr-2 flex items-center gap-1"
+          >
+            <UIcon name="i-lucide-loader-2" class="animate-spin" /> Saving…
+          </span>
+          <span
+            v-else-if="justSaved"
+            class="text-xs text-muted mr-2 flex items-center gap-1 transition-opacity"
+          >
+            <UIcon name="i-lucide-check" /> Saved
+          </span>
           <UBadge v-if="sprint" :color="statusBadgeColor" variant="subtle">
             {{ sprint.status }}
           </UBadge>
@@ -219,9 +247,15 @@ async function completeSprint() {
         Sprint not found.
       </div>
       <template v-else-if="sprint">
-        <p v-if="sprint.goal" class="text-sm text-muted mb-4 shrink-0">
-          {{ sprint.goal }}
-        </p>
+        <UTextarea
+          v-model="editing.goal"
+          variant="ghost"
+          :rows="1"
+          autoresize
+          placeholder="Add a goal for this sprint…"
+          class="w-full shrink-0"
+          :ui="{ base: 'text-sm text-muted !px-0 resize-none' }"
+        />
         <div class="flex gap-3 flex-1 min-h-0 min-w-0 overflow-x-auto">
           <template v-if="showBacklog">
             <BacklogColumn

@@ -13,6 +13,13 @@ export const createSprintInput = z.object({
 });
 export type CreateSprintInput = z.infer<typeof createSprintInput>;
 
+export const updateSprintInput = z.object({
+  id: z.string(),
+  name: z.string().min(1).max(120).optional(),
+  goal: z.string().max(500).nullable().optional(),
+});
+export type UpdateSprintInput = z.infer<typeof updateSprintInput>;
+
 export async function listSprints(db: Database, projectId: string) {
   return db
     .select()
@@ -60,6 +67,24 @@ export async function createSprint(db: Database, input: CreateSprintInput) {
     })
     .returning();
   return row;
+}
+
+export async function updateSprint(db: Database, input: UpdateSprintInput) {
+  const parsed = updateSprintInput.parse(input);
+  const { id, ...rest } = parsed;
+  const [row] = await db
+    .update(schema.sprints)
+    .set({ ...rest, updatedAt: sql`now()` })
+    .where(eq(schema.sprints.id, id))
+    .returning();
+  if (row) {
+    await notify(db, {
+      type: "sprint.changed",
+      projectId: row.projectId,
+      sprintId: row.id,
+    });
+  }
+  return row ?? null;
 }
 
 export async function startSprint(db: Database, sprintId: string) {

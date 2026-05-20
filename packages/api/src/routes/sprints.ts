@@ -7,6 +7,7 @@ import {
   getSprint,
   listSprints,
   startSprint,
+  updateSprint,
 } from "@claude-organizer/core";
 
 export function registerSprintRoutes(app: FastifyInstance, db: Database) {
@@ -29,6 +30,18 @@ export function registerSprintRoutes(app: FastifyInstance, db: Database) {
   app.post("/sprints", async (req, reply) => {
     try {
       return await createSprint(db, req.body as never);
+    } catch (err) {
+      reply.code(400);
+      return { error: (err as Error).message };
+    }
+  });
+
+  app.patch<{ Params: { id: string } }>("/sprints/:id", async (req, reply) => {
+    try {
+      return await updateSprint(db, {
+        ...(req.body as object),
+        id: req.params.id,
+      } as never);
     } catch (err) {
       reply.code(400);
       return { error: (err as Error).message };

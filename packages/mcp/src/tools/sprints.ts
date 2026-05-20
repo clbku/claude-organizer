@@ -6,6 +6,7 @@ import {
   getActiveSprint,
   listSprints,
   startSprint,
+  updateSprint,
 } from "@claude-organizer/core";
 import type { Database } from "@claude-organizer/db";
 import { asJson } from "./index";
@@ -44,6 +45,17 @@ export function registerSprintTools(server: McpServer, db: Database) {
           endsAt: input.endsAt ? new Date(input.endsAt) : undefined,
         }),
       ),
+  );
+
+  server.tool(
+    "update_sprint",
+    "Rename a sprint or change its goal/objective. Pass the sprint id (spr_xxx) plus the fields to change. `goal` accepts null to clear it. Works for sprints in any status.",
+    {
+      id: z.string(),
+      name: z.string().min(1).max(120).optional(),
+      goal: z.string().max(500).nullable().optional(),
+    },
+    async (input) => asJson(await updateSprint(db, input)),
   );
 
   server.tool(

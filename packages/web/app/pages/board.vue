@@ -11,6 +11,13 @@ const { data: activeSprint, refresh: refreshSprint } = useActiveSprint(
   () => currentProjectId.value,
 );
 
+const { editing, saving, justSaved } = useSprintInlineEdit(
+  activeSprint,
+  (updated) => {
+    activeSprint.value = updated;
+  },
+);
+
 const cards = ref<Card[]>([]);
 
 async function loadCards() {
@@ -78,14 +85,38 @@ async function onCardMoved(cardId: string, toStatus: CardStatus) {
 <template>
   <UDashboardPanel
     id="board"
-    :ui="{ body: 'flex flex-col flex-1 overflow-hidden p-4 sm:p-6' }"
+    :ui="{ body: 'flex flex-col gap-4 sm:gap-6 flex-1 overflow-hidden p-4 sm:p-6' }"
   >
     <template #header>
-      <UDashboardNavbar :title="activeSprint?.name ?? 'Board'">
+      <UDashboardNavbar
+        :title="activeSprint?.name ?? 'Board'"
+        :ui="{ left: 'flex-1 min-w-0', title: 'flex-1 min-w-0' }"
+      >
         <template #leading>
           <UIcon name="i-lucide-kanban" class="text-primary" />
         </template>
+        <template v-if="activeSprint" #title>
+          <UInput
+            v-model="editing.name"
+            variant="ghost"
+            size="lg"
+            placeholder="Sprint name"
+            class="w-full [&_input]:!text-lg [&_input]:!font-semibold [&_input]:!px-0"
+          />
+        </template>
         <template #right>
+          <span
+            v-if="saving"
+            class="text-xs text-muted mr-2 flex items-center gap-1"
+          >
+            <UIcon name="i-lucide-loader-2" class="animate-spin" /> Saving…
+          </span>
+          <span
+            v-else-if="justSaved"
+            class="text-xs text-muted mr-2 flex items-center gap-1 transition-opacity"
+          >
+            <UIcon name="i-lucide-check" /> Saved
+          </span>
           <UBadge v-if="activeSprint" color="info" variant="subtle">
             active sprint
           </UBadge>
@@ -101,15 +132,26 @@ async function onCardMoved(cardId: string, toStatus: CardStatus) {
         No active sprint for <strong>{{ currentProject.name }}</strong>.
         Start one from /sprints.
       </div>
-      <div v-else class="flex gap-3 flex-1 min-h-0 min-w-0 overflow-x-auto">
-        <BoardColumn
-          v-for="status in cardStatusOrder"
-          :key="status"
-          :status="status"
-          :cards="columns[status]"
-          @card-moved="onCardMoved"
+      <template v-else>
+        <UTextarea
+          v-model="editing.goal"
+          variant="ghost"
+          :rows="1"
+          autoresize
+          placeholder="Add a goal for this sprint…"
+          class="w-full shrink-0"
+          :ui="{ base: 'text-sm text-muted !px-0 resize-none' }"
         />
-      </div>
+        <div class="flex gap-3 flex-1 min-h-0 min-w-0 overflow-x-auto">
+          <BoardColumn
+            v-for="status in cardStatusOrder"
+            :key="status"
+            :status="status"
+            :cards="columns[status]"
+            @card-moved="onCardMoved"
+          />
+        </div>
+      </template>
     </template>
   </UDashboardPanel>
 </template>
