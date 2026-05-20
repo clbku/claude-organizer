@@ -1,3 +1,19 @@
+# Shared build for the app services: one image, different commands.
+# `docker compose up` (after `cp .env.example .env`) brings up the whole stack;
+# `pnpm db:up` still targets just postgres.
+x-app: &app
+  build:
+    context: .
+    args:
+      NUXT_PUBLIC_API_URL: ${NUXT_PUBLIC_API_URL:-http://127.0.0.1:4400}
+  image: claude-organizer-app
+  restart: unless-stopped
+
+# DATABASE_URL points at the in-network postgres host (port 5432), not the
+# host-published 5544. The host .env keeps localhost:5544 for non-Docker dev.
+x-db-env: &db-env
+  DATABASE_URL: postgres://${POSTGRES_USER:-organizer}:${POSTGRES_PASSWORD:-organizer}@postgres:5432/${POSTGRES_DB:-organizer}
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -16,3 +32,56 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # One-shot: apply migrations once Postgres is healthy, before api/mcp start.
+  migrate:
+    <<: *app
+    restart: "no"
+    command: pnpm --filter @claude-organizer/db migrate
+    environment:
+      <<: *db-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    command: pnpm --filter @claude-organizer/api exec tsx src/server.ts
+    environment:
+      <<: *db-env
+      API_HOST: 0.0.0.0
+      API_PORT: 4400
+    ports:
+      - "4400:4400"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  mcp:
+    <<: *app
+    command: node packages/mcp/dist/server.mjs
+    environment:
+      <<: *db-env
+      MCP_HTTP_PORT: 4402
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
+    ports:
+      - "4402:4402"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    <<: *app
+    command: node packages/web/.output/server/index.mjs
+    environment:
+      NITRO_HOST: 0.0.0.0
+      NITRO_PORT: 4401
+    ports:
+      - "4401:4401"
+    depends_on:
+      api:
+        condition: service_started

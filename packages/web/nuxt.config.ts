@@ -1,4 +1,8 @@
 export default defineNuxtConfig({
+  // SPA: all data fetching happens in the browser, so only the public API URL
+  // matters (no SSR/internal-URL split). See ADR "MCP remoto via HTTP" sibling
+  // decision for the Docker stack (CO-65).
+  ssr: false,
   modules: ['@nuxt/ui', '@pinia/nuxt', '@nuxt/eslint'],
   devtools: { enabled: true },
   css: ['~/assets/css/main.css'],
