@@ -1,114 +1,100 @@
-# claude-organizer
+<h1 align="center">Claude Organizer</h1>
 
-A "Jira" for Claude Code. Lets Claude Code track its own work via an MCP server
-that exposes cards, sprints, roadmaps, comments and project docs. A Nuxt 4 UI
-mirrors everything so the human can review what Claude sees and intervene.
+A "Jira" for Claude Code. Claude Organizer gives Claude Code tools (over MCP) to
+manage a project's living state — tasks, sprints, roadmaps, docs — in a queryable
+system instead of spec Markdown files that grow without bound and go stale. A
+Nuxt UI mirrors it for humans. It ships as a Claude Code plugin (two skills + the
+MCP server), backed by a pnpm monorepo you run with Docker.
+
+## Quick start
+
+Requires Node 20.10+, pnpm 9+, and Docker.
+
+**1. Bring up the stack** (Postgres + migrations + API + UI + MCP):
+
+```bash
+cp .env.example .env
+docker compose up
+```
+
+UI on http://localhost:4401 · API on `:4400` · MCP on `:4402/mcp`. Migrations run
+automatically.
+
+**2. Install the plugin** — it delivers the skills **and** the MCP, no
+`claude mcp add`:
+
+```bash
+claude --plugin-dir plugins/claude-organizer    # from a clone
+```
+
+or via marketplace:
+
+```
+/plugin marketplace add fmilioni/claude-organizer
+/plugin install claude-organizer@claude-organizer
+```
+
+The `claude-organizer` tools appear automatically, pointing at
+`${CO_MCP_URL:-http://localhost:4402/mcp}`. Two skills come with it:
+**`claude-organizer`** (work the board) and **`plan`** (break a new demand into
+sprints/tasks).
+
+## Using it
+
+Just talk to Claude Code — the skills trigger themselves.
+
+**Plan a new demand** (the `plan` skill):
+
+> **You:** I want to add CSV export to the board — a button that downloads the
+> active sprint's cards.
+>
+> **Claude:** *asks a couple of questions, proposes a breakdown into a
+> sprint + tasks, and on your OK creates the cards in Claude Organizer.*
+
+**Continue later** (the `claude-organizer` skill) — a fresh session has no
+memory, so it reads the board before touching code:
+
+> **You:** let's continue — what's next?
+>
+> **Claude:** *reads the active sprint, your unread comments and the in-flight
+> cards, picks the top one, moves it to `in_progress`, implements it, records
+> the decisions as comments, then moves it to `review` for you to check.*
+
+## Remote (VPS)
+
+Host the stack, then point Claude Code at it before launching:
+
+```bash
+CO_MCP_URL=https://your-host/mcp CO_MCP_TOKEN=your-token claude
+```
+
+`CO_MCP_TOKEN` is only needed if the server sets `MCP_AUTH_TOKEN`. Terminate TLS
+with a reverse proxy (Caddy, Nginx, …).
 
 ## Architecture
 
 ```
-Claude Code  ──stdio──▶  MCP server (Node + TS SDK)
-                              │
-                              ▼   shared use-cases (Drizzle)
-Nuxt 4 UI   ──HTTP──▶   Fastify API   ──▶  Postgres 16 (Docker)
+Claude Code ──HTTP──▶ MCP (:4402/mcp) ─┐
+                                       ├─▶ core ──▶ Postgres 16
+Browser (SPA) ──HTTP──▶ API (:4400) ───┘   (+ WebSocket /ws for real-time)
 ```
 
-Monorepo (pnpm workspaces):
+pnpm monorepo: `shared` (types) · `db` (Drizzle schema/migrations) · `core`
+(Zod-validated use-cases, the single source of truth) · `mcp` (stdio or HTTP) ·
+`api` (Fastify) · `web` (Nuxt 4 SPA). The UI talks only to the API, never the
+MCP. IDs are prefixed nanoids (`prj_`, `crd_`, `spr_`…) so the AI knows the
+entity type at a glance.
 
-```
-packages/
-  db/    Drizzle schema, migrations, ID helpers
-  core/  use cases shared by api and mcp (Zod-validated)
-  mcp/   MCP server (stdio)
-  api/   Fastify REST consumed by the UI
-  web/   Nuxt 4 + Nuxt UI
-```
-
-## Prerequisites
-
-- Node 20.10+
-- pnpm 9+
-- Docker + Docker Compose
-
-## First-time setup
+## Dev (without Docker)
 
 ```bash
-cp .env.example .env
 pnpm install
-pnpm db:up                # starts Postgres on port 5544
-pnpm db:generate          # generates first migration from schema
-pnpm db:migrate           # applies migrations
+pnpm db:up                       # Postgres on :5544
+pnpm db:migrate
+pnpm dev:api                     # :4400
+pnpm dev:web                     # :4401
+MCP_HTTP_PORT=4402 pnpm dev:mcp  # :4402  (omit MCP_HTTP_PORT for stdio)
 ```
 
-## Dev workflow
-
-In separate terminals:
-
-```bash
-pnpm dev:api      # http://127.0.0.1:4400
-pnpm dev:web      # http://127.0.0.1:4401
-pnpm dev:mcp      # stdio - mostly invoked by Claude Code, not directly
-```
-
-## Wiring the MCP into Claude Code
-
-Add an entry to your Claude Code MCP config (usually `~/.claude.json` or via
-`claude mcp add`):
-
-```json
-{
-  "mcpServers": {
-    "claude-organizer": {
-      "command": "node",
-      "args": ["/absolute/path/to/claude-organizer/packages/mcp/dist/server.js"],
-      "env": {
-        "DATABASE_URL": "postgres://organizer:organizer@localhost:5544/organizer"
-      }
-    }
-  }
-}
-```
-
-Build first:
-
-```bash
-pnpm --filter @claude-organizer/mcp build
-```
-
-Or for dev, point at the tsx entry:
-
-```json
-{
-  "command": "pnpm",
-  "args": ["--silent", "-C", "/abs/path/claude-organizer", "dev:mcp"]
-}
-```
-
-## Phase 1 scope
-
-What this skeleton currently exposes:
-
-- Projects: list, get, create
-- Sprints: list, get active, create, start, complete
-- Cards: list (filters), get, create, update, set status, move
-- Comments: list (auto-mark-as-read), unread list, add (AI), mark as read
-
-What's still pending:
-
-- Tags, roadmaps, docs (schema is in place, tools not wired)
-- Kanban drag-and-drop UI
-- TipTap editor for descriptions and comments
-- Skill `claude-organizer:planning-workflow`
-
-## Roadmap
-
-- **Phase 1** (current) - skeleton + CRUD MVP
-- **Phase 2** - sprints/comments UI, TipTap editor, tags
-- **Phase 3** - roadmaps + project docs (modules, ADRs)
-- **Phase 4** - skill + optional LSP MCP
-
-## Notes on IDs
-
-Every entity uses prefixed nanoids (`prj_xxx`, `crd_xxx`, `spr_xxx`...). The
-prefix tells the AI what kind of entity it's looking at without an extra
-lookup.
+Also: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm db:generate` (after
+schema changes).
