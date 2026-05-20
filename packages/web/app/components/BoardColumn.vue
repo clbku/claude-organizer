@@ -6,10 +6,12 @@ import { cardStatusMeta } from "~/types/card";
 const props = defineProps<{
   status: CardStatus;
   cards: Card[];
+  closable?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "card-moved", cardId: string, toStatus: CardStatus): void;
+  (e: "close"): void;
 }>();
 
 const meta = computed(() => cardStatusMeta[props.status]);
@@ -50,6 +52,14 @@ function onAdd(event: { data: Card }) {
         </UBadge>
         <span class="text-xs text-muted">{{ cards.length }}</span>
       </div>
+      <UButton
+        v-if="closable"
+        icon="i-lucide-x"
+        size="xs"
+        color="neutral"
+        variant="ghost"
+        @click="emit('close')"
+      />
     </div>
 
     <VueDraggable

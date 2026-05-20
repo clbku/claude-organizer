@@ -24,6 +24,7 @@ const showBacklog = computed(
 );
 
 const backlogExpanded = ref(false);
+const blockedExpanded = ref(false);
 watch(
   () => sprint.value?.status,
   (status) => {
@@ -322,13 +323,31 @@ async function restoreCard(cardId: string) {
               @expand="backlogExpanded = true"
             />
           </template>
-          <BoardColumn
-            v-for="status in cardStatusOrder"
-            :key="status"
-            :status="status"
-            :cards="columns[status]"
-            @card-moved="onCardMoved"
-          />
+          <template v-for="status in cardStatusOrder" :key="status">
+            <template v-if="status === 'blocked'">
+              <BoardColumn
+                v-if="blockedExpanded"
+                :status="status"
+                :cards="columns[status]"
+                closable
+                @card-moved="onCardMoved"
+                @close="blockedExpanded = false"
+              />
+              <CollapsedColumn
+                v-else
+                icon="i-lucide-ban"
+                label="Blocked"
+                :count="columns[status].length"
+                @expand="blockedExpanded = true"
+              />
+            </template>
+            <BoardColumn
+              v-else
+              :status="status"
+              :cards="columns[status]"
+              @card-moved="onCardMoved"
+            />
+          </template>
           <template v-if="archivedCards.length">
             <CollapsedColumn
               v-if="!archivedExpanded"

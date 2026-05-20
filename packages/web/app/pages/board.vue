@@ -21,6 +21,7 @@ const { editing, saving, justSaved } = useSprintInlineEdit(
 const cards = ref<Card[]>([]);
 const backlogCards = ref<Card[]>([]);
 const backlogExpanded = ref(false);
+const blockedExpanded = ref(false);
 const selectedTagIds = ref<string[]>([]);
 
 const filteredCards = computed(() => {
@@ -209,13 +210,31 @@ async function onMoveToBacklog(cardId: string) {
             :count="backlogCards.length"
             @expand="backlogExpanded = true"
           />
-          <BoardColumn
-            v-for="status in cardStatusOrder"
-            :key="status"
-            :status="status"
-            :cards="columns[status]"
-            @card-moved="onCardMoved"
-          />
+          <template v-for="status in cardStatusOrder" :key="status">
+            <template v-if="status === 'blocked'">
+              <BoardColumn
+                v-if="blockedExpanded"
+                :status="status"
+                :cards="columns[status]"
+                closable
+                @card-moved="onCardMoved"
+                @close="blockedExpanded = false"
+              />
+              <CollapsedColumn
+                v-else
+                icon="i-lucide-ban"
+                label="Blocked"
+                :count="columns[status].length"
+                @expand="blockedExpanded = true"
+              />
+            </template>
+            <BoardColumn
+              v-else
+              :status="status"
+              :cards="columns[status]"
+              @card-moved="onCardMoved"
+            />
+          </template>
         </div>
       </template>
     </template>
