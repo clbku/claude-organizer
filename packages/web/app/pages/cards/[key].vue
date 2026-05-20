@@ -238,9 +238,17 @@ const priorityOptions = Array.from({ length: 11 }, (_, i) => ({
 
 const sprintOptions = computed(() => {
   const list = sprints.value ?? [];
+  const currentId = card.value?.sprintId ?? null;
+  // Only active/planned sprints are assignable. Keep the card's current sprint
+  // even if completed/cancelled, so the selector still shows its actual value
+  // (without offering finalized sprints as options for other cards).
+  const selectable = list.filter(
+    (s) =>
+      s.status === "active" || s.status === "planned" || s.id === currentId,
+  );
   return [
     { label: "Backlog", value: null as string | null },
-    ...list.map((s) => ({
+    ...selectable.map((s) => ({
       label: `${s.name}${s.status === "active" ? " (active)" : ""}`,
       value: s.id as string | null,
     })),
