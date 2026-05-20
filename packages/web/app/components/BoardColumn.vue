@@ -68,6 +68,13 @@ function onAdd(event: { data: Card }) {
           <UIcon name="i-lucide-corner-down-right" class="size-3 shrink-0" />
           <span class="font-mono">{{ card.parentKey }}</span>
         </div>
+        <div
+          v-if="card.blockedByPending"
+          class="mb-1 flex items-center gap-1 text-xs text-error"
+        >
+          <UIcon name="i-lucide-ban" class="size-3 shrink-0" />
+          <span>bloqueado</span>
+        </div>
         <div class="flex items-start justify-between gap-2 min-w-0">
           <NuxtLink
             :to="`/cards/${card.key}`"

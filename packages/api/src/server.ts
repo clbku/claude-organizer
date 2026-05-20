@@ -8,6 +8,7 @@ import { registerCardRoutes } from "./routes/cards";
 import { registerSprintRoutes } from "./routes/sprints";
 import { registerCommentRoutes } from "./routes/comments";
 import { registerTagRoutes } from "./routes/tags";
+import { registerBlockerRoutes } from "./routes/blockers";
 import { registerDocRoutes } from "./routes/docs";
 import { registerEventsWs } from "./routes/events-ws";
 
@@ -35,6 +36,7 @@ registerSprintRoutes(app, db);
 registerCardRoutes(app, db);
 registerCommentRoutes(app, db);
 registerTagRoutes(app, db);
+registerBlockerRoutes(app, db);
 registerDocRoutes(app, db);
 registerEventsWs(app);
 

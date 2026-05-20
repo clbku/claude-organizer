@@ -296,6 +296,35 @@ async function detachSubtask(childId: string) {
   await Promise.all([refreshCard(), refreshProjectCards()]);
 }
 
+const blockerSelectKey = ref(0);
+function onAddBlocker(v: string | undefined) {
+  blockerSelectKey.value++;
+  if (v) addBlocker(v);
+}
+
+async function addBlocker(blockerId: string) {
+  if (!card.value) return;
+  await api(`/cards/${card.value.id}/blockers/${blockerId}`, {
+    method: "POST",
+  });
+  await refreshCard();
+}
+
+async function removeBlocker(blockerId: string) {
+  if (!card.value) return;
+  await api(`/cards/${card.value.id}/blockers/${blockerId}`, {
+    method: "DELETE",
+  });
+  await refreshCard();
+}
+
+const blockerCandidateOptions = computed(() => {
+  const blockedIds = new Set((card.value?.blockedBy ?? []).map((c) => c.id));
+  return allCards.value
+    .filter((c) => c.id !== card.value?.id && !blockedIds.has(c.id))
+    .map((c) => ({ value: c.id, label: `${c.key} · ${c.title}` }));
+});
+
 const newComment = ref("");
 const submittingComment = ref(false);
 
@@ -568,6 +597,87 @@ function formatDate(iso: string) {
               class="w-full"
               @update:model-value="onAddSubtask"
             />
+          </section>
+
+          <section>
+            <h2 class="text-xs font-semibold text-muted uppercase tracking-wide mb-3">
+              Bloqueado por
+              <span v-if="card.blockedBy?.length" class="text-default ml-1">
+                ({{ card.blockedBy.length }})
+              </span>
+            </h2>
+            <ul v-if="card.blockedBy?.length" class="space-y-1.5 mb-3">
+              <li
+                v-for="b in card.blockedBy"
+                :key="b.id"
+                class="flex items-center gap-2 border border-default rounded-md px-2.5 py-1.5"
+              >
+                <UBadge
+                  :color="cardStatusMeta[b.status].color"
+                  variant="subtle"
+                  size="xs"
+                  class="shrink-0"
+                >
+                  {{ cardStatusMeta[b.status].label }}
+                </UBadge>
+                <NuxtLink
+                  :to="`/cards/${b.key}`"
+                  class="min-w-0 flex-1 truncate text-sm hover:underline"
+                >
+                  <span class="font-mono font-bold mr-1.5">{{ b.key }}</span>{{ b.title }}
+                </NuxtLink>
+                <UButton
+                  icon="i-lucide-x"
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  class="shrink-0"
+                  aria-label="Remover bloqueador"
+                  @click="removeBlocker(b.id)"
+                />
+              </li>
+            </ul>
+            <USelectMenu
+              :key="blockerSelectKey"
+              :items="blockerCandidateOptions"
+              :model-value="undefined"
+              value-key="value"
+              label-key="label"
+              placeholder="+ Marcar como bloqueado por…"
+              :search-input="{ placeholder: 'Buscar card…' }"
+              icon="i-lucide-ban"
+              class="w-full"
+              @update:model-value="onAddBlocker"
+            />
+          </section>
+
+          <section v-if="card.blocking?.length">
+            <h2 class="text-xs font-semibold text-muted uppercase tracking-wide mb-3">
+              Bloqueando
+              <span class="text-default ml-1">({{ card.blocking.length }})</span>
+            </h2>
+            <ul class="space-y-1.5">
+              <li
+                v-for="b in card.blocking"
+                :key="b.id"
+                class="flex items-center gap-2 border border-default rounded-md px-2.5 py-1.5"
+              >
+                <UBadge
+                  :color="cardStatusMeta[b.status].color"
+                  variant="subtle"
+                  size="xs"
+                  class="shrink-0"
+                >
+                  {{ cardStatusMeta[b.status].label }}
+                </UBadge>
+                <NuxtLink
+                  :to="`/cards/${b.key}`"
+                  class="min-w-0 flex-1 truncate text-sm hover:underline"
+                >
+                  <span class="font-mono font-bold mr-1.5">{{ b.key }}</span>{{ b.title }}
+                </NuxtLink>
+              </li>
+            </ul>
           </section>
 
           <section>

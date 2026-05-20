@@ -5,6 +5,7 @@ import { registerCardTools } from "./cards";
 import { registerSprintTools } from "./sprints";
 import { registerCommentTools } from "./comments";
 import { registerTagTools } from "./tags";
+import { registerBlockerTools } from "./blockers";
 import { registerDocTools } from "./docs";
 
 export function registerTools(server: McpServer, db: Database) {
@@ -13,6 +14,7 @@ export function registerTools(server: McpServer, db: Database) {
   registerCardTools(server, db);
   registerCommentTools(server, db);
   registerTagTools(server, db);
+  registerBlockerTools(server, db);
   registerDocTools(server, db);
 }
 

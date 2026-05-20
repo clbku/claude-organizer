@@ -36,6 +36,13 @@
       "when": 1779279866470,
       "tag": "0004_free_phantom_reporter",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779282531568,
+      "tag": "0005_perpetual_jean_grey",
+      "breakpoints": true
     }
   ]
 }

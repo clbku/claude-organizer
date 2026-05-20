@@ -28,6 +28,9 @@ export interface Card {
   subtaskDone?: number;
   subtasks?: CardSubtask[];
   parent?: CardParent | null;
+  blockedBy?: CardParent[];
+  blocking?: CardParent[];
+  blockedByPending?: number;
 }
 
 export interface CardSubtask {

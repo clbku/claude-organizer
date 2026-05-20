@@ -3,6 +3,7 @@ export * from "./cards";
 export * from "./sprints";
 export * from "./comments";
 export * from "./tags";
+export * from "./blockers";
 export * from "./docs";
 export * from "./keys";
 export * from "./events";
