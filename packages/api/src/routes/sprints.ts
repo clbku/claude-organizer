@@ -1,20 +1,32 @@
 import type { FastifyInstance } from "fastify";
 import type { Database } from "@claude-organizer/db";
 import {
+  archiveSprint,
   completeSprint,
   createSprint,
+  destroySprint,
   getActiveSprint,
   getSprint,
   listSprints,
+  restoreSprint,
   startSprint,
   updateSprint,
 } from "@claude-organizer/core";
 
 export function registerSprintRoutes(app: FastifyInstance, db: Database) {
-  app.get<{ Querystring: { projectId: string } }>(
-    "/sprints",
-    async (req) => listSprints(db, req.query.projectId),
-  );
+  app.get<{
+    Querystring: {
+      projectId: string;
+      includeArchived?: string;
+      archivedOnly?: string;
+    };
+  }>("/sprints", async (req) => {
+    const { projectId, includeArchived, archivedOnly } = req.query;
+    return listSprints(db, projectId, {
+      includeArchived: includeArchived === "true",
+      archivedOnly: archivedOnly === "true",
+    });
+  });
 
   app.get<{ Querystring: { projectId: string } }>(
     "/sprints/active",
@@ -57,4 +69,20 @@ export function registerSprintRoutes(app: FastifyInstance, db: Database) {
     "/sprints/:id/complete",
     async (req) => completeSprint(db, req.params.id),
   );
+
+  app.post<{ Params: { id: string } }>(
+    "/sprints/:id/archive",
+    async (req) => archiveSprint(db, req.params.id),
+  );
+
+  app.post<{ Params: { id: string } }>(
+    "/sprints/:id/restore",
+    async (req) => restoreSprint(db, req.params.id),
+  );
+
+  app.delete<{ Params: { id: string } }>("/sprints/:id", async (req, reply) => {
+    const destroyed = await destroySprint(db, req.params.id);
+    if (!destroyed) return reply.code(404).send({ error: "not_found" });
+    return { deleted: true };
+  });
 }

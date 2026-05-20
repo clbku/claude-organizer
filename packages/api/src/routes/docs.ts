@@ -1,21 +1,32 @@
 import type { FastifyInstance } from "fastify";
 import type { Database } from "@claude-organizer/db";
 import {
+  archiveDoc,
   createDoc,
-  deleteDoc,
+  destroyDoc,
   getDoc,
   listDocs,
+  restoreDoc,
   searchDocs,
   updateDoc,
 } from "@claude-organizer/core";
 
 export function registerDocRoutes(app: FastifyInstance, db: Database) {
   app.get<{
-    Querystring: { projectId: string; kind?: string; q?: string };
+    Querystring: {
+      projectId: string;
+      kind?: string;
+      q?: string;
+      includeArchived?: string;
+      archivedOnly?: string;
+    };
   }>("/docs", async (req) => {
-    const { projectId, kind, q } = req.query;
+    const { projectId, kind, q, includeArchived, archivedOnly } = req.query;
     if (q) return searchDocs(db, projectId, q);
-    return listDocs(db, projectId, kind as never);
+    return listDocs(db, projectId, kind as never, {
+      includeArchived: includeArchived === "true",
+      archivedOnly: archivedOnly === "true",
+    });
   });
 
   app.get<{ Params: { id: string } }>("/docs/:id", async (req, reply) => {
@@ -45,9 +56,19 @@ export function registerDocRoutes(app: FastifyInstance, db: Database) {
     }
   });
 
+  app.post<{ Params: { id: string } }>(
+    "/docs/:id/archive",
+    async (req) => archiveDoc(db, req.params.id),
+  );
+
+  app.post<{ Params: { id: string } }>(
+    "/docs/:id/restore",
+    async (req) => restoreDoc(db, req.params.id),
+  );
+
   app.delete<{ Params: { id: string } }>("/docs/:id", async (req, reply) => {
-    const deleted = await deleteDoc(db, req.params.id);
-    if (!deleted) return reply.code(404).send({ error: "not_found" });
+    const destroyed = await destroyDoc(db, req.params.id);
+    if (!destroyed) return reply.code(404).send({ error: "not_found" });
     return { deleted: true };
   });
 }

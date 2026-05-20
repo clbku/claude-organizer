@@ -169,9 +169,6 @@ export async function destroyDoc(db: Database, id: string) {
   return row ?? null;
 }
 
-/** @deprecated use {@link destroyDoc}. Kept for the existing REST delete route. */
-export const deleteDoc = destroyDoc;
-
 export async function searchDocs(
   db: Database,
   projectId: string,
