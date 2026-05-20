@@ -1,11 +1,10 @@
 #!/usr/bin/env node
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 
 import { createDb } from '@claude-organizer/db'
 
-import { registerResources } from './resources/index'
-import { registerTools } from './tools/index'
+import { createMcpServer } from './create-server'
+import { startHttpServer } from './http'
 
 const databaseUrl = process.env.DATABASE_URL
 if (!databaseUrl) {
@@ -17,21 +16,40 @@ if (!databaseUrl) {
 
 const { db, close } = createDb({ url: databaseUrl, max: 4 })
 
-const server = new McpServer({
-  name: 'claude-organizer',
-  version: '0.0.1'
-})
+// Transport is chosen by env: MCP_HTTP_PORT set -> Streamable HTTP (long-lived
+// service, e.g. Docker/VPS); otherwise stdio (default, local Claude Code).
+const httpPortEnv = process.env.MCP_HTTP_PORT
 
-registerTools(server, db)
-registerResources(server, db)
+if (httpPortEnv) {
+  const port = Number(httpPortEnv)
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    console.error(`[claude-organizer-mcp] invalid MCP_HTTP_PORT: ${httpPortEnv}`)
+    process.exit(1)
+  }
 
-const transport = new StdioServerTransport()
+  const httpServer = startHttpServer({
+    db,
+    port,
+    authToken: process.env.MCP_AUTH_TOKEN || undefined
+  })
 
-const shutdown = async () => {
-  await close()
-  process.exit(0)
+  const shutdown = async () => {
+    httpServer.close()
+    await close()
+    process.exit(0)
+  }
+  process.on('SIGINT', shutdown)
+  process.on('SIGTERM', shutdown)
+} else {
+  const server = createMcpServer(db)
+  const transport = new StdioServerTransport()
+
+  const shutdown = async () => {
+    await close()
+    process.exit(0)
+  }
+  process.on('SIGINT', shutdown)
+  process.on('SIGTERM', shutdown)
+
+  await server.connect(transport)
 }
-process.on('SIGINT', shutdown)
-process.on('SIGTERM', shutdown)
-
-await server.connect(transport)
