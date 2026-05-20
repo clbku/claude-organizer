@@ -3,29 +3,7 @@ import type { Card, CardStatus } from "~/types/card";
 import type { Comment } from "~/types/comment";
 import type { Sprint } from "~/composables/useActiveSprint";
 import type { Tag } from "~/types/tag";
-import type { EditorToolbarItem } from "@nuxt/ui";
 import { cardStatusMeta, cardStatusOrder } from "~/types/card";
-
-const descriptionToolbarItems: EditorToolbarItem[] = [
-  { kind: "mark", mark: "bold", icon: "i-lucide-bold" },
-  { kind: "mark", mark: "italic", icon: "i-lucide-italic" },
-  { kind: "mark", mark: "strike", icon: "i-lucide-strikethrough" },
-  { kind: "mark", mark: "code", icon: "i-lucide-code" },
-  { kind: "heading", level: 2, icon: "i-lucide-heading-2" },
-  { kind: "heading", level: 3, icon: "i-lucide-heading-3" },
-  { kind: "bulletList", icon: "i-lucide-list" },
-  { kind: "orderedList", icon: "i-lucide-list-ordered" },
-  { kind: "blockquote", icon: "i-lucide-quote" },
-  { kind: "codeBlock", icon: "i-lucide-code-2" },
-  { kind: "link", icon: "i-lucide-link" },
-  { kind: "horizontalRule", icon: "i-lucide-minus" },
-  { kind: "undo", icon: "i-lucide-undo" },
-  { kind: "redo", icon: "i-lucide-redo" },
-];
-
-// Shared typography so the rendered markdown (view) matches the editor on toggle.
-const PROSE =
-  "text-sm leading-relaxed [&_h1]:!text-base [&_h1]:font-bold [&_h1]:!mt-3 [&_h1]:!mb-1 [&_h2]:!text-sm [&_h2]:font-bold [&_h2]:!mt-3 [&_h2]:!mb-1 [&_h3]:!text-sm [&_h3]:font-semibold [&_h3]:!mt-2 [&_h3]:!mb-1 [&_p]:!my-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:!my-1.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:!my-1.5 [&_li]:!my-0.5 [&_a]:text-primary [&_a]:font-medium hover:[&_a]:underline [&_strong]:font-semibold [&_code]:bg-elevated [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono [&_pre]:bg-elevated [&_pre]:p-2 [&_pre]:rounded [&_pre]:overflow-x-auto [&_blockquote]:border-l-2 [&_blockquote]:border-default [&_blockquote]:pl-3 [&_blockquote]:text-muted";
 
 const route = useRoute();
 const router = useRouter();
@@ -156,6 +134,7 @@ useProjectEvents(
       refreshCard();
     } else if (
       (event.type === "comment.added" ||
+        event.type === "comment.updated" ||
         event.type === "comment.deleted" ||
         event.type === "comment.read") &&
       event.cardId === card.value.id
@@ -374,6 +353,39 @@ async function confirmDeleteComment() {
   }
 }
 
+// Inline edit: the pencil swaps a comment's rendered markdown for a textarea
+// holding its current bodyMd. The buffer is independent of comments.value, so a
+// silent refresh (e.g. real-time) doesn't clobber what's being typed.
+const editingCommentId = ref<string | null>(null);
+const editingCommentBody = ref("");
+const savingCommentEdit = ref(false);
+
+function startEditComment(c: Comment) {
+  editingCommentId.value = c.id;
+  editingCommentBody.value = c.bodyMd;
+}
+
+function cancelEditComment() {
+  editingCommentId.value = null;
+  editingCommentBody.value = "";
+}
+
+async function saveEditComment() {
+  const id = editingCommentId.value;
+  if (!id || !editingCommentBody.value.trim()) return;
+  savingCommentEdit.value = true;
+  try {
+    await api(`/comments/${id}`, {
+      method: "PATCH",
+      body: { bodyMd: editingCommentBody.value },
+    });
+    await refreshComments();
+    cancelEditComment();
+  } finally {
+    savingCommentEdit.value = false;
+  }
+}
+
 function onTagsChange(tags: Tag[]) {
   if (card.value) card.value = { ...card.value, tags };
 }
@@ -550,29 +562,17 @@ function formatDate(iso: string) {
             <label class="text-xs font-semibold text-muted uppercase tracking-wide block mb-1.5">
               Description
             </label>
-            <div
-              ref="descriptionEl"
-              class="border border-default rounded-md overflow-hidden"
-            >
-              <UEditor
+            <div ref="descriptionEl">
+              <MarkdownEditor
                 v-if="descriptionEditing"
-                v-slot="{ editor }"
                 v-model="editing.descriptionMd"
-                content-type="markdown"
-                autofocus="end"
+                autofocus
+                min-height="200px"
                 placeholder="Write a description… (markdown supported)"
-                class="min-h-[200px]"
-                :ui="{ base: `px-3 py-2 [&_*:first-child]:!mt-0 [&_*:last-child]:!mb-0 ${PROSE}` }"
-              >
-                <UEditorToolbar
-                  :editor="editor"
-                  :items="descriptionToolbarItems"
-                  class="border-b border-default bg-elevated/30"
-                />
-              </UEditor>
+              />
               <div
                 v-else
-                class="px-3 py-2 min-h-[80px] cursor-text"
+                class="border border-default rounded-md px-3 py-2 min-h-[80px] cursor-text"
                 @click="enterDescriptionEdit"
               >
                 <AppMarkdown
@@ -767,6 +767,16 @@ function formatDate(iso: string) {
                   <div class="flex items-center gap-1.5 shrink-0">
                     <span class="text-xs text-muted/70">{{ formatDate(c.createdAt) }}</span>
                     <UButton
+                      v-if="editingCommentId !== c.id"
+                      icon="i-lucide-pencil"
+                      size="xs"
+                      color="neutral"
+                      variant="ghost"
+                      aria-label="Edit comment"
+                      @click="startEditComment(c)"
+                    />
+                    <UButton
+                      v-if="editingCommentId !== c.id"
                       icon="i-lucide-trash-2"
                       size="xs"
                       color="neutral"
@@ -776,20 +786,39 @@ function formatDate(iso: string) {
                     />
                   </div>
                 </div>
-                <AppMarkdown
-                  :value="c.bodyMd"
-                  class="text-sm leading-relaxed [&_p]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_strong]:font-semibold [&_code]:bg-elevated [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono"
-                />
+                <div v-if="editingCommentId === c.id" class="space-y-2">
+                  <MarkdownEditor
+                    v-model="editingCommentBody"
+                    autofocus
+                    placeholder="Edit the comment… (markdown supported)"
+                  />
+                  <div class="flex justify-end gap-2">
+                    <UButton
+                      size="xs"
+                      variant="ghost"
+                      label="Cancel"
+                      :disabled="savingCommentEdit"
+                      @click="cancelEditComment"
+                    />
+                    <UButton
+                      size="xs"
+                      color="primary"
+                      label="Save"
+                      icon="i-lucide-check"
+                      :loading="savingCommentEdit"
+                      :disabled="!editingCommentBody.trim()"
+                      @click="saveEditComment"
+                    />
+                  </div>
+                </div>
+                <AppMarkdown v-else :value="c.bodyMd" :class="PROSE" />
               </li>
             </ul>
 
             <form class="mt-4 space-y-2" @submit.prevent="submitComment">
-              <UTextarea
+              <MarkdownEditor
                 v-model="newComment"
-                :rows="3"
                 placeholder="Write a comment for Claude… (markdown supported)"
-                :disabled="submittingComment"
-                class="w-full"
               />
               <div class="flex justify-end">
                 <UButton

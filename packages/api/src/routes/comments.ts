@@ -6,6 +6,7 @@ import {
   listComments,
   listUnreadCommentsForProject,
   markCommentsAsRead,
+  updateComment,
 } from "@claude-organizer/core";
 
 export function registerCommentRoutes(app: FastifyInstance, db: Database) {
@@ -45,6 +46,26 @@ export function registerCommentRoutes(app: FastifyInstance, db: Database) {
     async (req) => {
       const updated = await markCommentsAsRead(db, req.body.commentIds);
       return { updated };
+    },
+  );
+
+  app.patch<{ Params: { id: string }; Body: { bodyMd: string } }>(
+    "/comments/:id",
+    async (req, reply) => {
+      try {
+        const updated = await updateComment(db, {
+          id: req.params.id,
+          bodyMd: req.body.bodyMd,
+        });
+        if (!updated) {
+          reply.code(404);
+          return { error: "Comment not found" };
+        }
+        return updated;
+      } catch (err) {
+        reply.code(400);
+        return { error: (err as Error).message };
+      }
     },
   );
 
