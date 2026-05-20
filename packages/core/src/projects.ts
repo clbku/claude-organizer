@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { createId, type Database, schema } from '@claude-organizer/db'
 
+import { InputError } from './errors'
 import { derivePrefixFromSlug, isValidKeyPrefix } from './keys'
 
 export const createProjectInput = z.object({
@@ -67,7 +68,7 @@ export async function updateProjectKeyPrefix(
   newPrefix: string
 ) {
   if (!isValidKeyPrefix(newPrefix)) {
-    throw new Error(
+    throw new InputError(
       'Invalid keyPrefix. Use uppercase letters/digits, starting with a letter, max 10 chars.'
     )
   }

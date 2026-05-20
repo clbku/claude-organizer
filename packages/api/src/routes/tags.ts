@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import { z } from 'zod'
 
 import {
   addTagToCard,
@@ -10,34 +11,20 @@ import {
 } from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
 
-export function registerTagRoutes(app: FastifyInstance, db: Database) {
-  app.get<{ Querystring: { projectId: string } }>(
-    '/tags',
-    async req => listTags(db, req.query.projectId)
-  )
+import { projectIdQuery } from '../lib/query'
 
-  app.post('/tags', async (req, reply) => {
-    try {
-      return await createTag(db, req.body as never)
-    } catch (err) {
-      reply.code(400)
-      return { error: (err as Error).message }
-    }
+const listTagsQuery = z.object({ projectId: projectIdQuery })
+
+export function registerTagRoutes(app: FastifyInstance, db: Database) {
+  app.get('/tags', async (req) => {
+    const { projectId } = listTagsQuery.parse(req.query)
+    return listTags(db, projectId)
   })
 
-  app.patch<{ Params: { tagId: string } }>(
-    '/tags/:tagId',
-    async (req, reply) => {
-      try {
-        return await updateTag(db, {
-          ...(req.body as object),
-          id: req.params.tagId
-        } as never)
-      } catch (err) {
-        reply.code(400)
-        return { error: (err as Error).message }
-      }
-    }
+  app.post('/tags', async req => createTag(db, req.body as never))
+
+  app.patch<{ Params: { tagId: string } }>('/tags/:tagId', async req =>
+    updateTag(db, { ...(req.body as object), id: req.params.tagId } as never)
   )
 
   app.delete<{ Params: { tagId: string } }>(

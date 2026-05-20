@@ -19,12 +19,5 @@ export function registerProjectRoutes(app: FastifyInstance, db: Database) {
     }
   )
 
-  app.post('/projects', async (req, reply) => {
-    try {
-      return await createProject(db, req.body as never)
-    } catch (err) {
-      reply.code(400)
-      return { error: (err as Error).message }
-    }
-  })
+  app.post('/projects', async req => createProject(db, req.body as never))
 }

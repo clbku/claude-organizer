@@ -15,6 +15,7 @@
   "dependencies": {
     "@claude-organizer/core": "workspace:*",
     "@claude-organizer/db": "workspace:*",
+    "@claude-organizer/shared": "workspace:*",
     "@fastify/cors": "11.2.0",
     "@fastify/websocket": "11.2.0",
     "fastify": "5.8.5",

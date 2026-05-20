@@ -41,6 +41,9 @@ importers:
       '@claude-organizer/db':
         specifier: workspace:*
         version: link:../db
+      '@claude-organizer/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@fastify/cors':
         specifier: 11.2.0
         version: 11.2.0

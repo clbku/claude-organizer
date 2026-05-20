@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import { z } from 'zod'
 
 import {
   addComment,
@@ -9,64 +10,61 @@ import {
   updateComment
 } from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
+import { COMMENT_AUTHORS } from '@claude-organizer/shared'
+
+import { projectIdQuery, queryBool } from '../lib/query'
+
+const listCommentsQuery = z.object({ markAsRead: queryBool })
+const addCommentBody = z.object({
+  bodyMd: z.string().min(1),
+  author: z.enum(COMMENT_AUTHORS).optional()
+})
+const unreadQuery = z.object({ projectId: projectIdQuery })
+const markReadBody = z.object({ commentIds: z.array(z.string()) })
+const updateCommentBody = z.object({ bodyMd: z.string().min(1) })
 
 export function registerCommentRoutes(app: FastifyInstance, db: Database) {
-  app.get<{
-    Params: { cardId: string }
-    Querystring: { markAsRead?: string }
-  }>('/cards/:cardId/comments', async (req) => {
-    return listComments(db, req.params.cardId, {
-      markAsRead: req.query.markAsRead === 'true'
-    })
-  })
+  app.get<{ Params: { cardId: string } }>(
+    '/cards/:cardId/comments',
+    async (req) => {
+      const { markAsRead } = listCommentsQuery.parse(req.query)
+      return listComments(db, req.params.cardId, { markAsRead })
+    }
+  )
 
   app.post<{ Params: { cardId: string } }>(
     '/cards/:cardId/comments',
-    async (req, reply) => {
-      try {
-        const body = req.body as { bodyMd: string, author?: 'ai' | 'user' }
-        return await addComment(db, {
-          cardId: req.params.cardId,
-          author: body.author ?? 'user',
-          bodyMd: body.bodyMd
-        })
-      } catch (err) {
-        reply.code(400)
-        return { error: (err as Error).message }
-      }
-    }
-  )
-
-  app.get<{ Querystring: { projectId: string } }>(
-    '/comments/unread',
-    async req => listUnreadCommentsForProject(db, req.query.projectId)
-  )
-
-  app.post<{ Body: { commentIds: string[] } }>(
-    '/comments/read',
     async (req) => {
-      const updated = await markCommentsAsRead(db, req.body.commentIds)
-      return { updated }
+      const body = addCommentBody.parse(req.body)
+      return addComment(db, {
+        cardId: req.params.cardId,
+        author: body.author ?? 'user',
+        bodyMd: body.bodyMd
+      })
     }
   )
 
-  app.patch<{ Params: { id: string }, Body: { bodyMd: string } }>(
+  app.get('/comments/unread', async (req) => {
+    const { projectId } = unreadQuery.parse(req.query)
+    return listUnreadCommentsForProject(db, projectId)
+  })
+
+  app.post('/comments/read', async (req) => {
+    const { commentIds } = markReadBody.parse(req.body)
+    const updated = await markCommentsAsRead(db, commentIds)
+    return { updated }
+  })
+
+  app.patch<{ Params: { id: string } }>(
     '/comments/:id',
     async (req, reply) => {
-      try {
-        const updated = await updateComment(db, {
-          id: req.params.id,
-          bodyMd: req.body.bodyMd
-        })
-        if (!updated) {
-          reply.code(404)
-          return { error: 'Comment not found' }
-        }
-        return updated
-      } catch (err) {
-        reply.code(400)
-        return { error: (err as Error).message }
+      const { bodyMd } = updateCommentBody.parse(req.body)
+      const updated = await updateComment(db, { id: req.params.id, bodyMd })
+      if (!updated) {
+        reply.code(404)
+        return { error: 'Comment not found' }
       }
+      return updated
     }
   )
 

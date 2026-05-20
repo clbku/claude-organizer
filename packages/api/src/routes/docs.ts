@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import { z } from 'zod'
 
 import {
   archiveDoc,
@@ -11,22 +12,25 @@ import {
   updateDoc
 } from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
+import { DOC_KINDS } from '@claude-organizer/shared'
+
+import { projectIdQuery, queryBool } from '../lib/query'
+
+const listDocsQuery = z.object({
+  projectId: projectIdQuery,
+  kind: z.enum(DOC_KINDS).optional(),
+  q: z.string().optional(),
+  includeArchived: queryBool,
+  archivedOnly: queryBool
+})
 
 export function registerDocRoutes(app: FastifyInstance, db: Database) {
-  app.get<{
-    Querystring: {
-      projectId: string
-      kind?: string
-      q?: string
-      includeArchived?: string
-      archivedOnly?: string
-    }
-  }>('/docs', async (req) => {
-    const { projectId, kind, q, includeArchived, archivedOnly } = req.query
-    if (q) return searchDocs(db, projectId, q)
-    return listDocs(db, projectId, kind as never, {
-      includeArchived: includeArchived === 'true',
-      archivedOnly: archivedOnly === 'true'
+  app.get('/docs', async (req) => {
+    const query = listDocsQuery.parse(req.query)
+    if (query.q) return searchDocs(db, query.projectId, query.q)
+    return listDocs(db, query.projectId, query.kind, {
+      includeArchived: query.includeArchived,
+      archivedOnly: query.archivedOnly
     })
   })
 
@@ -36,26 +40,11 @@ export function registerDocRoutes(app: FastifyInstance, db: Database) {
     return doc
   })
 
-  app.post('/docs', async (req, reply) => {
-    try {
-      return await createDoc(db, req.body as never)
-    } catch (err) {
-      reply.code(400)
-      return { error: (err as Error).message }
-    }
-  })
+  app.post('/docs', async req => createDoc(db, req.body as never))
 
-  app.patch<{ Params: { id: string } }>('/docs/:id', async (req, reply) => {
-    try {
-      return await updateDoc(db, {
-        ...(req.body as object),
-        id: req.params.id
-      } as never)
-    } catch (err) {
-      reply.code(400)
-      return { error: (err as Error).message }
-    }
-  })
+  app.patch<{ Params: { id: string } }>('/docs/:id', async req =>
+    updateDoc(db, { ...(req.body as object), id: req.params.id } as never)
+  )
 
   app.post<{ Params: { id: string } }>(
     '/docs/:id/archive',

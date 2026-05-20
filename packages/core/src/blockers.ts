@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
 import { type Database, schema } from '@claude-organizer/db'
 
+import { InputError } from './errors'
 import { notify } from './events'
 
 const refColumns = {
@@ -59,7 +60,7 @@ export async function addBlocker(
   blockerCardId: string
 ) {
   if (blockedCardId === blockerCardId) {
-    throw new Error('A card cannot block itself')
+    throw new InputError('A card cannot block itself')
   }
   await db
     .insert(schema.cardBlockers)

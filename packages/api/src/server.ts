@@ -4,6 +4,7 @@ import Fastify from 'fastify'
 
 import { createDb } from '@claude-organizer/db'
 
+import errorHandlerPlugin from './plugins/error-handler'
 import eventsPlugin from './plugins/events'
 import { registerBlockerRoutes } from './routes/blockers'
 import { registerCardRoutes } from './routes/cards'
@@ -28,6 +29,7 @@ const app = Fastify({ logger: true })
 
 await app.register(cors, { origin: true })
 await app.register(websocket)
+await app.register(errorHandlerPlugin)
 await app.register(eventsPlugin)
 
 app.get('/health', async () => ({ status: 'ok' }))

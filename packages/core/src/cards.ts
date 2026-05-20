@@ -5,6 +5,7 @@ import { createId, type Database, schema } from '@claude-organizer/db'
 
 import { archivedCondition, type ArchiveFilter } from './archive'
 import { listBlockedBy, listBlocking, pendingBlockerCounts } from './blockers'
+import { InputError } from './errors'
 import { notify } from './events'
 import { listCardTags, tagsByCardIds } from './tags'
 
@@ -138,7 +139,7 @@ export async function createCard(db: Database, input: CreateCardInput) {
         nextSeq: schema.projects.nextKeySeq
       })
     if (!project) {
-      throw new Error(`Project ${parsed.projectId} not found`)
+      throw new InputError(`Project ${parsed.projectId} not found`)
     }
     const cardKey = `${project.keyPrefix}-${project.nextSeq - 1}`
     const [created] = await tx
@@ -314,9 +315,9 @@ async function assertParentIsTopLevel(db: Database, parentId: string) {
     .from(schema.cards)
     .where(eq(schema.cards.id, parentId))
     .limit(1)
-  if (!parent) throw new Error(`Parent card ${parentId} not found`)
+  if (!parent) throw new InputError(`Parent card ${parentId} not found`)
   if (parent.parentId) {
-    throw new Error('Cannot nest under a card that is already a sub-task')
+    throw new InputError('Cannot nest under a card that is already a sub-task')
   }
 }
 
@@ -326,7 +327,7 @@ async function assertValidParent(
   parentId: string
 ) {
   if (parentId === childId) {
-    throw new Error('A card cannot be its own parent')
+    throw new InputError('A card cannot be its own parent')
   }
   await assertParentIsTopLevel(db, parentId)
   const [childCount] = await db
@@ -334,7 +335,7 @@ async function assertValidParent(
     .from(schema.cards)
     .where(eq(schema.cards.parentId, childId))
   if (childCount && childCount.count > 0) {
-    throw new Error('A card with sub-tasks cannot become a sub-task itself')
+    throw new InputError('A card with sub-tasks cannot become a sub-task itself')
   }
 }
 

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import { z } from 'zod'
 
 import {
   archiveSprint,
@@ -14,25 +15,29 @@ import {
 } from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
 
+import { projectIdQuery, queryBool } from '../lib/query'
+
+const listSprintsQuery = z.object({
+  projectId: projectIdQuery,
+  includeArchived: queryBool,
+  archivedOnly: queryBool
+})
+
+const projectScopedQuery = z.object({ projectId: projectIdQuery })
+
 export function registerSprintRoutes(app: FastifyInstance, db: Database) {
-  app.get<{
-    Querystring: {
-      projectId: string
-      includeArchived?: string
-      archivedOnly?: string
-    }
-  }>('/sprints', async (req) => {
-    const { projectId, includeArchived, archivedOnly } = req.query
-    return listSprints(db, projectId, {
-      includeArchived: includeArchived === 'true',
-      archivedOnly: archivedOnly === 'true'
+  app.get('/sprints', async (req) => {
+    const q = listSprintsQuery.parse(req.query)
+    return listSprints(db, q.projectId, {
+      includeArchived: q.includeArchived,
+      archivedOnly: q.archivedOnly
     })
   })
 
-  app.get<{ Querystring: { projectId: string } }>(
-    '/sprints/active',
-    async req => getActiveSprint(db, req.query.projectId)
-  )
+  app.get('/sprints/active', async (req) => {
+    const { projectId } = projectScopedQuery.parse(req.query)
+    return getActiveSprint(db, projectId)
+  })
 
   app.get<{ Params: { id: string } }>('/sprints/:id', async (req, reply) => {
     const sprint = await getSprint(db, req.params.id)
@@ -40,26 +45,11 @@ export function registerSprintRoutes(app: FastifyInstance, db: Database) {
     return sprint
   })
 
-  app.post('/sprints', async (req, reply) => {
-    try {
-      return await createSprint(db, req.body as never)
-    } catch (err) {
-      reply.code(400)
-      return { error: (err as Error).message }
-    }
-  })
+  app.post('/sprints', async req => createSprint(db, req.body as never))
 
-  app.patch<{ Params: { id: string } }>('/sprints/:id', async (req, reply) => {
-    try {
-      return await updateSprint(db, {
-        ...(req.body as object),
-        id: req.params.id
-      } as never)
-    } catch (err) {
-      reply.code(400)
-      return { error: (err as Error).message }
-    }
-  })
+  app.patch<{ Params: { id: string } }>('/sprints/:id', async req =>
+    updateSprint(db, { ...(req.body as object), id: req.params.id } as never)
+  )
 
   app.post<{ Params: { id: string } }>(
     '/sprints/:id/start',

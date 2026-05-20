@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import { z } from 'zod'
 
 import {
   archiveCard,
@@ -11,27 +12,29 @@ import {
   updateCard
 } from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
+import { CARD_STATUSES } from '@claude-organizer/shared'
+
+import { projectIdQuery, queryBool } from '../lib/query'
+
+const listCardsQuery = z.object({
+  projectId: projectIdQuery,
+  sprintId: z.string().optional(),
+  status: z.enum(CARD_STATUSES).optional(),
+  backlogOnly: queryBool,
+  includeArchived: queryBool,
+  archivedOnly: queryBool
+})
 
 export function registerCardRoutes(app: FastifyInstance, db: Database) {
-  app.get<{
-    Querystring: {
-      projectId: string
-      sprintId?: string
-      status?: string
-      backlogOnly?: string
-      includeArchived?: string
-      archivedOnly?: string
-    }
-  }>('/cards', async (req) => {
-    const { projectId, sprintId, status, backlogOnly, includeArchived, archivedOnly }
-      = req.query
+  app.get('/cards', async (req) => {
+    const q = listCardsQuery.parse(req.query)
     return listCards(db, {
-      projectId,
-      sprintId: sprintId === 'null' ? null : sprintId,
-      status: status as never,
-      backlogOnly: backlogOnly === 'true',
-      includeArchived: includeArchived === 'true',
-      archivedOnly: archivedOnly === 'true'
+      projectId: q.projectId,
+      sprintId: q.sprintId === 'null' ? null : q.sprintId,
+      status: q.status,
+      backlogOnly: q.backlogOnly,
+      includeArchived: q.includeArchived,
+      archivedOnly: q.archivedOnly
     })
   })
 
@@ -50,26 +53,11 @@ export function registerCardRoutes(app: FastifyInstance, db: Database) {
     return card
   })
 
-  app.post('/cards', async (req, reply) => {
-    try {
-      return await createCard(db, req.body as never)
-    } catch (err) {
-      reply.code(400)
-      return { error: (err as Error).message }
-    }
-  })
+  app.post('/cards', async req => createCard(db, req.body as never))
 
-  app.patch<{ Params: { id: string } }>('/cards/:id', async (req, reply) => {
-    try {
-      return await updateCard(db, {
-        ...(req.body as object),
-        id: req.params.id
-      } as never)
-    } catch (err) {
-      reply.code(400)
-      return { error: (err as Error).message }
-    }
-  })
+  app.patch<{ Params: { id: string } }>('/cards/:id', async req =>
+    updateCard(db, { ...(req.body as object), id: req.params.id } as never)
+  )
 
   app.post<{ Params: { id: string } }>(
     '/cards/:id/archive',
