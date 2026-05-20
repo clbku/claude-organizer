@@ -1,11 +1,11 @@
 <script setup lang="ts">
 // Collapsible "Archived" section, closed by default. Hidden entirely when the
 // count is 0 (nothing to reveal). Body goes in the default slot.
-withDefaults(defineProps<{ count: number; label?: string }>(), {
-  label: "Archived",
-});
+withDefaults(defineProps<{ count: number, label?: string }>(), {
+  label: 'Archived'
+})
 
-const open = ref(false);
+const open = ref(false)
 </script>
 
 <template>

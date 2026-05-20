@@ -1,62 +1,62 @@
 <script setup lang="ts">
-import { useProjectStore } from "~/stores/project";
+import { useProjectStore } from '~/stores/project'
 
-const store = useProjectStore();
-const { projects, currentProject } = storeToRefs(store);
+const store = useProjectStore()
+const { projects, currentProject } = storeToRefs(store)
 
-const api = useApi();
-const open = ref(false);
+const api = useApi()
+const open = ref(false)
 const form = reactive({
-  name: "",
-  slug: "",
-  description: "",
-  keyPrefix: "",
-});
+  name: '',
+  slug: '',
+  description: '',
+  keyPrefix: ''
+})
 
 function derivePrefixFromSlug(slug: string): string {
-  const words = slug.toLowerCase().split(/[-_\s]+/).filter(Boolean);
-  let prefix = "";
-  if (words.length === 0) return "";
+  const words = slug.toLowerCase().split(/[-_\s]+/).filter(Boolean)
+  let prefix = ''
+  if (words.length === 0) return ''
   if (words.length === 1) {
-    prefix = (words[0] ?? "").replace(/[^a-z0-9]/g, "").slice(0, 4);
+    prefix = (words[0] ?? '').replace(/[^a-z0-9]/g, '').slice(0, 4)
   } else {
     prefix = words
       .slice(0, 4)
-      .map((w) => w.replace(/[^a-z0-9]/g, "").charAt(0))
+      .map(w => w.replace(/[^a-z0-9]/g, '').charAt(0))
       .filter(Boolean)
-      .join("");
+      .join('')
   }
-  return prefix.toUpperCase();
+  return prefix.toUpperCase()
 }
 
 watch(
   () => form.slug,
   (newSlug, oldSlug) => {
-    const previousAuto = derivePrefixFromSlug(oldSlug ?? "");
+    const previousAuto = derivePrefixFromSlug(oldSlug ?? '')
     if (!form.keyPrefix || form.keyPrefix === previousAuto) {
-      form.keyPrefix = derivePrefixFromSlug(newSlug);
+      form.keyPrefix = derivePrefixFromSlug(newSlug)
     }
-  },
-);
+  }
+)
 
 async function submit() {
   const body: Record<string, string> = {
     name: form.name,
-    slug: form.slug,
-  };
-  if (form.description) body.description = form.description;
-  if (form.keyPrefix) body.keyPrefix = form.keyPrefix;
-  await api("/projects", { method: "POST", body });
-  open.value = false;
-  form.name = "";
-  form.slug = "";
-  form.description = "";
-  form.keyPrefix = "";
-  await store.loadProjects();
+    slug: form.slug
+  }
+  if (form.description) body.description = form.description
+  if (form.keyPrefix) body.keyPrefix = form.keyPrefix
+  await api('/projects', { method: 'POST', body })
+  open.value = false
+  form.name = ''
+  form.slug = ''
+  form.description = ''
+  form.keyPrefix = ''
+  await store.loadProjects()
 }
 
 function selectProject(slug: string) {
-  store.setCurrent(slug);
+  store.setCurrent(slug)
 }
 </script>
 
@@ -93,13 +93,17 @@ function selectProject(slug: string) {
           <template #header>
             <div class="flex items-center justify-between gap-2">
               <span class="font-medium truncate">{{ p.name }}</span>
-              <UBadge variant="soft" size="sm">{{ p.keyPrefix }}</UBadge>
+              <UBadge variant="soft" size="sm">
+                {{ p.keyPrefix }}
+              </UBadge>
             </div>
           </template>
           <p class="text-sm text-muted">
             {{ p.description ?? "no description" }}
           </p>
-          <p class="text-xs text-muted/60 font-mono mt-2">{{ p.slug }}</p>
+          <p class="text-xs text-muted/60 font-mono mt-2">
+            {{ p.slug }}
+          </p>
         </UCard>
       </div>
     </template>

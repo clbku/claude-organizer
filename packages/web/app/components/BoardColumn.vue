@@ -1,39 +1,40 @@
 <script setup lang="ts">
-import { VueDraggable } from "vue-draggable-plus";
-import type { Card, CardStatus } from "~/types/card";
-import { cardStatusMeta } from "~/types/card";
+import { VueDraggable } from 'vue-draggable-plus'
+
+import type { Card, CardStatus } from '~/types/card'
+import { cardStatusMeta } from '~/types/card'
 
 const props = defineProps<{
-  status: CardStatus;
-  cards: Card[];
-  closable?: boolean;
-}>();
+  status: CardStatus
+  cards: Card[]
+  closable?: boolean
+}>()
 
 const emit = defineEmits<{
-  (e: "card-moved", cardId: string, toStatus: CardStatus): void;
-  (e: "close"): void;
-}>();
+  (e: 'card-moved', cardId: string, toStatus: CardStatus): void
+  (e: 'close'): void
+}>()
 
-const meta = computed(() => cardStatusMeta[props.status]);
+const meta = computed(() => cardStatusMeta[props.status])
 
-const localList = ref<Card[]>([...props.cards]);
+const localList = ref<Card[]>([...props.cards])
 
 watch(
   () => props.cards,
   (next) => {
-    localList.value = [...next];
+    localList.value = [...next]
   },
-  { deep: true },
-);
+  { deep: true }
+)
 
 function onAdd(event: { data: Card }) {
-  const card = event.data;
+  const card = event.data
   // `add` only fires on cross-column drops. Emit when the status changes OR
   // when the card comes from the backlog (sprintId null): a backlog card
-  // dropped into the column matching its current status (todo → To do) still
-  // needs to be assigned to the sprint, which only happens via this event.
+  // dropped into the column matching its current status still needs to be
+  // assigned to the sprint, which only happens via this event.
   if (card.status !== props.status || card.sprintId === null) {
-    emit("card-moved", card.id, props.status);
+    emit('card-moved', card.id, props.status)
   }
 }
 </script>
@@ -120,7 +121,12 @@ function onAdd(event: { data: Card }) {
           {{ card.summary }}
         </p>
         <div v-if="card.tags?.length" class="flex flex-wrap gap-1 mt-1.5">
-          <TagBadge v-for="t in card.tags" :key="t.id" :tag="t" size="xs" />
+          <TagBadge
+            v-for="t in card.tags"
+            :key="t.id"
+            :tag="t"
+            size="xs"
+          />
         </div>
       </div>
     </VueDraggable>

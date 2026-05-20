@@ -1,220 +1,220 @@
 <script setup lang="ts">
-import { useProjectStore } from "~/stores/project";
-import type { Doc, DocSummary, DocKind } from "~/types/doc";
-import { buildDocTree, docKindMeta } from "~/types/doc";
+import { useProjectStore } from '~/stores/project'
+import type { Doc, DocKind, DocSummary } from '~/types/doc'
+import { buildDocTree, docKindMeta } from '~/types/doc'
 
-const store = useProjectStore();
-const { currentProject, currentProjectId } = storeToRefs(store);
-const api = useApi();
+const store = useProjectStore()
+const { currentProject, currentProjectId } = storeToRefs(store)
+const api = useApi()
 
-const docs = ref<DocSummary[]>([]);
-const archivedDocs = ref<DocSummary[]>([]);
-const search = ref("");
-const selectedId = ref<string | null>(null);
-const current = ref<Doc | null>(null);
+const docs = ref<DocSummary[]>([])
+const archivedDocs = ref<DocSummary[]>([])
+const search = ref('')
+const selectedId = ref<string | null>(null)
+const current = ref<Doc | null>(null)
 
 // Resizable tree column
-const treeWidth = useCookie<number>("organizer.docsTreeWidth", {
+const treeWidth = useCookie<number>('organizer.docsTreeWidth', {
   default: () => 288,
-  sameSite: "lax",
-  maxAge: 60 * 60 * 24 * 365,
-});
-let resizing = false;
-let startX = 0;
-let startWidth = 0;
+  sameSite: 'lax',
+  maxAge: 60 * 60 * 24 * 365
+})
+let resizing = false
+let startX = 0
+let startWidth = 0
 
 function onResizeMove(e: MouseEvent) {
-  if (!resizing) return;
-  const next = startWidth + (e.clientX - startX);
-  treeWidth.value = Math.min(Math.max(next, 200), 600);
+  if (!resizing) return
+  const next = startWidth + (e.clientX - startX)
+  treeWidth.value = Math.min(Math.max(next, 200), 600)
 }
 function stopResize() {
-  resizing = false;
-  window.removeEventListener("mousemove", onResizeMove);
-  window.removeEventListener("mouseup", stopResize);
-  document.body.style.userSelect = "";
+  resizing = false
+  window.removeEventListener('mousemove', onResizeMove)
+  window.removeEventListener('mouseup', stopResize)
+  document.body.style.userSelect = ''
 }
 function startResize(e: MouseEvent) {
-  resizing = true;
-  startX = e.clientX;
-  startWidth = treeWidth.value;
-  document.body.style.userSelect = "none";
-  window.addEventListener("mousemove", onResizeMove);
-  window.addEventListener("mouseup", stopResize);
-  e.preventDefault();
+  resizing = true
+  startX = e.clientX
+  startWidth = treeWidth.value
+  document.body.style.userSelect = 'none'
+  window.addEventListener('mousemove', onResizeMove)
+  window.addEventListener('mouseup', stopResize)
+  e.preventDefault()
 }
-onScopeDispose(stopResize);
+onScopeDispose(stopResize)
 
-const tree = computed(() => buildDocTree(docs.value));
+const tree = computed(() => buildDocTree(docs.value))
 
 const filteredDocs = computed(() => {
-  if (!search.value.trim()) return docs.value;
-  const q = search.value.toLowerCase();
-  return docs.value.filter((d) => d.title.toLowerCase().includes(q));
-});
+  if (!search.value.trim()) return docs.value
+  const q = search.value.toLowerCase()
+  return docs.value.filter(d => d.title.toLowerCase().includes(q))
+})
 const filteredTree = computed(() =>
-  search.value.trim() ? null : tree.value,
-);
+  search.value.trim() ? null : tree.value
+)
 
 async function loadDocs() {
   if (!currentProjectId.value) {
-    docs.value = [];
-    archivedDocs.value = [];
-    return;
+    docs.value = []
+    archivedDocs.value = []
+    return
   }
   [docs.value, archivedDocs.value] = await Promise.all([
-    api<DocSummary[]>("/docs", {
-      query: { projectId: currentProjectId.value },
+    api<DocSummary[]>('/docs', {
+      query: { projectId: currentProjectId.value }
     }),
-    api<DocSummary[]>("/docs", {
-      query: { projectId: currentProjectId.value, archivedOnly: "true" },
-    }),
-  ]);
+    api<DocSummary[]>('/docs', {
+      query: { projectId: currentProjectId.value, archivedOnly: 'true' }
+    })
+  ])
 }
 
 async function restoreDoc(id: string) {
-  await api(`/docs/${id}/restore`, { method: "POST" });
-  await loadDocs();
+  await api(`/docs/${id}/restore`, { method: 'POST' })
+  await loadDocs()
 }
 
 async function selectDoc(id: string) {
-  selectedId.value = id;
-  current.value = await api<Doc>(`/docs/${id}`);
-  editing.title = current.value.title;
-  editing.summary = current.value.summary ?? "";
-  editing.bodyMd = current.value.bodyMd ?? "";
+  selectedId.value = id
+  current.value = await api<Doc>(`/docs/${id}`)
+  editing.title = current.value.title
+  editing.summary = current.value.summary ?? ''
+  editing.bodyMd = current.value.bodyMd ?? ''
 }
 
-watch(currentProjectId, loadDocs, { immediate: true });
+watch(currentProjectId, loadDocs, { immediate: true })
 
 useProjectEvents(currentProjectId, (event) => {
-  if (event.type === "doc.changed") {
-    loadDocs();
+  if (event.type === 'doc.changed') {
+    loadDocs()
     if (event.docId === selectedId.value) {
       // refresh selected if it still exists
       api<Doc>(`/docs/${event.docId}`)
         .then((d) => {
-          current.value = d;
+          current.value = d
         })
         .catch(() => {
-          selectedId.value = null;
-          current.value = null;
-        });
+          selectedId.value = null
+          current.value = null
+        })
     }
   }
-});
+})
 
-const editing = reactive({ title: "", summary: "", bodyMd: "" });
-const saving = ref(false);
-const justSaved = ref(false);
-let savedTimer: ReturnType<typeof setTimeout> | null = null;
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+const editing = reactive({ title: '', summary: '', bodyMd: '' })
+const saving = ref(false)
+const justSaved = ref(false)
+let savedTimer: ReturnType<typeof setTimeout> | null = null
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 async function patch(body: Record<string, unknown>) {
-  if (!current.value) return;
-  saving.value = true;
+  if (!current.value) return
+  saving.value = true
   try {
     const updated = await api<Doc>(`/docs/${current.value.id}`, {
-      method: "PATCH",
-      body,
-    });
-    current.value = updated;
-    const listed = docs.value.find((d) => d.id === updated.id);
+      method: 'PATCH',
+      body
+    })
+    current.value = updated
+    const listed = docs.value.find(d => d.id === updated.id)
     if (listed) {
-      listed.title = updated.title;
-      listed.summary = updated.summary;
-      listed.kind = updated.kind;
+      listed.title = updated.title
+      listed.summary = updated.summary
+      listed.kind = updated.kind
     }
-    justSaved.value = true;
-    if (savedTimer) clearTimeout(savedTimer);
-    savedTimer = setTimeout(() => (justSaved.value = false), 1500);
+    justSaved.value = true
+    if (savedTimer) clearTimeout(savedTimer)
+    savedTimer = setTimeout(() => (justSaved.value = false), 1500)
   } finally {
-    saving.value = false;
+    saving.value = false
   }
 }
 
 function scheduleSave() {
-  if (!current.value) return;
-  if (debounceTimer) clearTimeout(debounceTimer);
+  if (!current.value) return
+  if (debounceTimer) clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => {
-    if (!current.value) return;
-    const body: Record<string, unknown> = {};
-    const t = editing.title.trim();
-    if (t && t !== current.value.title) body.title = t;
-    if (editing.summary !== (current.value.summary ?? "")) {
-      body.summary = editing.summary.trim() ? editing.summary : null;
+    if (!current.value) return
+    const body: Record<string, unknown> = {}
+    const t = editing.title.trim()
+    if (t && t !== current.value.title) body.title = t
+    if (editing.summary !== (current.value.summary ?? '')) {
+      body.summary = editing.summary.trim() ? editing.summary : null
     }
-    if (editing.bodyMd !== (current.value.bodyMd ?? "")) {
-      body.bodyMd = editing.bodyMd;
+    if (editing.bodyMd !== (current.value.bodyMd ?? '')) {
+      body.bodyMd = editing.bodyMd
     }
-    if (Object.keys(body).length > 0) patch(body);
-  }, 800);
+    if (Object.keys(body).length > 0) patch(body)
+  }, 800)
 }
 
-watch(() => [editing.title, editing.summary, editing.bodyMd], scheduleSave);
+watch(() => [editing.title, editing.summary, editing.bodyMd], scheduleSave)
 
 function setKind(kind: DocKind) {
-  patch({ kind });
+  patch({ kind })
 }
 
-const createOpen = ref(false);
+const createOpen = ref(false)
 const newDoc = reactive({
-  title: "",
-  kind: "note" as DocKind,
-  parentId: null as string | null,
-});
-const kindOptions = (Object.keys(docKindMeta) as DocKind[]).map((k) => ({
+  title: '',
+  kind: 'note' as DocKind,
+  parentId: null as string | null
+})
+const kindOptions = (Object.keys(docKindMeta) as DocKind[]).map(k => ({
   label: docKindMeta[k].label,
-  value: k,
-}));
+  value: k
+}))
 const parentOptions = computed(() => [
-  { label: "— none (top level) —", value: null as string | null },
-  ...docs.value.map((d) => ({ label: d.title, value: d.id as string | null })),
-]);
+  { label: '— none (top level) —', value: null as string | null },
+  ...docs.value.map(d => ({ label: d.title, value: d.id as string | null }))
+])
 
 async function createDoc() {
-  if (!currentProjectId.value || !newDoc.title.trim()) return;
-  const created = await api<Doc>("/docs", {
-    method: "POST",
+  if (!currentProjectId.value || !newDoc.title.trim()) return
+  const created = await api<Doc>('/docs', {
+    method: 'POST',
     body: {
       projectId: currentProjectId.value,
       title: newDoc.title,
       kind: newDoc.kind,
-      parentId: newDoc.parentId,
-    },
-  });
-  newDoc.title = "";
-  newDoc.kind = "note";
-  newDoc.parentId = null;
-  createOpen.value = false;
-  await loadDocs();
-  await selectDoc(created.id);
+      parentId: newDoc.parentId
+    }
+  })
+  newDoc.title = ''
+  newDoc.kind = 'note'
+  newDoc.parentId = null
+  createOpen.value = false
+  await loadDocs()
+  await selectDoc(created.id)
 }
 
 // Descendants hard-deleted along with the current doc (children cascade in DB).
 const currentDescendantCount = computed(() => {
-  if (!current.value) return 0;
-  const childrenOf = new Map<string | null, string[]>();
+  if (!current.value) return 0
+  const childrenOf = new Map<string | null, string[]>()
   for (const d of docs.value) {
-    const arr = childrenOf.get(d.parentId) ?? [];
-    arr.push(d.id);
-    childrenOf.set(d.parentId, arr);
+    const arr = childrenOf.get(d.parentId) ?? []
+    arr.push(d.id)
+    childrenOf.set(d.parentId, arr)
   }
-  let count = 0;
-  const stack = [...(childrenOf.get(current.value.id) ?? [])];
+  let count = 0
+  const stack = [...(childrenOf.get(current.value.id) ?? [])]
   while (stack.length) {
-    const id = stack.pop()!;
-    count++;
-    const kids = childrenOf.get(id);
-    if (kids) stack.push(...kids);
+    const id = stack.pop()!
+    count++
+    const kids = childrenOf.get(id)
+    if (kids) stack.push(...kids)
   }
-  return count;
-});
+  return count
+})
 
 async function onDocRemoved() {
-  selectedId.value = null;
-  current.value = null;
-  await loadDocs();
+  selectedId.value = null
+  current.value = null
+  await loadDocs()
 }
 </script>
 

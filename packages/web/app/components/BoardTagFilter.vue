@@ -1,33 +1,33 @@
 <script setup lang="ts">
-import type { Tag } from "~/types/tag";
+import type { Tag } from '~/types/tag'
 
 const props = defineProps<{
-  projectId: string | null | undefined;
-  modelValue: string[];
-}>();
+  projectId: string | null | undefined
+  modelValue: string[]
+}>()
 
-const emit = defineEmits<{ "update:modelValue": [ids: string[]] }>();
+const emit = defineEmits<{ 'update:modelValue': [ids: string[]] }>()
 
-const api = useApi();
-const tags = ref<Tag[]>([]);
+const api = useApi()
+const tags = ref<Tag[]>([])
 
 async function load() {
   if (!props.projectId) {
-    tags.value = [];
-    return;
+    tags.value = []
+    return
   }
-  tags.value = await api<Tag[]>("/tags", {
-    query: { projectId: props.projectId },
-  });
+  tags.value = await api<Tag[]>('/tags', {
+    query: { projectId: props.projectId }
+  })
 }
 
-onMounted(load);
-watch(() => props.projectId, load);
+onMounted(load)
+watch(() => props.projectId, load)
 
 const selected = computed<string[]>({
   get: () => props.modelValue,
-  set: (v) => emit("update:modelValue", v),
-});
+  set: v => emit('update:modelValue', v)
+})
 </script>
 
 <template>

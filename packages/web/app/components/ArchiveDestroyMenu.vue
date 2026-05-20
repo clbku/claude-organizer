@@ -1,82 +1,82 @@
 <script setup lang="ts">
-import type { DropdownMenuItem } from "@nuxt/ui";
+import type { DropdownMenuItem } from '@nuxt/ui'
 
 // Kebab menu with Archive (soft-delete) + Destroy (hard-delete), each behind a
 // confirmation modal. The parent owns what happens after success (navigate /
 // clear selection / reload), so this only performs the API call and emits.
 const props = withDefaults(
   defineProps<{
-    kind: "card" | "sprint" | "doc";
-    entityId: string;
-    entityLabel: string;
+    kind: 'card' | 'sprint' | 'doc'
+    entityId: string
+    entityLabel: string
     /** How many children get hard-deleted along with this entity (cascade). */
-    cascadeCount?: number;
+    cascadeCount?: number
     /** Singular noun for the cascade children, e.g. "card", "sub-task". */
-    cascadeNoun?: string;
-    cascadeNounPlural?: string;
-    size?: "xs" | "sm" | "md";
+    cascadeNoun?: string
+    cascadeNounPlural?: string
+    size?: 'xs' | 'sm' | 'md'
   }>(),
-  { cascadeCount: 0, cascadeNoun: "item", size: "sm" },
-);
+  { cascadeCount: 0, cascadeNoun: 'item', size: 'sm' }
+)
 
-const emit = defineEmits<{ archived: []; destroyed: [] }>();
+const emit = defineEmits<{ archived: [], destroyed: [] }>()
 
-const api = useApi();
+const api = useApi()
 
-const KIND_LABEL = { card: "card", sprint: "sprint", doc: "doc" } as const;
+const KIND_LABEL = { card: 'card', sprint: 'sprint', doc: 'doc' } as const
 // card → /cards, sprint → /sprints, doc → /docs
-const basePath = computed(() => `/${props.kind}s`);
+const basePath = computed(() => `/${props.kind}s`)
 
-const archiveOpen = ref(false);
-const destroyOpen = ref(false);
-const archiving = ref(false);
-const destroying = ref(false);
+const archiveOpen = ref(false)
+const destroyOpen = ref(false)
+const archiving = ref(false)
+const destroying = ref(false)
 
 const items = computed<DropdownMenuItem[]>(() => [
   {
-    label: "Archive",
-    icon: "i-lucide-archive",
+    label: 'Archive',
+    icon: 'i-lucide-archive',
     onSelect: () => {
-      archiveOpen.value = true;
-    },
+      archiveOpen.value = true
+    }
   },
   {
-    label: "Destroy",
-    icon: "i-lucide-trash-2",
-    color: "error",
+    label: 'Destroy',
+    icon: 'i-lucide-trash-2',
+    color: 'error',
     onSelect: () => {
-      destroyOpen.value = true;
-    },
-  },
-]);
+      destroyOpen.value = true
+    }
+  }
+])
 
 const cascadeText = computed(() => {
-  const n = props.cascadeCount;
-  if (!n) return "";
-  const noun =
-    n === 1 ? props.cascadeNoun : (props.cascadeNounPlural ?? `${props.cascadeNoun}s`);
-  return ` and ${n} ${noun}`;
-});
+  const n = props.cascadeCount
+  if (!n) return ''
+  const noun
+    = n === 1 ? props.cascadeNoun : (props.cascadeNounPlural ?? `${props.cascadeNoun}s`)
+  return ` and ${n} ${noun}`
+})
 
 async function confirmArchive() {
-  archiving.value = true;
+  archiving.value = true
   try {
-    await api(`${basePath.value}/${props.entityId}/archive`, { method: "POST" });
-    archiveOpen.value = false;
-    emit("archived");
+    await api(`${basePath.value}/${props.entityId}/archive`, { method: 'POST' })
+    archiveOpen.value = false
+    emit('archived')
   } finally {
-    archiving.value = false;
+    archiving.value = false
   }
 }
 
 async function confirmDestroy() {
-  destroying.value = true;
+  destroying.value = true
   try {
-    await api(`${basePath.value}/${props.entityId}`, { method: "DELETE" });
-    destroyOpen.value = false;
-    emit("destroyed");
+    await api(`${basePath.value}/${props.entityId}`, { method: 'DELETE' })
+    destroyOpen.value = false
+    emit('destroyed')
   } finally {
-    destroying.value = false;
+    destroying.value = false
   }
 }
 </script>
@@ -117,8 +117,7 @@ async function confirmDestroy() {
     <template #body>
       <p class="text-sm text-muted">
         This will permanently delete
-        <span class="font-medium text-default">{{ entityLabel }}</span
-        >{{ cascadeText }}.
+        <span class="font-medium text-default">{{ entityLabel }}</span>{{ cascadeText }}.
         <strong class="text-error">This can't be undone.</strong>
       </p>
     </template>

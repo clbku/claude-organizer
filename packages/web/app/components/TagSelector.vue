@@ -1,161 +1,161 @@
 <script setup lang="ts">
-import type { Tag } from "~/types/tag";
-import { TAG_COLORS } from "~/types/tag";
+import type { Tag } from '~/types/tag'
+import { TAG_COLORS } from '~/types/tag'
 
 const props = defineProps<{
-  cardId: string;
-  projectId: string;
-  modelValue: Tag[];
-}>();
+  cardId: string
+  projectId: string
+  modelValue: Tag[]
+}>()
 
-const emit = defineEmits<{ "update:modelValue": [tags: Tag[]] }>();
+const emit = defineEmits<{ 'update:modelValue': [tags: Tag[]] }>()
 
-const api = useApi();
+const api = useApi()
 
-const projectTags = ref<Tag[]>([]);
-const search = ref("");
-const open = ref(false);
-const busy = ref(false);
+const projectTags = ref<Tag[]>([])
+const search = ref('')
+const open = ref(false)
+const busy = ref(false)
 
-const editingId = ref<string | null>(null);
-const editName = ref("");
-const editColor = ref("");
+const editingId = ref<string | null>(null)
+const editName = ref('')
+const editColor = ref('')
 
 async function loadProjectTags() {
-  projectTags.value = await api<Tag[]>("/tags", {
-    query: { projectId: props.projectId },
-  });
+  projectTags.value = await api<Tag[]>('/tags', {
+    query: { projectId: props.projectId }
+  })
 }
 
-onMounted(loadProjectTags);
+onMounted(loadProjectTags)
 watch(open, (isOpen) => {
-  if (isOpen) loadProjectTags();
-});
+  if (isOpen) loadProjectTags()
+})
 
 const assignedIds = computed(
-  () => new Set(props.modelValue.map((t) => t.id)),
-);
+  () => new Set(props.modelValue.map(t => t.id))
+)
 
 const filtered = computed(() => {
-  const q = search.value.trim().toLowerCase();
-  if (!q) return projectTags.value;
-  return projectTags.value.filter((t) => t.name.toLowerCase().includes(q));
-});
+  const q = search.value.trim().toLowerCase()
+  if (!q) return projectTags.value
+  return projectTags.value.filter(t => t.name.toLowerCase().includes(q))
+})
 
 const canCreate = computed(() => {
-  const q = search.value.trim();
-  if (!q) return false;
+  const q = search.value.trim()
+  if (!q) return false
   return !projectTags.value.some(
-    (t) => t.name.toLowerCase() === q.toLowerCase(),
-  );
-});
+    t => t.name.toLowerCase() === q.toLowerCase()
+  )
+})
 
 async function addToCard(tag: Tag) {
-  if (busy.value) return;
-  busy.value = true;
+  if (busy.value) return
+  busy.value = true
   try {
     const tags = await api<Tag[]>(
       `/cards/${props.cardId}/tags/${tag.id}`,
-      { method: "POST" },
-    );
-    emit("update:modelValue", tags);
+      { method: 'POST' }
+    )
+    emit('update:modelValue', tags)
   } finally {
-    busy.value = false;
+    busy.value = false
   }
 }
 
 async function removeFromCard(tag: Tag) {
-  if (busy.value) return;
-  busy.value = true;
+  if (busy.value) return
+  busy.value = true
   try {
     const tags = await api<Tag[]>(
       `/cards/${props.cardId}/tags/${tag.id}`,
-      { method: "DELETE" },
-    );
-    emit("update:modelValue", tags);
+      { method: 'DELETE' }
+    )
+    emit('update:modelValue', tags)
   } finally {
-    busy.value = false;
+    busy.value = false
   }
 }
 
 function toggle(tag: Tag) {
-  if (assignedIds.value.has(tag.id)) removeFromCard(tag);
-  else addToCard(tag);
+  if (assignedIds.value.has(tag.id)) removeFromCard(tag)
+  else addToCard(tag)
 }
 
 async function createAndAdd(color: string) {
-  const name = search.value.trim();
-  if (!name || busy.value) return;
-  busy.value = true;
+  const name = search.value.trim()
+  if (!name || busy.value) return
+  busy.value = true
   try {
-    const tag = await api<Tag>("/tags", {
-      method: "POST",
-      body: { projectId: props.projectId, name, color },
-    });
-    projectTags.value.push(tag);
-    search.value = "";
+    const tag = await api<Tag>('/tags', {
+      method: 'POST',
+      body: { projectId: props.projectId, name, color }
+    })
+    projectTags.value.push(tag)
+    search.value = ''
     const tags = await api<Tag[]>(`/cards/${props.cardId}/tags/${tag.id}`, {
-      method: "POST",
-    });
-    emit("update:modelValue", tags);
+      method: 'POST'
+    })
+    emit('update:modelValue', tags)
   } finally {
-    busy.value = false;
+    busy.value = false
   }
 }
 
 function startEdit(tag: Tag) {
-  editingId.value = tag.id;
-  editName.value = tag.name;
-  editColor.value = tag.color;
+  editingId.value = tag.id
+  editName.value = tag.name
+  editColor.value = tag.color
 }
 
 function cancelEdit() {
-  editingId.value = null;
+  editingId.value = null
 }
 
 async function saveEdit(tag: Tag) {
-  const name = editName.value.trim();
-  if (!name || busy.value) return;
-  busy.value = true;
+  const name = editName.value.trim()
+  if (!name || busy.value) return
+  busy.value = true
   try {
     const updated = await api<Tag>(`/tags/${tag.id}`, {
-      method: "PATCH",
-      body: { name, color: editColor.value },
-    });
-    const idx = projectTags.value.findIndex((t) => t.id === tag.id);
-    if (idx !== -1) projectTags.value[idx] = updated;
+      method: 'PATCH',
+      body: { name, color: editColor.value }
+    })
+    const idx = projectTags.value.findIndex(t => t.id === tag.id)
+    if (idx !== -1) projectTags.value[idx] = updated
     if (assignedIds.value.has(tag.id)) {
       emit(
-        "update:modelValue",
-        props.modelValue.map((t) => (t.id === tag.id ? updated : t)),
-      );
+        'update:modelValue',
+        props.modelValue.map(t => (t.id === tag.id ? updated : t))
+      )
     }
-    editingId.value = null;
+    editingId.value = null
   } finally {
-    busy.value = false;
+    busy.value = false
   }
 }
 
 async function deleteProjectTag(tag: Tag) {
-  if (busy.value) return;
+  if (busy.value) return
   if (
     !confirm(
-      `Delete tag "${tag.name}" from the whole project? It will be removed from every card.`,
+      `Delete tag "${tag.name}" from the whole project? It will be removed from every card.`
     )
   )
-    return;
-  busy.value = true;
+    return
+  busy.value = true
   try {
-    await api(`/tags/${tag.id}`, { method: "DELETE" });
-    projectTags.value = projectTags.value.filter((t) => t.id !== tag.id);
+    await api(`/tags/${tag.id}`, { method: 'DELETE' })
+    projectTags.value = projectTags.value.filter(t => t.id !== tag.id)
     if (assignedIds.value.has(tag.id)) {
       emit(
-        "update:modelValue",
-        props.modelValue.filter((t) => t.id !== tag.id),
-      );
+        'update:modelValue',
+        props.modelValue.filter(t => t.id !== tag.id)
+      )
     }
   } finally {
-    busy.value = false;
+    busy.value = false
   }
 }
 </script>

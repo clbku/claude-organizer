@@ -1,31 +1,32 @@
 <script setup lang="ts">
-import { VueDraggable } from "vue-draggable-plus";
-import type { Card } from "~/types/card";
+import { VueDraggable } from 'vue-draggable-plus'
+
+import type { Card } from '~/types/card'
 
 const props = defineProps<{
-  cards: Card[];
-  closable?: boolean;
-}>();
+  cards: Card[]
+  closable?: boolean
+}>()
 
 const emit = defineEmits<{
-  (e: "card-moved-to-backlog", cardId: string): void;
-  (e: "close"): void;
-}>();
+  (e: 'card-moved-to-backlog', cardId: string): void
+  (e: 'close'): void
+}>()
 
-const localList = ref<Card[]>([...props.cards]);
+const localList = ref<Card[]>([...props.cards])
 
 watch(
   () => props.cards,
   (next) => {
-    localList.value = [...next];
+    localList.value = [...next]
   },
-  { deep: true },
-);
+  { deep: true }
+)
 
 function onAdd(event: { data: Card }) {
-  const card = event.data;
+  const card = event.data
   if (card.sprintId !== null) {
-    emit("card-moved-to-backlog", card.id);
+    emit('card-moved-to-backlog', card.id)
   }
 }
 </script>

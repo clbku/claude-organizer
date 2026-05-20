@@ -1,22 +1,22 @@
 <script setup lang="ts">
-import type { Tag } from "~/types/tag";
-import { tagTextColor } from "~/types/tag";
+import type { Tag } from '~/types/tag'
+import { tagTextColor } from '~/types/tag'
 
 const props = withDefaults(
   defineProps<{
-    tag: Tag;
-    removable?: boolean;
-    size?: "xs" | "sm";
+    tag: Tag
+    removable?: boolean
+    size?: 'xs' | 'sm'
   }>(),
-  { removable: false, size: "sm" },
-);
+  { removable: false, size: 'sm' }
+)
 
-defineEmits<{ remove: [] }>();
+defineEmits<{ remove: [] }>()
 
 const style = computed(() => ({
   backgroundColor: props.tag.color,
-  color: tagTextColor(props.tag.color),
-}));
+  color: tagTextColor(props.tag.color)
+}))
 </script>
 
 <template>

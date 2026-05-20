@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import type { DocNode } from "~/types/doc";
-import { docKindMeta } from "~/types/doc";
+import type { DocNode } from '~/types/doc'
+import { docKindMeta } from '~/types/doc'
 
 defineProps<{
-  node: DocNode;
-  selectedId: string | null;
-  depth: number;
-}>();
+  node: DocNode
+  selectedId: string | null
+  depth: number
+}>()
 
 defineEmits<{
-  (e: "select", id: string): void;
-}>();
+  (e: 'select', id: string): void
+}>()
 </script>
 
 <template>

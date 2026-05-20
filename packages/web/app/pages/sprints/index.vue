@@ -1,124 +1,124 @@
 <script setup lang="ts">
-import { useProjectStore } from "~/stores/project";
-import type { Sprint } from "~/types/sprint";
-import type { Card, CardStatus } from "~/types/card";
+import { useProjectStore } from '~/stores/project'
+import type { Card, CardStatus } from '~/types/card'
+import type { Sprint } from '~/types/sprint'
 
-const store = useProjectStore();
-const { currentProject, currentProjectId } = storeToRefs(store);
-const api = useApi();
+const store = useProjectStore()
+const { currentProject, currentProjectId } = storeToRefs(store)
+const api = useApi()
 
-const sprints = ref<Sprint[]>([]);
-const archivedSprints = ref<Sprint[]>([]);
-const cards = ref<Card[]>([]);
+const sprints = ref<Sprint[]>([])
+const archivedSprints = ref<Sprint[]>([])
+const cards = ref<Card[]>([])
 
 async function loadSprints() {
   if (!currentProjectId.value) {
-    sprints.value = [];
-    archivedSprints.value = [];
-    return;
+    sprints.value = []
+    archivedSprints.value = []
+    return
   }
   [sprints.value, archivedSprints.value] = await Promise.all([
-    api<Sprint[]>("/sprints", { query: { projectId: currentProjectId.value } }),
-    api<Sprint[]>("/sprints", {
-      query: { projectId: currentProjectId.value, archivedOnly: "true" },
-    }),
-  ]);
+    api<Sprint[]>('/sprints', { query: { projectId: currentProjectId.value } }),
+    api<Sprint[]>('/sprints', {
+      query: { projectId: currentProjectId.value, archivedOnly: 'true' }
+    })
+  ])
 }
 
 async function loadCards() {
   if (!currentProjectId.value) {
-    cards.value = [];
-    return;
+    cards.value = []
+    return
   }
-  cards.value = await api<Card[]>("/cards", {
-    query: { projectId: currentProjectId.value },
-  });
+  cards.value = await api<Card[]>('/cards', {
+    query: { projectId: currentProjectId.value }
+  })
 }
 
 async function reloadAll() {
-  await Promise.all([loadSprints(), loadCards()]);
+  await Promise.all([loadSprints(), loadCards()])
 }
 
-watch(currentProjectId, reloadAll, { immediate: true });
+watch(currentProjectId, reloadAll, { immediate: true })
 
 useProjectEvents(currentProjectId, (event) => {
-  if (event.type === "sprint.changed") {
-    loadSprints();
-  } else if (event.type === "card.changed" || event.type === "card.deleted") {
-    loadCards();
+  if (event.type === 'sprint.changed') {
+    loadSprints()
+  } else if (event.type === 'card.changed' || event.type === 'card.deleted') {
+    loadCards()
   }
-});
+})
 
 const sections = computed(() => {
-  const groups: Record<Sprint["status"], Sprint[]> = {
+  const groups: Record<Sprint['status'], Sprint[]> = {
     active: [],
     planned: [],
     completed: [],
-    cancelled: [],
-  };
-  for (const s of sprints.value) groups[s.status].push(s);
+    cancelled: []
+  }
+  for (const s of sprints.value) groups[s.status].push(s)
   return [
-    { key: "active", label: "Active", items: groups.active },
-    { key: "planned", label: "Planned", items: groups.planned },
-    { key: "completed", label: "Completed", items: groups.completed },
-  ];
-});
+    { key: 'active', label: 'Active', items: groups.active },
+    { key: 'planned', label: 'Planned', items: groups.planned },
+    { key: 'completed', label: 'Completed', items: groups.completed }
+  ]
+})
 
 function statsFor(sprintId: string) {
-  const list = cards.value.filter((c) => c.sprintId === sprintId);
+  const list = cards.value.filter(c => c.sprintId === sprintId)
   const counts: Record<CardStatus, number> = {
     todo: 0,
     in_progress: 0,
     review: 0,
     done: 0,
-    blocked: 0,
-  };
-  for (const c of list) counts[c.status]++;
-  return { total: list.length, counts };
+    blocked: 0
+  }
+  for (const c of list) counts[c.status]++
+  return { total: list.length, counts }
 }
 
 function formatDate(iso: string | null) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString();
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString()
 }
 
 async function startSprint(id: string) {
-  await api(`/sprints/${id}/start`, { method: "POST" });
-  await loadSprints();
+  await api(`/sprints/${id}/start`, { method: 'POST' })
+  await loadSprints()
 }
 
 async function completeSprint(id: string) {
-  await api(`/sprints/${id}/complete`, { method: "POST" });
-  await loadSprints();
+  await api(`/sprints/${id}/complete`, { method: 'POST' })
+  await loadSprints()
 }
 
 async function restoreSprint(id: string) {
-  await api(`/sprints/${id}/restore`, { method: "POST" });
-  await loadSprints();
+  await api(`/sprints/${id}/restore`, { method: 'POST' })
+  await loadSprints()
 }
 
-function formatStatus(status: Sprint["status"]) {
-  return { active: "Active", planned: "Planned", completed: "Completed", cancelled: "Cancelled" }[
+function formatStatus(status: Sprint['status']) {
+  return { active: 'Active', planned: 'Planned', completed: 'Completed', cancelled: 'Cancelled' }[
     status
-  ];
+  ]
 }
 
-const createOpen = ref(false);
-const newSprint = reactive({ name: "", goal: "" });
+const createOpen = ref(false)
+const newSprint = reactive({ name: '', goal: '' })
 async function createSprint() {
-  if (!currentProjectId.value || !newSprint.name.trim()) return;
-  await api("/sprints", {
-    method: "POST",
+  if (!currentProjectId.value || !newSprint.name.trim()) return
+  await api('/sprints', {
+    method: 'POST',
     body: {
       projectId: currentProjectId.value,
       name: newSprint.name,
-      goal: newSprint.goal || undefined,
-    },
-  });
-  newSprint.name = "";
-  newSprint.goal = "";
-  createOpen.value = false;
-  await loadSprints();
+      goal: newSprint.goal || undefined
+    }
+  })
+  newSprint.name = ''
+  newSprint.goal = ''
+  createOpen.value = false
+  await loadSprints()
 }
 </script>
 
@@ -163,7 +163,9 @@ async function createSprint() {
             <template v-else-if="section.key === 'planned'">
               No planned sprints. Create one with the button above.
             </template>
-            <template v-else>No completed sprints yet.</template>
+            <template v-else>
+              No completed sprints yet.
+            </template>
           </div>
 
           <div v-else class="space-y-3">

@@ -1,71 +1,71 @@
 <script setup lang="ts">
-import { useProjectStore } from "~/stores/project";
-import type { Card, CardStatus } from "~/types/card";
-import { cardStatusOrder } from "~/types/card";
+import { useProjectStore } from '~/stores/project'
+import type { Card, CardStatus } from '~/types/card'
+import { cardStatusOrder } from '~/types/card'
 
-const store = useProjectStore();
-const { currentProject, currentProjectId } = storeToRefs(store);
-const api = useApi();
+const store = useProjectStore()
+const { currentProject, currentProjectId } = storeToRefs(store)
+const api = useApi()
 
 const { data: activeSprint, refresh: refreshSprint } = useActiveSprint(
-  () => currentProjectId.value,
-);
+  () => currentProjectId.value
+)
 
 const { editing, saving, justSaved } = useSprintInlineEdit(
   activeSprint,
   (updated) => {
-    activeSprint.value = updated;
-  },
-);
+    activeSprint.value = updated
+  }
+)
 
-const cards = ref<Card[]>([]);
-const backlogCards = ref<Card[]>([]);
-const backlogExpanded = ref(false);
-const blockedExpanded = ref(false);
-const selectedTagIds = ref<string[]>([]);
+const cards = ref<Card[]>([])
+const backlogCards = ref<Card[]>([])
+const backlogExpanded = ref(false)
+const blockedExpanded = ref(false)
+const selectedTagIds = ref<string[]>([])
 
 const filteredCards = computed(() => {
-  if (!selectedTagIds.value.length) return cards.value;
-  const sel = new Set(selectedTagIds.value);
-  return cards.value.filter((c) => c.tags?.some((t) => sel.has(t.id)));
-});
+  if (!selectedTagIds.value.length) return cards.value
+  const sel = new Set(selectedTagIds.value)
+  return cards.value.filter(c => c.tags?.some(t => sel.has(t.id)))
+})
 
 async function loadCards() {
   if (!activeSprint.value || !currentProjectId.value) {
-    cards.value = [];
-    backlogCards.value = [];
-    return;
+    cards.value = []
+    backlogCards.value = []
+    return
   }
-  const projectId = currentProjectId.value;
+  const projectId = currentProjectId.value
   const [sprintList, backlogList] = await Promise.all([
-    api<Card[]>("/cards", {
-      query: { projectId, sprintId: activeSprint.value.id },
+    api<Card[]>('/cards', {
+      query: { projectId, sprintId: activeSprint.value.id }
     }),
-    api<Card[]>("/cards", {
-      query: { projectId, backlogOnly: "true" },
-    }),
-  ]);
-  cards.value = sprintList;
-  backlogCards.value = backlogList;
+    api<Card[]>('/cards', {
+      query: { projectId, backlogOnly: 'true' }
+    })
+  ])
+  cards.value = sprintList
+  backlogCards.value = backlogList
 }
 
 watch(
   [currentProjectId, activeSprint],
   async () => {
-    await loadCards();
+    await loadCards()
   },
-  { immediate: true, deep: true },
-);
+  { immediate: true, deep: true }
+)
 
 useProjectEvents(currentProjectId, (event) => {
-  if (event.type === "card.changed" || event.type === "card.deleted") {
-    loadCards();
-  } else if (event.type === "sprint.changed") {
-    refreshSprint();
-  } else if (event.type === "project.changed") {
-    loadCards();
+  if (event.type === 'card.changed' || event.type === 'card.deleted') {
+    loadCards()
+  } else if (event.type === 'sprint.changed') {
+    refreshSprint()
+  } else if (event.type === 'project.changed') {
+    loadCards()
   }
-});
+})
 
 const columns = computed<Record<CardStatus, Card[]>>(() => {
   const grouped: Record<CardStatus, Card[]> = {
@@ -73,58 +73,58 @@ const columns = computed<Record<CardStatus, Card[]>>(() => {
     in_progress: [],
     review: [],
     done: [],
-    blocked: [],
-  };
-  for (const c of filteredCards.value) grouped[c.status].push(c);
-  for (const status of cardStatusOrder) {
-    grouped[status].sort((a, b) => a.position - b.position || b.priority - a.priority);
+    blocked: []
   }
-  return grouped;
-});
+  for (const c of filteredCards.value) grouped[c.status].push(c)
+  for (const status of cardStatusOrder) {
+    grouped[status].sort((a, b) => a.position - b.position || b.priority - a.priority)
+  }
+  return grouped
+})
 
 async function onCardMoved(cardId: string, toStatus: CardStatus) {
-  if (!activeSprint.value) return;
-  const sprintIdLocal = activeSprint.value.id;
+  if (!activeSprint.value) return
+  const sprintIdLocal = activeSprint.value.id
   // A card can arrive from the backlog or from another status column.
-  const fromBacklogIdx = backlogCards.value.findIndex((c) => c.id === cardId);
-  const fromSprintIdx = cards.value.findIndex((c) => c.id === cardId);
-  const body: Record<string, unknown> = { status: toStatus };
+  const fromBacklogIdx = backlogCards.value.findIndex(c => c.id === cardId)
+  const fromSprintIdx = cards.value.findIndex(c => c.id === cardId)
+  const body: Record<string, unknown> = { status: toStatus }
   if (fromBacklogIdx !== -1) {
-    const card = backlogCards.value[fromBacklogIdx];
-    if (!card) return;
-    body.sprintId = sprintIdLocal;
-    backlogCards.value.splice(fromBacklogIdx, 1);
-    cards.value.push({ ...card, status: toStatus, sprintId: sprintIdLocal });
+    const card = backlogCards.value[fromBacklogIdx]
+    if (!card) return
+    body.sprintId = sprintIdLocal
+    backlogCards.value.splice(fromBacklogIdx, 1)
+    cards.value.push({ ...card, status: toStatus, sprintId: sprintIdLocal })
   } else if (fromSprintIdx !== -1) {
-    const prev = cards.value[fromSprintIdx];
-    if (!prev || prev.status === toStatus) return;
-    cards.value[fromSprintIdx] = { ...prev, status: toStatus };
+    const prev = cards.value[fromSprintIdx]
+    if (!prev || prev.status === toStatus) return
+    cards.value[fromSprintIdx] = { ...prev, status: toStatus }
   } else {
-    return;
+    return
   }
   try {
-    await api(`/cards/${cardId}`, { method: "PATCH", body });
+    await api(`/cards/${cardId}`, { method: 'PATCH', body })
   } catch (err) {
-    console.error("Failed to update card, reloading", err);
-    await loadCards();
+    console.error('Failed to update card, reloading', err)
+    await loadCards()
   }
 }
 
 async function onMoveToBacklog(cardId: string) {
-  const idx = cards.value.findIndex((c) => c.id === cardId);
-  if (idx === -1) return;
-  const card = cards.value[idx];
-  if (!card) return;
-  cards.value.splice(idx, 1);
-  backlogCards.value.push({ ...card, sprintId: null });
+  const idx = cards.value.findIndex(c => c.id === cardId)
+  if (idx === -1) return
+  const card = cards.value[idx]
+  if (!card) return
+  cards.value.splice(idx, 1)
+  backlogCards.value.push({ ...card, sprintId: null })
   try {
     await api(`/cards/${cardId}`, {
-      method: "PATCH",
-      body: { sprintId: null },
-    });
+      method: 'PATCH',
+      body: { sprintId: null }
+    })
   } catch (err) {
-    console.error("Failed to move card to backlog, reloading", err);
-    await loadCards();
+    console.error('Failed to move card to backlog, reloading', err)
+    await loadCards()
   }
 }
 </script>

@@ -2,11 +2,11 @@
 // Narrow vertical "tab" that stands in for a collapsed board column (backlog,
 // archived, blocked). Click to expand. Shared by the board and the sprint view.
 defineProps<{
-  icon: string;
-  label: string;
-  count?: number;
-}>();
-const emit = defineEmits<{ (e: "expand"): void }>();
+  icon: string
+  label: string
+  count?: number
+}>()
+const emit = defineEmits<{ (e: 'expand'): void }>()
 </script>
 
 <template>

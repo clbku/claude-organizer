@@ -1,99 +1,99 @@
 <script setup lang="ts">
-import { useProjectStore } from "~/stores/project";
-import type { Card } from "~/types/card";
-import type { Sprint } from "~/types/sprint";
-import { cardStatusMeta } from "~/types/card";
+import { useProjectStore } from '~/stores/project'
+import type { Card } from '~/types/card'
+import { cardStatusMeta } from '~/types/card'
+import type { Sprint } from '~/types/sprint'
 
-const store = useProjectStore();
-const { currentProject, currentProjectId } = storeToRefs(store);
-const api = useApi();
+const store = useProjectStore()
+const { currentProject, currentProjectId } = storeToRefs(store)
+const api = useApi()
 
-const cards = ref<Card[]>([]);
-const archivedCards = ref<Card[]>([]);
-const sprints = ref<Sprint[]>([]);
+const cards = ref<Card[]>([])
+const archivedCards = ref<Card[]>([])
+const sprints = ref<Sprint[]>([])
 
 async function loadCards() {
   if (!currentProjectId.value) {
-    cards.value = [];
-    archivedCards.value = [];
-    return;
+    cards.value = []
+    archivedCards.value = []
+    return
   }
   [cards.value, archivedCards.value] = await Promise.all([
-    api<Card[]>("/cards", {
-      query: { projectId: currentProjectId.value, backlogOnly: "true" },
+    api<Card[]>('/cards', {
+      query: { projectId: currentProjectId.value, backlogOnly: 'true' }
     }),
-    api<Card[]>("/cards", {
+    api<Card[]>('/cards', {
       query: {
         projectId: currentProjectId.value,
-        backlogOnly: "true",
-        archivedOnly: "true",
-      },
-    }),
-  ]);
+        backlogOnly: 'true',
+        archivedOnly: 'true'
+      }
+    })
+  ])
 }
 
 async function loadSprints() {
   if (!currentProjectId.value) {
-    sprints.value = [];
-    return;
+    sprints.value = []
+    return
   }
-  sprints.value = await api<Sprint[]>("/sprints", {
-    query: { projectId: currentProjectId.value },
-  });
+  sprints.value = await api<Sprint[]>('/sprints', {
+    query: { projectId: currentProjectId.value }
+  })
 }
 
 async function reload() {
-  await Promise.all([loadCards(), loadSprints()]);
+  await Promise.all([loadCards(), loadSprints()])
 }
 
-watch(currentProjectId, reload, { immediate: true });
+watch(currentProjectId, reload, { immediate: true })
 
 useProjectEvents(currentProjectId, (event) => {
-  if (event.type === "card.changed" || event.type === "card.deleted") {
-    loadCards();
-  } else if (event.type === "sprint.changed") {
-    loadSprints();
+  if (event.type === 'card.changed' || event.type === 'card.deleted') {
+    loadCards()
+  } else if (event.type === 'sprint.changed') {
+    loadSprints()
   }
-});
+})
 
 const moveTargets = computed(() =>
   sprints.value
-    .filter((s) => s.status === "active" || s.status === "planned")
-    .sort((a, b) => (a.status === "active" ? -1 : 1)),
-);
+    .filter(s => s.status === 'active' || s.status === 'planned')
+    .sort(a => (a.status === 'active' ? -1 : 1))
+)
 
 const sortedCards = computed(() =>
   [...cards.value].sort(
     (a, b) =>
-      b.priority - a.priority ||
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-  ),
-);
+      b.priority - a.priority
+      || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  )
+)
 
 async function moveToSprint(cardId: string, sprintId: string) {
   await api(`/cards/${cardId}`, {
-    method: "PATCH",
-    body: { sprintId },
-  });
-  await loadCards();
+    method: 'PATCH',
+    body: { sprintId }
+  })
+  await loadCards()
 }
 
 async function restoreCard(cardId: string) {
-  await api(`/cards/${cardId}/restore`, { method: "POST" });
-  await loadCards();
+  await api(`/cards/${cardId}/restore`, { method: 'POST' })
+  await loadCards()
 }
 
 function dropdownItems(cardId: string) {
   if (moveTargets.value.length === 0) {
-    return [[{ label: "No active/planned sprints", disabled: true }]];
+    return [[{ label: 'No active/planned sprints', disabled: true }]]
   }
   return [
-    moveTargets.value.map((s) => ({
+    moveTargets.value.map(s => ({
       label: s.name,
-      icon: s.status === "active" ? "i-lucide-flame" : "i-lucide-calendar",
-      onSelect: () => moveToSprint(cardId, s.id),
-    })),
-  ];
+      icon: s.status === 'active' ? 'i-lucide-flame' : 'i-lucide-calendar',
+      onSelect: () => moveToSprint(cardId, s.id)
+    }))
+  ]
 }
 </script>
 
@@ -105,7 +105,9 @@ function dropdownItems(cardId: string) {
           <UIcon name="i-lucide-inbox" class="text-primary" />
         </template>
         <template #right>
-          <UBadge variant="subtle">{{ cards.length }} cards</UBadge>
+          <UBadge variant="subtle">
+            {{ cards.length }} cards
+          </UBadge>
         </template>
       </UDashboardNavbar>
     </template>

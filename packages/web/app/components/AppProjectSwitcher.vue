@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { useProjectStore } from "~/stores/project";
+import { useProjectStore } from '~/stores/project'
 
-const store = useProjectStore();
-const { projects, currentProject } = storeToRefs(store);
+const store = useProjectStore()
+const { projects, currentProject } = storeToRefs(store)
 
 const items = computed(() =>
-  projects.value.map((p) => ({
+  projects.value.map(p => ({
     label: p.name,
     description: p.slug,
-    icon: "i-lucide-folder",
+    icon: 'i-lucide-folder',
     onSelect: () => store.setCurrent(p.slug),
-    active: p.slug === currentProject.value?.slug,
-  })),
-);
+    active: p.slug === currentProject.value?.slug
+  }))
+)
 </script>
 
 <template>

@@ -1,42 +1,43 @@
-import { defineStore } from "pinia";
-import type { Project } from "@claude-organizer/shared";
+import { defineStore } from 'pinia'
 
-const CURRENT_PROJECT_COOKIE = "organizer.currentProjectSlug";
+import type { Project } from '@claude-organizer/shared'
 
-export const useProjectStore = defineStore("project", () => {
-  const projects = ref<Project[]>([]);
-  const loading = ref(true);
+const CURRENT_PROJECT_COOKIE = 'organizer.currentProjectSlug'
+
+export const useProjectStore = defineStore('project', () => {
+  const projects = ref<Project[]>([])
+  const loading = ref(true)
   const currentSlug = useCookie<string | null>(CURRENT_PROJECT_COOKIE, {
     default: () => null,
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 365,
-  });
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 365
+  })
 
   const currentProject = computed<Project | null>(() => {
-    if (!currentSlug.value) return projects.value[0] ?? null;
-    return projects.value.find((p) => p.slug === currentSlug.value) ?? null;
-  });
+    if (!currentSlug.value) return projects.value[0] ?? null
+    return projects.value.find(p => p.slug === currentSlug.value) ?? null
+  })
 
-  const currentProjectId = computed(() => currentProject.value?.id ?? null);
+  const currentProjectId = computed(() => currentProject.value?.id ?? null)
 
   async function loadProjects() {
-    const api = useApi();
+    const api = useApi()
     try {
-      projects.value = await api<Project[]>("/projects");
+      projects.value = await api<Project[]>('/projects')
     } finally {
-      loading.value = false;
+      loading.value = false
     }
   }
 
   function setCurrent(slug: string) {
-    if (projects.value.some((p) => p.slug === slug)) {
-      currentSlug.value = slug;
+    if (projects.value.some(p => p.slug === slug)) {
+      currentSlug.value = slug
     }
   }
 
   async function ensureLoaded() {
     if (projects.value.length === 0) {
-      await loadProjects();
+      await loadProjects()
     }
   }
 
@@ -48,6 +49,6 @@ export const useProjectStore = defineStore("project", () => {
     currentSlug,
     loadProjects,
     setCurrent,
-    ensureLoaded,
-  };
-});
+    ensureLoaded
+  }
+})

@@ -1,18 +1,17 @@
 <script setup lang="ts">
-import type { Sprint } from "~/types/sprint";
-import type { CardStatus } from "~/types/card";
-import { cardStatusMeta, cardStatusOrder } from "~/types/card";
+import type { CardStatus } from '~/types/card'
+import { cardStatusMeta, cardStatusOrder } from '~/types/card'
+import type { Sprint } from '~/types/sprint'
 
 defineProps<{
-  sprint: Sprint;
-  stats: { total: number; counts: Record<CardStatus, number> };
-  formatDate: (iso: string | null) => string;
-}>();
+  sprint: Sprint
+  stats: { total: number, counts: Record<CardStatus, number> }
+  formatDate: (iso: string | null) => string
+}>()
 
 defineEmits<{
-  (e: "start"): void;
-  (e: "complete"): void;
-}>();
+  (e: 'start' | 'complete'): void
+}>()
 </script>
 
 <template>

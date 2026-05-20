@@ -1,115 +1,115 @@
 <script setup lang="ts">
-import type { Card, CardStatus } from "~/types/card";
-import type { Sprint } from "~/types/sprint";
-import { cardStatusOrder } from "~/types/card";
+import type { Card, CardStatus } from '~/types/card'
+import { cardStatusOrder } from '~/types/card'
+import type { Sprint } from '~/types/sprint'
 
-const route = useRoute();
-const router = useRouter();
-const api = useApi();
-const sprintId = computed(() => String(route.params.id));
+const route = useRoute()
+const router = useRouter()
+const api = useApi()
+const sprintId = computed(() => String(route.params.id))
 
-const sprint = ref<Sprint | null>(null);
-const cards = ref<Card[]>([]);
-const backlogCards = ref<Card[]>([]);
-const archivedCards = ref<Card[]>([]);
-const archivedExpanded = ref(false);
-const error = ref<unknown>(null);
+const sprint = ref<Sprint | null>(null)
+const cards = ref<Card[]>([])
+const backlogCards = ref<Card[]>([])
+const archivedCards = ref<Card[]>([])
+const archivedExpanded = ref(false)
+const error = ref<unknown>(null)
 
 const { editing, saving, justSaved } = useSprintInlineEdit(sprint, (updated) => {
-  sprint.value = updated;
-});
+  sprint.value = updated
+})
 
 const showBacklog = computed(
-  () => sprint.value?.status === "planned" || sprint.value?.status === "active",
-);
+  () => sprint.value?.status === 'planned' || sprint.value?.status === 'active'
+)
 
-const backlogExpanded = ref(false);
-const blockedExpanded = ref(false);
+const backlogExpanded = ref(false)
+const blockedExpanded = ref(false)
 watch(
   () => sprint.value?.status,
   (status) => {
-    backlogExpanded.value = status === "planned";
-  },
-);
+    backlogExpanded.value = status === 'planned'
+  }
+)
 
 async function loadSprint() {
   try {
-    sprint.value = await api<Sprint>(`/sprints/${sprintId.value}`);
+    sprint.value = await api<Sprint>(`/sprints/${sprintId.value}`)
   } catch (err) {
-    error.value = err;
-    sprint.value = null;
+    error.value = err
+    sprint.value = null
   }
 }
 
 async function loadCards() {
   if (!sprint.value) {
-    cards.value = [];
-    backlogCards.value = [];
-    archivedCards.value = [];
-    return;
+    cards.value = []
+    backlogCards.value = []
+    archivedCards.value = []
+    return
   }
-  const projectId = sprint.value.projectId;
-  const sprintIdLocal = sprint.value.id;
-  const fetchArchived = api<Card[]>("/cards", {
-    query: { projectId, sprintId: sprintIdLocal, archivedOnly: "true" },
-  });
+  const projectId = sprint.value.projectId
+  const sprintIdLocal = sprint.value.id
+  const fetchArchived = api<Card[]>('/cards', {
+    query: { projectId, sprintId: sprintIdLocal, archivedOnly: 'true' }
+  })
   if (showBacklog.value) {
     const [sprintList, backlogList, archivedList] = await Promise.all([
-      api<Card[]>("/cards", {
-        query: { projectId, sprintId: sprintIdLocal },
+      api<Card[]>('/cards', {
+        query: { projectId, sprintId: sprintIdLocal }
       }),
-      api<Card[]>("/cards", {
-        query: { projectId, backlogOnly: "true" },
+      api<Card[]>('/cards', {
+        query: { projectId, backlogOnly: 'true' }
       }),
-      fetchArchived,
-    ]);
-    cards.value = sprintList;
-    backlogCards.value = backlogList;
-    archivedCards.value = archivedList;
+      fetchArchived
+    ])
+    cards.value = sprintList
+    backlogCards.value = backlogList
+    archivedCards.value = archivedList
   } else {
     const [sprintList, archivedList] = await Promise.all([
-      api<Card[]>("/cards", {
-        query: { projectId, sprintId: sprintIdLocal },
+      api<Card[]>('/cards', {
+        query: { projectId, sprintId: sprintIdLocal }
       }),
-      fetchArchived,
-    ]);
-    cards.value = sprintList;
-    backlogCards.value = [];
-    archivedCards.value = archivedList;
+      fetchArchived
+    ])
+    cards.value = sprintList
+    backlogCards.value = []
+    archivedCards.value = archivedList
   }
 }
 
 watch(
   sprintId,
   async () => {
-    await loadSprint();
-    await loadCards();
+    await loadSprint()
+    await loadCards()
   },
-  { immediate: true },
-);
+  { immediate: true }
+)
 
 useProjectEvents(
   () => sprint.value?.projectId ?? null,
   (event) => {
-    if (event.type === "card.changed" || event.type === "card.deleted") {
-      loadCards();
+    if (event.type === 'card.changed' || event.type === 'card.deleted') {
+      loadCards()
     } else if (
-      event.type === "sprint.changed" &&
-      event.sprintId === sprintId.value
+      event.type === 'sprint.changed'
+      && event.sprintId === sprintId.value
     ) {
-      loadSprint();
-    } else if (event.type === "project.changed") {
-      loadCards();
+      loadSprint()
+    } else if (event.type === 'project.changed') {
+      loadCards()
     }
-  },
-);
+  }
+)
 
-const selectedTagIds = ref<string[]>([]);
+const selectedTagIds = ref<string[]>([])
 const filteredCards = computed(() => {
-  if (!selectedTagIds.value.length) return cards.value;
-  const sel = new Set(selectedTagIds.value);
-  return cards.value.filter((c) => c.tags?.some((t) => sel.has(t.id)));
-});
+  if (!selectedTagIds.value.length) return cards.value
+  const sel = new Set(selectedTagIds.value)
+  return cards.value.filter(c => c.tags?.some(t => sel.has(t.id)))
+})
 
 const columns = computed<Record<CardStatus, Card[]>>(() => {
   const grouped: Record<CardStatus, Card[]> = {
@@ -117,94 +117,94 @@ const columns = computed<Record<CardStatus, Card[]>>(() => {
     in_progress: [],
     review: [],
     done: [],
-    blocked: [],
-  };
-  for (const c of filteredCards.value) grouped[c.status].push(c);
+    blocked: []
+  }
+  for (const c of filteredCards.value) grouped[c.status].push(c)
   for (const status of cardStatusOrder) {
     grouped[status].sort(
-      (a, b) => a.position - b.position || b.priority - a.priority,
-    );
+      (a, b) => a.position - b.position || b.priority - a.priority
+    )
   }
-  return grouped;
-});
+  return grouped
+})
 
 async function onCardMoved(cardId: string, toStatus: CardStatus) {
-  if (!sprint.value) return;
-  const sprintIdLocal = sprint.value.id;
+  if (!sprint.value) return
+  const sprintIdLocal = sprint.value.id
   // Check if card came from backlog or from another status column
-  const fromBacklogIdx = backlogCards.value.findIndex((c) => c.id === cardId);
-  const fromSprintIdx = cards.value.findIndex((c) => c.id === cardId);
-  const body: Record<string, unknown> = { status: toStatus };
+  const fromBacklogIdx = backlogCards.value.findIndex(c => c.id === cardId)
+  const fromSprintIdx = cards.value.findIndex(c => c.id === cardId)
+  const body: Record<string, unknown> = { status: toStatus }
   if (fromBacklogIdx !== -1) {
-    const card = backlogCards.value[fromBacklogIdx];
-    if (!card) return;
-    body.sprintId = sprintIdLocal;
-    backlogCards.value.splice(fromBacklogIdx, 1);
-    cards.value.push({ ...card, status: toStatus, sprintId: sprintIdLocal });
+    const card = backlogCards.value[fromBacklogIdx]
+    if (!card) return
+    body.sprintId = sprintIdLocal
+    backlogCards.value.splice(fromBacklogIdx, 1)
+    cards.value.push({ ...card, status: toStatus, sprintId: sprintIdLocal })
   } else if (fromSprintIdx !== -1) {
-    const prev = cards.value[fromSprintIdx];
-    if (!prev || prev.status === toStatus) return;
-    cards.value[fromSprintIdx] = { ...prev, status: toStatus };
+    const prev = cards.value[fromSprintIdx]
+    if (!prev || prev.status === toStatus) return
+    cards.value[fromSprintIdx] = { ...prev, status: toStatus }
   } else {
-    return;
+    return
   }
   try {
-    await api(`/cards/${cardId}`, { method: "PATCH", body });
+    await api(`/cards/${cardId}`, { method: 'PATCH', body })
   } catch (err) {
-    console.error("Failed to update card, reloading", err);
-    await loadCards();
+    console.error('Failed to update card, reloading', err)
+    await loadCards()
   }
 }
 
 async function onMoveToBacklog(cardId: string) {
-  const idx = cards.value.findIndex((c) => c.id === cardId);
-  if (idx === -1) return;
-  const card = cards.value[idx];
-  if (!card) return;
-  cards.value.splice(idx, 1);
-  backlogCards.value.push({ ...card, sprintId: null });
+  const idx = cards.value.findIndex(c => c.id === cardId)
+  if (idx === -1) return
+  const card = cards.value[idx]
+  if (!card) return
+  cards.value.splice(idx, 1)
+  backlogCards.value.push({ ...card, sprintId: null })
   try {
     await api(`/cards/${cardId}`, {
-      method: "PATCH",
-      body: { sprintId: null },
-    });
+      method: 'PATCH',
+      body: { sprintId: null }
+    })
   } catch (err) {
-    console.error("Failed to move card to backlog, reloading", err);
-    await loadCards();
+    console.error('Failed to move card to backlog, reloading', err)
+    await loadCards()
   }
 }
 
 const statusBadgeColor = computed(() => {
-  if (!sprint.value) return "neutral";
+  if (!sprint.value) return 'neutral'
   return (
     {
-      planned: "neutral",
-      active: "info",
-      completed: "success",
-      cancelled: "error",
+      planned: 'neutral',
+      active: 'info',
+      completed: 'success',
+      cancelled: 'error'
     } as const
-  )[sprint.value.status];
-});
+  )[sprint.value.status]
+})
 
 async function startSprint() {
-  if (!sprint.value) return;
-  await api(`/sprints/${sprint.value.id}/start`, { method: "POST" });
-  await loadSprint();
+  if (!sprint.value) return
+  await api(`/sprints/${sprint.value.id}/start`, { method: 'POST' })
+  await loadSprint()
 }
 
 async function completeSprint() {
-  if (!sprint.value) return;
-  await api(`/sprints/${sprint.value.id}/complete`, { method: "POST" });
-  await loadSprint();
+  if (!sprint.value) return
+  await api(`/sprints/${sprint.value.id}/complete`, { method: 'POST' })
+  await loadSprint()
 }
 
 function onSprintRemoved() {
-  router.push("/sprints");
+  router.push('/sprints')
 }
 
 async function restoreCard(cardId: string) {
-  await api(`/cards/${cardId}/restore`, { method: "POST" });
-  await loadCards();
+  await api(`/cards/${cardId}/restore`, { method: 'POST' })
+  await loadCards()
 }
 </script>
 

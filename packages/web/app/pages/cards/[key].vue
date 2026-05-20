@@ -1,397 +1,397 @@
 <script setup lang="ts">
-import type { Card, CardStatus } from "~/types/card";
-import type { Comment } from "~/types/comment";
-import type { Sprint } from "~/types/sprint";
-import type { Tag } from "~/types/tag";
-import { cardStatusMeta, cardStatusOrder } from "~/types/card";
+import type { Card, CardStatus } from '~/types/card'
+import { cardStatusMeta, cardStatusOrder } from '~/types/card'
+import type { Comment } from '~/types/comment'
+import type { Sprint } from '~/types/sprint'
+import type { Tag } from '~/types/tag'
 
-const route = useRoute();
-const router = useRouter();
-const api = useApi();
-const cardKey = computed(() => String(route.params.key));
+const route = useRoute()
+const router = useRouter()
+const api = useApi()
+const cardKey = computed(() => String(route.params.key))
 
 function goBack() {
-  const sprintId = card.value?.sprintId;
+  const sprintId = card.value?.sprintId
   if (!sprintId) {
-    router.push("/backlog");
-    return;
+    router.push('/backlog')
+    return
   }
-  const active = sprints.value.find((s) => s.status === "active");
+  const active = sprints.value.find(s => s.status === 'active')
   router.push(
-    active && active.id === sprintId ? "/board" : `/sprints/${sprintId}`,
-  );
+    active && active.id === sprintId ? '/board' : `/sprints/${sprintId}`
+  )
 }
 
-const card = ref<Card | null>(null);
-const comments = ref<Comment[]>([]);
-const sprints = ref<Sprint[]>([]);
-const allCards = ref<Card[]>([]);
-const cardLoading = ref(true);
-const cardError = ref<unknown>(null);
+const card = ref<Card | null>(null)
+const comments = ref<Comment[]>([])
+const sprints = ref<Sprint[]>([])
+const allCards = ref<Card[]>([])
+const cardLoading = ref(true)
+const cardError = ref<unknown>(null)
 
 const editing = reactive({
-  title: "",
-  summary: "",
-  descriptionMd: "",
-});
+  title: '',
+  summary: '',
+  descriptionMd: ''
+})
 
 async function fetchCard(): Promise<Card | null> {
   try {
-    return await api<Card>(`/cards/by-key/${cardKey.value}`);
+    return await api<Card>(`/cards/by-key/${cardKey.value}`)
   } catch (err) {
-    cardError.value = err;
-    return null;
+    cardError.value = err
+    return null
   }
 }
 
 async function fetchComments(cardId: string) {
   return api<Comment[]>(`/cards/${cardId}/comments`, {
-    query: { markAsRead: "false" },
-  });
+    query: { markAsRead: 'false' }
+  })
 }
 
 async function fetchSprints(projectId: string) {
-  return api<Sprint[]>("/sprints", { query: { projectId } });
+  return api<Sprint[]>('/sprints', { query: { projectId } })
 }
 
 async function fetchProjectCards(projectId: string) {
-  return api<Card[]>("/cards", { query: { projectId } });
+  return api<Card[]>('/cards', { query: { projectId } })
 }
 
 // Initial load: full state replacement, syncs editing fields, toggles loading.
 async function loadCard() {
-  cardLoading.value = true;
-  cardError.value = null;
-  const fresh = await fetchCard();
-  card.value = fresh;
+  cardLoading.value = true
+  cardError.value = null
+  const fresh = await fetchCard()
+  card.value = fresh
   if (fresh) {
-    editing.title = fresh.title;
-    editing.summary = fresh.summary ?? "";
-    editing.descriptionMd = fresh.descriptionMd ?? "";
+    editing.title = fresh.title
+    editing.summary = fresh.summary ?? ''
+    editing.descriptionMd = fresh.descriptionMd ?? '';
     [comments.value, sprints.value, allCards.value] = await Promise.all([
       fetchComments(fresh.id),
       fetchSprints(fresh.projectId),
-      fetchProjectCards(fresh.projectId),
-    ]);
+      fetchProjectCards(fresh.projectId)
+    ])
   }
-  cardLoading.value = false;
+  cardLoading.value = false
 }
 
 // Silent refresh: no loading flag, smart-syncs editing fields only when the
 // user hasn't diverged locally (avoids overwriting mid-edit).
 async function refreshCard() {
-  const fresh = await fetchCard();
-  if (!fresh) return;
-  const previous = card.value;
-  card.value = fresh;
+  const fresh = await fetchCard()
+  if (!fresh) return
+  const previous = card.value
+  card.value = fresh
   if (previous && previous.id === fresh.id) {
     if (editing.title === previous.title && fresh.title !== editing.title) {
-      editing.title = fresh.title;
+      editing.title = fresh.title
     }
     if (
-      editing.summary === (previous.summary ?? "") &&
-      (fresh.summary ?? "") !== editing.summary
+      editing.summary === (previous.summary ?? '')
+      && (fresh.summary ?? '') !== editing.summary
     ) {
-      editing.summary = fresh.summary ?? "";
+      editing.summary = fresh.summary ?? ''
     }
     if (
-      editing.descriptionMd === (previous.descriptionMd ?? "") &&
-      (fresh.descriptionMd ?? "") !== editing.descriptionMd
+      editing.descriptionMd === (previous.descriptionMd ?? '')
+      && (fresh.descriptionMd ?? '') !== editing.descriptionMd
     ) {
-      editing.descriptionMd = fresh.descriptionMd ?? "";
+      editing.descriptionMd = fresh.descriptionMd ?? ''
     }
   }
 }
 
 async function refreshComments() {
-  if (!card.value) return;
-  comments.value = await fetchComments(card.value.id);
+  if (!card.value) return
+  comments.value = await fetchComments(card.value.id)
 }
 
 watch(
   cardKey,
   () => {
-    loadCard();
+    loadCard()
   },
-  { immediate: true },
-);
+  { immediate: true }
+)
 
 useProjectEvents(
   () => card.value?.projectId ?? null,
   (event) => {
-    if (!card.value) return;
+    if (!card.value) return
     if (
-      (event.type === "card.changed" || event.type === "card.deleted") &&
-      event.cardId === card.value.id
+      (event.type === 'card.changed' || event.type === 'card.deleted')
+      && event.cardId === card.value.id
     ) {
-      refreshCard();
+      refreshCard()
     } else if (
-      (event.type === "comment.added" ||
-        event.type === "comment.updated" ||
-        event.type === "comment.deleted" ||
-        event.type === "comment.read") &&
-      event.cardId === card.value.id
+      (event.type === 'comment.added'
+        || event.type === 'comment.updated'
+        || event.type === 'comment.deleted'
+        || event.type === 'comment.read')
+      && event.cardId === card.value.id
     ) {
-      refreshComments();
-    } else if (event.type === "project.changed") {
-      refreshCard();
+      refreshComments()
+    } else if (event.type === 'project.changed') {
+      refreshCard()
     }
-  },
-);
+  }
+)
 
-const saving = ref(false);
-const justSaved = ref(false);
-let savedTimer: ReturnType<typeof setTimeout> | null = null;
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+const saving = ref(false)
+const justSaved = ref(false)
+let savedTimer: ReturnType<typeof setTimeout> | null = null
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 async function patch(body: Record<string, unknown>) {
-  if (!card.value) return;
-  saving.value = true;
+  if (!card.value) return
+  saving.value = true
   try {
     const updated = await api<Card>(`/cards/${card.value.id}`, {
-      method: "PATCH",
-      body,
-    });
-    card.value = { ...card.value, ...updated };
-    justSaved.value = true;
-    if (savedTimer) clearTimeout(savedTimer);
+      method: 'PATCH',
+      body
+    })
+    card.value = { ...card.value, ...updated }
+    justSaved.value = true
+    if (savedTimer) clearTimeout(savedTimer)
     savedTimer = setTimeout(() => {
-      justSaved.value = false;
-    }, 1500);
+      justSaved.value = false
+    }, 1500)
   } finally {
-    saving.value = false;
+    saving.value = false
   }
 }
 
 function buildDirtyPatch(): Record<string, unknown> | null {
-  if (!card.value) return null;
-  const body: Record<string, unknown> = {};
-  const trimmedTitle = editing.title.trim();
+  if (!card.value) return null
+  const body: Record<string, unknown> = {}
+  const trimmedTitle = editing.title.trim()
   if (trimmedTitle && trimmedTitle !== card.value.title) {
-    body.title = trimmedTitle;
+    body.title = trimmedTitle
   }
-  if (editing.summary !== (card.value.summary ?? "")) {
-    body.summary = editing.summary.trim() ? editing.summary : null;
+  if (editing.summary !== (card.value.summary ?? '')) {
+    body.summary = editing.summary.trim() ? editing.summary : null
   }
-  if (editing.descriptionMd !== (card.value.descriptionMd ?? "")) {
-    body.descriptionMd = editing.descriptionMd;
+  if (editing.descriptionMd !== (card.value.descriptionMd ?? '')) {
+    body.descriptionMd = editing.descriptionMd
   }
-  return Object.keys(body).length > 0 ? body : null;
+  return Object.keys(body).length > 0 ? body : null
 }
 
 function scheduleSave() {
-  if (debounceTimer) clearTimeout(debounceTimer);
+  if (debounceTimer) clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => {
-    const body = buildDirtyPatch();
-    if (body) patch(body);
-  }, 800);
+    const body = buildDirtyPatch()
+    if (body) patch(body)
+  }, 800)
 }
 
 watch(
   () => [editing.title, editing.summary, editing.descriptionMd],
-  scheduleSave,
-);
+  scheduleSave
+)
 
 const dueDateInput = computed({
-  get: () => (card.value?.dueDate ? card.value.dueDate.slice(0, 10) : ""),
+  get: () => (card.value?.dueDate ? card.value.dueDate.slice(0, 10) : ''),
   set: (val) => {
-    patch({ dueDate: val ? new Date(val).toISOString() : null });
-  },
-});
+    patch({ dueDate: val ? new Date(val).toISOString() : null })
+  }
+})
 
-const statusOptions = cardStatusOrder.map((s) => ({
+const statusOptions = cardStatusOrder.map(s => ({
   label: cardStatusMeta[s].label,
   value: s,
-  color: cardStatusMeta[s].color,
-}));
+  color: cardStatusMeta[s].color
+}))
 
 const priorityOptions = Array.from({ length: 11 }, (_, i) => ({
-  label: i === 0 ? "0 (none)" : `P${i}`,
-  value: i,
-}));
+  label: i === 0 ? '0 (none)' : `P${i}`,
+  value: i
+}))
 
 const sprintOptions = computed(() => {
-  const list = sprints.value ?? [];
-  const currentId = card.value?.sprintId ?? null;
+  const list = sprints.value ?? []
+  const currentId = card.value?.sprintId ?? null
   // Only active/planned sprints are assignable. Keep the card's current sprint
   // even if completed/cancelled, so the selector still shows its actual value
   // (without offering finalized sprints as options for other cards).
   const selectable = list.filter(
-    (s) =>
-      s.status === "active" || s.status === "planned" || s.id === currentId,
-  );
+    s =>
+      s.status === 'active' || s.status === 'planned' || s.id === currentId
+  )
   return [
-    { label: "Backlog", value: null as string | null },
-    ...selectable.map((s) => ({
-      label: `${s.name}${s.status === "active" ? " (active)" : ""}`,
-      value: s.id as string | null,
-    })),
-  ];
-});
+    { label: 'Backlog', value: null as string | null },
+    ...selectable.map(s => ({
+      label: `${s.name}${s.status === 'active' ? ' (active)' : ''}`,
+      value: s.id as string | null
+    }))
+  ]
+})
 
 // Story (parent): top-level cards, excluding this one.
 const storyOptions = computed(() => {
   const list = allCards.value.filter(
-    (c) => !c.parentId && c.id !== card.value?.id,
-  );
+    c => !c.parentId && c.id !== card.value?.id
+  )
   return [
-    { label: "None", value: null as string | null },
-    ...list.map((c) => ({
+    { label: 'None', value: null as string | null },
+    ...list.map(c => ({
       label: `${c.key} · ${c.title}`,
-      value: c.id as string | null,
-    })),
-  ];
-});
+      value: c.id as string | null
+    }))
+  ]
+})
 
 // Candidates to become sub-tasks: free cards (no parent, no children), != current.
 const subtaskCandidateOptions = computed(() =>
   allCards.value
-    .filter((c) => c.id !== card.value?.id && !c.parentId && !c.subtaskCount)
-    .map((c) => ({ value: c.id, label: `${c.key} · ${c.title}` })),
-);
+    .filter(c => c.id !== card.value?.id && !c.parentId && !c.subtaskCount)
+    .map(c => ({ value: c.id, label: `${c.key} · ${c.title}` }))
+)
 
 async function refreshProjectCards() {
   if (card.value) {
-    allCards.value = await fetchProjectCards(card.value.projectId);
+    allCards.value = await fetchProjectCards(card.value.projectId)
   }
 }
 
 // Bumped after each add to remount the select, resetting its internal state
 // (otherwise it keeps showing the picked id after the card leaves the list).
-const subtaskSelectKey = ref(0);
+const subtaskSelectKey = ref(0)
 function onAddSubtask(v: string | undefined) {
-  subtaskSelectKey.value++;
-  if (v) addSubtask(v);
+  subtaskSelectKey.value++
+  if (v) addSubtask(v)
 }
 
 async function addSubtask(childId: string) {
-  if (!card.value) return;
+  if (!card.value) return
   await api(`/cards/${childId}`, {
-    method: "PATCH",
-    body: { parentId: card.value.id },
-  });
-  await Promise.all([refreshCard(), refreshProjectCards()]);
+    method: 'PATCH',
+    body: { parentId: card.value.id }
+  })
+  await Promise.all([refreshCard(), refreshProjectCards()])
 }
 
 async function detachSubtask(childId: string) {
-  await api(`/cards/${childId}`, { method: "PATCH", body: { parentId: null } });
-  await Promise.all([refreshCard(), refreshProjectCards()]);
+  await api(`/cards/${childId}`, { method: 'PATCH', body: { parentId: null } })
+  await Promise.all([refreshCard(), refreshProjectCards()])
 }
 
-const blockerSelectKey = ref(0);
+const blockerSelectKey = ref(0)
 function onAddBlocker(v: string | undefined) {
-  blockerSelectKey.value++;
-  if (v) addBlocker(v);
+  blockerSelectKey.value++
+  if (v) addBlocker(v)
 }
 
 async function addBlocker(blockerId: string) {
-  if (!card.value) return;
+  if (!card.value) return
   await api(`/cards/${card.value.id}/blockers/${blockerId}`, {
-    method: "POST",
-  });
-  await refreshCard();
+    method: 'POST'
+  })
+  await refreshCard()
 }
 
 async function removeBlocker(blockerId: string) {
-  if (!card.value) return;
+  if (!card.value) return
   await api(`/cards/${card.value.id}/blockers/${blockerId}`, {
-    method: "DELETE",
-  });
-  await refreshCard();
+    method: 'DELETE'
+  })
+  await refreshCard()
 }
 
 const blockerCandidateOptions = computed(() => {
-  const blockedIds = new Set((card.value?.blockedBy ?? []).map((c) => c.id));
+  const blockedIds = new Set((card.value?.blockedBy ?? []).map(c => c.id))
   return allCards.value
-    .filter((c) => c.id !== card.value?.id && !blockedIds.has(c.id))
-    .map((c) => ({ value: c.id, label: `${c.key} · ${c.title}` }));
-});
+    .filter(c => c.id !== card.value?.id && !blockedIds.has(c.id))
+    .map(c => ({ value: c.id, label: `${c.key} · ${c.title}` }))
+})
 
-const newComment = ref("");
-const submittingComment = ref(false);
+const newComment = ref('')
+const submittingComment = ref(false)
 
 async function submitComment() {
-  if (!card.value || !newComment.value.trim()) return;
-  submittingComment.value = true;
+  if (!card.value || !newComment.value.trim()) return
+  submittingComment.value = true
   try {
     await api(`/cards/${card.value.id}/comments`, {
-      method: "POST",
-      body: { author: "user", bodyMd: newComment.value },
-    });
-    newComment.value = "";
-    await refreshComments();
+      method: 'POST',
+      body: { author: 'user', bodyMd: newComment.value }
+    })
+    newComment.value = ''
+    await refreshComments()
   } finally {
-    submittingComment.value = false;
+    submittingComment.value = false
   }
 }
 
-const commentToDelete = ref<Comment | null>(null);
-const deletingComment = ref(false);
+const commentToDelete = ref<Comment | null>(null)
+const deletingComment = ref(false)
 const deleteCommentOpen = computed({
   get: () => commentToDelete.value !== null,
   set: (open) => {
-    if (!open) commentToDelete.value = null;
-  },
-});
+    if (!open) commentToDelete.value = null
+  }
+})
 
 async function confirmDeleteComment() {
-  if (!commentToDelete.value) return;
-  deletingComment.value = true;
+  if (!commentToDelete.value) return
+  deletingComment.value = true
   try {
-    await api(`/comments/${commentToDelete.value.id}`, { method: "DELETE" });
-    await refreshComments();
-    commentToDelete.value = null;
+    await api(`/comments/${commentToDelete.value.id}`, { method: 'DELETE' })
+    await refreshComments()
+    commentToDelete.value = null
   } finally {
-    deletingComment.value = false;
+    deletingComment.value = false
   }
 }
 
 // Inline edit: the pencil swaps a comment's rendered markdown for a textarea
 // holding its current bodyMd. The buffer is independent of comments.value, so a
 // silent refresh (e.g. real-time) doesn't clobber what's being typed.
-const editingCommentId = ref<string | null>(null);
-const editingCommentBody = ref("");
-const savingCommentEdit = ref(false);
+const editingCommentId = ref<string | null>(null)
+const editingCommentBody = ref('')
+const savingCommentEdit = ref(false)
 
 function startEditComment(c: Comment) {
-  editingCommentId.value = c.id;
-  editingCommentBody.value = c.bodyMd;
+  editingCommentId.value = c.id
+  editingCommentBody.value = c.bodyMd
 }
 
 function cancelEditComment() {
-  editingCommentId.value = null;
-  editingCommentBody.value = "";
+  editingCommentId.value = null
+  editingCommentBody.value = ''
 }
 
 async function saveEditComment() {
-  const id = editingCommentId.value;
-  if (!id || !editingCommentBody.value.trim()) return;
-  savingCommentEdit.value = true;
+  const id = editingCommentId.value
+  if (!id || !editingCommentBody.value.trim()) return
+  savingCommentEdit.value = true
   try {
     await api(`/comments/${id}`, {
-      method: "PATCH",
-      body: { bodyMd: editingCommentBody.value },
-    });
-    await refreshComments();
-    cancelEditComment();
+      method: 'PATCH',
+      body: { bodyMd: editingCommentBody.value }
+    })
+    await refreshComments()
+    cancelEditComment()
   } finally {
-    savingCommentEdit.value = false;
+    savingCommentEdit.value = false
   }
 }
 
 function onTagsChange(tags: Tag[]) {
-  if (card.value) card.value = { ...card.value, tags };
+  if (card.value) card.value = { ...card.value, tags }
 }
 
 const meta = computed(() =>
-  card.value ? cardStatusMeta[card.value.status] : null,
-);
+  card.value ? cardStatusMeta[card.value.status] : null
+)
 
-function authorLabel(author: "ai" | "user") {
-  return author === "ai" ? "Claude" : "You";
+function authorLabel(author: 'ai' | 'user') {
+  return author === 'ai' ? 'Claude' : 'You'
 }
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleString();
+  return new Date(iso).toLocaleString()
 }
 </script>
 
@@ -453,7 +453,9 @@ function formatDate(iso: string) {
     </template>
 
     <template #body>
-      <div v-if="cardLoading" class="text-muted py-12 text-center">Loading…</div>
+      <div v-if="cardLoading" class="text-muted py-12 text-center">
+        Loading…
+      </div>
       <div v-else-if="cardError" class="text-error py-12 text-center">
         Error loading card.
       </div>

@@ -1,5 +1,6 @@
-import type { Ref } from "vue";
-import type { Sprint } from "~/types/sprint";
+import type { Ref } from 'vue'
+
+import type { Sprint } from '~/types/sprint'
 
 /**
  * Inline editing (name + goal) for a sprint with debounced auto-save.
@@ -9,15 +10,15 @@ import type { Sprint } from "~/types/sprint";
  */
 export function useSprintInlineEdit(
   sprint: Ref<Sprint | null | undefined>,
-  onSaved?: (updated: Sprint) => void,
+  onSaved?: (updated: Sprint) => void
 ) {
-  const api = useApi();
+  const api = useApi()
 
-  const editing = reactive({ name: "", goal: "" });
-  const saving = ref(false);
-  const justSaved = ref(false);
-  let savedTimer: ReturnType<typeof setTimeout> | null = null;
-  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  const editing = reactive({ name: '', goal: '' })
+  const saving = ref(false)
+  const justSaved = ref(false)
+  let savedTimer: ReturnType<typeof setTimeout> | null = null
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
   // Keep the editable fields in sync with the sprint, but never overwrite a
   // field the user is mid-editing — otherwise the realtime echo of our own
@@ -25,61 +26,61 @@ export function useSprintInlineEdit(
   watch(
     sprint,
     (fresh, prev) => {
-      if (!fresh) return;
+      if (!fresh) return
       if (!prev || prev.id !== fresh.id) {
-        editing.name = fresh.name;
-        editing.goal = fresh.goal ?? "";
-        return;
+        editing.name = fresh.name
+        editing.goal = fresh.goal ?? ''
+        return
       }
       if (editing.name === prev.name && fresh.name !== editing.name) {
-        editing.name = fresh.name;
+        editing.name = fresh.name
       }
       if (
-        editing.goal === (prev.goal ?? "") &&
-        (fresh.goal ?? "") !== editing.goal
+        editing.goal === (prev.goal ?? '')
+        && (fresh.goal ?? '') !== editing.goal
       ) {
-        editing.goal = fresh.goal ?? "";
+        editing.goal = fresh.goal ?? ''
       }
     },
-    { immediate: true },
-  );
+    { immediate: true }
+  )
 
   async function patch(body: Record<string, unknown>) {
-    if (!sprint.value) return;
-    saving.value = true;
+    if (!sprint.value) return
+    saving.value = true
     try {
       const updated = await api<Sprint>(`/sprints/${sprint.value.id}`, {
-        method: "PATCH",
-        body,
-      });
-      onSaved?.(updated);
-      justSaved.value = true;
-      if (savedTimer) clearTimeout(savedTimer);
+        method: 'PATCH',
+        body
+      })
+      onSaved?.(updated)
+      justSaved.value = true
+      if (savedTimer) clearTimeout(savedTimer)
       savedTimer = setTimeout(() => {
-        justSaved.value = false;
-      }, 1500);
+        justSaved.value = false
+      }, 1500)
     } finally {
-      saving.value = false;
+      saving.value = false
     }
   }
 
   function scheduleSave() {
-    if (debounceTimer) clearTimeout(debounceTimer);
+    if (debounceTimer) clearTimeout(debounceTimer)
     debounceTimer = setTimeout(() => {
-      if (!sprint.value) return;
-      const body: Record<string, unknown> = {};
-      const trimmedName = editing.name.trim();
+      if (!sprint.value) return
+      const body: Record<string, unknown> = {}
+      const trimmedName = editing.name.trim()
       if (trimmedName && trimmedName !== sprint.value.name) {
-        body.name = trimmedName;
+        body.name = trimmedName
       }
-      if (editing.goal !== (sprint.value.goal ?? "")) {
-        body.goal = editing.goal.trim() ? editing.goal : null;
+      if (editing.goal !== (sprint.value.goal ?? '')) {
+        body.goal = editing.goal.trim() ? editing.goal : null
       }
-      if (Object.keys(body).length > 0) patch(body);
-    }, 800);
+      if (Object.keys(body).length > 0) patch(body)
+    }, 800)
   }
 
-  watch(() => [editing.name, editing.goal], scheduleSave);
+  watch(() => [editing.name, editing.goal], scheduleSave)
 
-  return { editing, saving, justSaved };
+  return { editing, saving, justSaved }
 }

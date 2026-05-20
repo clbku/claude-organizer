@@ -4,53 +4,53 @@
 // an editor; the consumer owns the value + auto-save (this only toggles/edits).
 const props = withDefaults(
   defineProps<{
-    type?: "text" | "multiline" | "markdown";
-    placeholder?: string; // empty-state hint shown in the preview
-    editorPlaceholder?: string; // placeholder inside the editor
-    size?: "xs" | "sm" | "md" | "lg" | "xl"; // text/multiline input size
-    rows?: number; // multiline
-    minHeight?: string; // markdown editor
-    bordered?: boolean; // preview box gets a border (summary/markdown)
-    inputClass?: string; // typography for the input/textarea
-    previewClass?: string; // typography for the rendered preview
+    type?: 'text' | 'multiline' | 'markdown'
+    placeholder?: string // empty-state hint shown in the preview
+    editorPlaceholder?: string // placeholder inside the editor
+    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' // text/multiline input size
+    rows?: number // multiline
+    minHeight?: string // markdown editor
+    bordered?: boolean // preview box gets a border (summary/markdown)
+    inputClass?: string // typography for the input/textarea
+    previewClass?: string // typography for the rendered preview
   }>(),
   {
-    type: "markdown",
-    placeholder: "Empty. Click to edit.",
-    editorPlaceholder: "",
-    size: "md",
+    type: 'markdown',
+    placeholder: 'Empty. Click to edit.',
+    editorPlaceholder: '',
+    size: 'md',
     rows: 2,
-    minHeight: "120px",
+    minHeight: '120px',
     bordered: false,
-    inputClass: "",
-    previewClass: "",
-  },
-);
+    inputClass: '',
+    previewClass: ''
+  }
+)
 
-const model = defineModel<string>({ default: "" });
-const editing = ref(false);
-const root = ref<HTMLElement | null>(null);
+const model = defineModel<string>({ default: '' })
+const editing = ref(false)
+const root = ref<HTMLElement | null>(null)
 
 function enterEdit(e: MouseEvent) {
-  if ((e.target as HTMLElement).closest("a")) return; // let card links navigate
-  editing.value = true;
+  if ((e.target as HTMLElement).closest('a')) return // let card links navigate
+  editing.value = true
 }
 function stopEdit() {
-  editing.value = false;
+  editing.value = false
 }
 function onOutside(e: MouseEvent) {
   if (root.value && !root.value.contains(e.target as Node)) {
-    editing.value = false;
+    editing.value = false
   }
 }
 // The markdown editor has a toolbar (and link popovers), so @blur is unreliable;
 // fall back to click-outside — same behavior the card description had inline.
 watch(editing, (active) => {
-  if (props.type !== "markdown") return;
-  if (active) document.addEventListener("mousedown", onOutside);
-  else document.removeEventListener("mousedown", onOutside);
-});
-onBeforeUnmount(() => document.removeEventListener("mousedown", onOutside));
+  if (props.type !== 'markdown') return
+  if (active) document.addEventListener('mousedown', onOutside)
+  else document.removeEventListener('mousedown', onOutside)
+})
+onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
 </script>
 
 <template>
