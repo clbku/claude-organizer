@@ -56,8 +56,8 @@ export function registerSprintTools(server: McpServer, db: Database) {
         roadmapId: z.string().optional(),
         name: z.string().min(1).max(120),
         goal: z.string().max(500).optional(),
-        startsAt: z.string().datetime().optional(),
-        endsAt: z.string().datetime().optional()
+        startsAt: z.iso.datetime().optional(),
+        endsAt: z.iso.datetime().optional()
       }
     },
     async input =>

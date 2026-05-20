@@ -86,7 +86,7 @@ export function registerCardTools(server: McpServer, db: Database) {
         descriptionMd: z.string().optional().describe('Full markdown description. Optional.'),
         status: cardStatus.optional(),
         priority: z.number().int().min(0).max(10).optional(),
-        dueDate: z.string().datetime().optional(),
+        dueDate: z.iso.datetime().optional(),
         parentId: z
           .string()
           .optional()
@@ -113,7 +113,7 @@ export function registerCardTools(server: McpServer, db: Database) {
         descriptionMd: z.string().optional(),
         status: cardStatus.optional(),
         priority: z.number().int().min(0).max(10).optional(),
-        dueDate: z.string().datetime().nullable().optional(),
+        dueDate: z.iso.datetime().nullable().optional(),
         parentId: z
           .string()
           .nullable()
