@@ -2,11 +2,10 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    // One Postgres container is shared by the whole suite via globalSetup.
+    // Test files may run in parallel workers; isolation is by data (each test
+    // creates its own project), so no special pool config is needed.
     globalSetup: ["./test/global-setup.ts"],
-    // Single Postgres container shared by the whole suite; one worker keeps DB
-    // access deterministic and avoids a connection storm.
-    pool: "forks",
-    poolOptions: { forks: { singleFork: true } },
     // Container startup + migrations can take a few seconds on a cold image.
     hookTimeout: 120_000,
     testTimeout: 30_000,

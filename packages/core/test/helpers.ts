@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, inject } from "vitest";
 import { createDb, type Database } from "@claude-organizer/db";
 import { createProject } from "../src/index";
@@ -27,12 +28,13 @@ export function useTestDb(): TestDb {
   return ctx;
 }
 
-let seq = 0;
-
-/** Create an isolated project so each test operates in its own namespace. */
+/**
+ * Create an isolated project so each test operates in its own namespace.
+ * The slug uses a random UUID so it stays unique even when test files run in
+ * parallel workers (Vitest's default).
+ */
 export function freshProject(db: Database, keyPrefix = "CO") {
-  seq += 1;
-  const suffix = `${Date.now().toString(36)}${seq}`;
+  const suffix = randomUUID().replace(/-/g, "").slice(0, 12);
   return createProject(db, {
     name: `Test Project ${suffix}`,
     slug: `test-${suffix}`,
