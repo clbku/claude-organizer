@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 import type { Database } from '@claude-organizer/db'
 
+import packageJson from '../package.json'
 import { registerResources } from './resources/index'
 import { registerTools } from './tools/index'
 
@@ -11,7 +12,7 @@ import { registerTools } from './tools/index'
 export function createMcpServer(db: Database) {
   const server = new McpServer({
     name: 'claude-organizer',
-    version: '0.0.1'
+    version: packageJson.version
   })
 
   registerTools(server, db)

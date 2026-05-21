@@ -36,7 +36,11 @@ overrides below, and points to the docs for the rest.
   international). Content authored for the user — **tasks, comments and docs** —
   follows the user's language.
 - **Commits**: one commit per card/task, **only after the user confirms** it
-  works; the message references the key (e.g. `feat(tags): … (CO-4)`).
+  works; the message is written **in English** and references the key (e.g.
+  `feat(tags): … (CO-4)`).
+- **Versioning**: every version (each `package.json`, the plugin manifests and
+  the MCP server) stays in sync — to set it, run `pnpm bump <version>` (the
+  unified bump script); never edit version fields by hand.
 - **Gotchas** (detailed in the docs): consult the `nuxt-ui-remote` MCP before
   using a new Nuxt UI component; relative TS imports have **no `.js`** extension;
   markdown via `<AppMarkdown>` (never `@nuxtjs/mdc`).
