@@ -82,17 +82,9 @@ async function refreshComments() {
   comments.value = await fetchComments(card.value.id)
 }
 
-watch(
-  cardKey,
-  () => {
-    loadCard()
-  },
-  { immediate: true }
-)
-
-useProjectEvents(
-  () => card.value?.projectId ?? null,
-  (event) => {
+useProjectData(() => card.value?.projectId ?? null, loadCard, {
+  watch: cardKey,
+  onEvent: (event) => {
     if (!card.value) return
     if (
       (event.type === 'card.changed' || event.type === 'card.deleted')
@@ -111,7 +103,7 @@ useProjectEvents(
       refreshCard()
     }
   }
-)
+})
 
 const { editing, saving, justSaved, save } = useAutoSave<
   Card,

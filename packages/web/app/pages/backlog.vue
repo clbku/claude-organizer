@@ -46,13 +46,13 @@ async function reload() {
   await Promise.all([loadCards(), loadSprints()])
 }
 
-watch(currentProjectId, reload, { immediate: true })
-
-useProjectEvents(currentProjectId, (event) => {
-  if (event.type === 'card.changed' || event.type === 'card.deleted') {
-    loadCards()
-  } else if (event.type === 'sprint.changed') {
-    loadSprints()
+useProjectData(currentProjectId, reload, {
+  onEvent: (event) => {
+    if (event.type === 'card.changed' || event.type === 'card.deleted') {
+      loadCards()
+    } else if (event.type === 'sprint.changed') {
+      loadSprints()
+    }
   }
 })
 

@@ -79,27 +79,25 @@ async function loadCards() {
   }
 }
 
-watch(
-  sprintId,
+useProjectData(
+  () => sprint.value?.projectId ?? null,
   async () => {
     await loadSprint()
     await loadCards()
   },
-  { immediate: true }
-)
-
-useProjectEvents(
-  () => sprint.value?.projectId ?? null,
-  (event) => {
-    if (event.type === 'card.changed' || event.type === 'card.deleted') {
-      loadCards()
-    } else if (
-      event.type === 'sprint.changed'
-      && event.sprintId === sprintId.value
-    ) {
-      loadSprint()
-    } else if (event.type === 'project.changed') {
-      loadCards()
+  {
+    watch: sprintId,
+    onEvent: (event) => {
+      if (event.type === 'card.changed' || event.type === 'card.deleted') {
+        loadCards()
+      } else if (
+        event.type === 'sprint.changed'
+        && event.sprintId === sprintId.value
+      ) {
+        loadSprint()
+      } else if (event.type === 'project.changed') {
+        loadCards()
+      }
     }
   }
 )

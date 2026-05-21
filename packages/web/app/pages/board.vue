@@ -49,21 +49,16 @@ async function loadCards() {
   backlogCards.value = backlogList
 }
 
-watch(
-  [currentProjectId, activeSprint],
-  async () => {
-    await loadCards()
-  },
-  { immediate: true, deep: true }
-)
-
-useProjectEvents(currentProjectId, (event) => {
-  if (event.type === 'card.changed' || event.type === 'card.deleted') {
-    loadCards()
-  } else if (event.type === 'sprint.changed') {
-    refreshSprint()
-  } else if (event.type === 'project.changed') {
-    loadCards()
+useProjectData(currentProjectId, loadCards, {
+  watch: [currentProjectId, activeSprint],
+  onEvent: (event) => {
+    if (event.type === 'card.changed' || event.type === 'card.deleted') {
+      loadCards()
+    } else if (event.type === 'sprint.changed') {
+      refreshSprint()
+    } else if (event.type === 'project.changed') {
+      loadCards()
+    }
   }
 })
 

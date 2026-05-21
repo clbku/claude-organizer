@@ -82,21 +82,21 @@ async function selectDoc(id: string) {
   current.value = await api<Doc>(`/docs/${id}`)
 }
 
-watch(currentProjectId, loadDocs, { immediate: true })
-
-useProjectEvents(currentProjectId, (event) => {
-  if (event.type === 'doc.changed') {
-    loadDocs()
-    if (event.docId === selectedId.value) {
-      // refresh selected if it still exists
-      api<Doc>(`/docs/${event.docId}`)
-        .then((d) => {
-          current.value = d
-        })
-        .catch(() => {
-          selectedId.value = null
-          current.value = null
-        })
+useProjectData(currentProjectId, loadDocs, {
+  onEvent: (event) => {
+    if (event.type === 'doc.changed') {
+      loadDocs()
+      if (event.docId === selectedId.value) {
+        // refresh selected if it still exists
+        api<Doc>(`/docs/${event.docId}`)
+          .then((d) => {
+            current.value = d
+          })
+          .catch(() => {
+            selectedId.value = null
+            current.value = null
+          })
+      }
     }
   }
 })
