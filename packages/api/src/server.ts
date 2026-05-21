@@ -27,7 +27,13 @@ const { db, close } = createDb({ url: databaseUrl })
 
 const app = Fastify({ logger: true })
 
-await app.register(cors, { origin: true })
+// @fastify/cors v11 narrowed the default `methods` to the CORS-safelist
+// (GET,HEAD,POST), which drops PATCH/PUT/DELETE and breaks every update/delete
+// from the browser (cross-origin preflight). Spell out the full set.
+await app.register(cors, {
+  origin: true,
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']
+})
 await app.register(websocket)
 await app.register(errorHandlerPlugin)
 await app.register(eventsPlugin)
