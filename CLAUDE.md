@@ -43,6 +43,16 @@ overrides below, and points to the docs for the rest.
 
 ## Day to day
 
+To test a **new version of api / web / mcp**, rebuild and restart them in Docker —
+preferred, since it mirrors how they actually run (notably the MCP over HTTP, the
+same transport the plugin connects to):
+
+```bash
+docker compose up -d --build   # rebuild + restart api(4400) web(4401) mcp(4402)
+```
+
+`pnpm dev:*` still works for fast local iteration:
+
 ```bash
 pnpm db:up        # Postgres (after reboot)
 pnpm dev:api      # http://127.0.0.1:4400
