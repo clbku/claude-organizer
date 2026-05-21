@@ -7,6 +7,8 @@ const store = useProjectStore()
 const { currentProject, currentProjectId } = storeToRefs(store)
 const api = useApi()
 
+useHead({ title: 'Docs' })
+
 const docs = ref<DocSummary[]>([])
 const archivedDocs = ref<DocSummary[]>([])
 const search = ref('')

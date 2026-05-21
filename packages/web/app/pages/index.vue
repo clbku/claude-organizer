@@ -8,6 +8,8 @@ const store = useProjectStore()
 const { projects, currentProject, currentProjectId } = storeToRefs(store)
 const api = useApi()
 
+useHead({ title: 'Home' })
+
 const { data: activeSprint, refresh: refreshSprint } = useActiveSprint(
   () => currentProjectId.value
 )

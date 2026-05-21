@@ -10,6 +10,8 @@ const router = useRouter()
 const api = useApi()
 const cardKey = computed(() => String(route.params.key))
 
+useHead({ title: cardKey })
+
 function goBack() {
   const sprintId = card.value?.sprintId
   if (!sprintId) {

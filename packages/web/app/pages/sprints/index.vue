@@ -7,6 +7,8 @@ const store = useProjectStore()
 const { currentProject, currentProjectId } = storeToRefs(store)
 const api = useApi()
 
+useHead({ title: 'Sprints' })
+
 const sprints = ref<Sprint[]>([])
 const archivedSprints = ref<Sprint[]>([])
 const cards = ref<Card[]>([])

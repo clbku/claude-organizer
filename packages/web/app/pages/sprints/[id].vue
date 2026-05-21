@@ -10,6 +10,8 @@ const sprintId = computed(() => String(route.params.id))
 
 const sprint = ref<Sprint | null>(null)
 const cards = ref<Card[]>([])
+
+useHead({ title: () => sprint.value?.name ?? 'Sprint' })
 const backlogCards = ref<Card[]>([])
 const archivedCards = ref<Card[]>([])
 const archivedExpanded = ref(false)
