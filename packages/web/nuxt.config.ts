@@ -5,6 +5,11 @@ export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@pinia/nuxt', '@nuxt/eslint'],
   ssr: false,
   devtools: { enabled: true },
+  app: {
+    head: {
+      link: [{ rel: 'icon', type: 'image/png', href: '/favicon.png' }]
+    }
+  },
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     public: {
