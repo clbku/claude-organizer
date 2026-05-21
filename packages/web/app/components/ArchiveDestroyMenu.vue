@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
 
+// Multiple root nodes (dropdown + two teleported modals), so a `class` from the
+// parent has no single root to inherit onto — forward attrs to the trigger.
+defineOptions({ inheritAttrs: false })
+
 // Kebab menu with Archive (soft-delete) + Destroy (hard-delete), each behind a
 // confirmation modal. The parent owns what happens after success (navigate /
 // clear selection / reload), so this only performs the API call and emits.
@@ -84,6 +88,7 @@ async function confirmDestroy() {
 <template>
   <UDropdownMenu :items="items" :modal="false" :content="{ align: 'end' }">
     <UButton
+      v-bind="$attrs"
       icon="i-lucide-ellipsis-vertical"
       color="neutral"
       variant="ghost"
