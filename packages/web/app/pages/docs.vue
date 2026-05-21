@@ -80,9 +80,6 @@ async function restoreDoc(id: string) {
 async function selectDoc(id: string) {
   selectedId.value = id
   current.value = await api<Doc>(`/docs/${id}`)
-  editing.title = current.value.title
-  editing.summary = current.value.summary ?? ''
-  editing.bodyMd = current.value.bodyMd ?? ''
 }
 
 watch(currentProjectId, loadDocs, { immediate: true })
@@ -104,20 +101,17 @@ useProjectEvents(currentProjectId, (event) => {
   }
 })
 
-const editing = reactive({ title: '', summary: '', bodyMd: '' })
-const saving = ref(false)
-const justSaved = ref(false)
-let savedTimer: ReturnType<typeof setTimeout> | null = null
-let debounceTimer: ReturnType<typeof setTimeout> | null = null
-
-async function patch(body: Record<string, unknown>) {
-  if (!current.value) return
-  saving.value = true
-  try {
-    const updated = await api<Doc>(`/docs/${current.value.id}`, {
-      method: 'PATCH',
-      body
-    })
+const { editing, saving, justSaved, save } = useAutoSave<
+  Doc,
+  'title' | 'summary' | 'bodyMd'
+>(current, {
+  resource: 'docs',
+  fields: [
+    { key: 'title', mode: 'required' },
+    { key: 'summary', mode: 'nullable' },
+    'bodyMd'
+  ],
+  onSaved: (updated) => {
     current.value = updated
     const listed = docs.value.find(d => d.id === updated.id)
     if (listed) {
@@ -125,36 +119,11 @@ async function patch(body: Record<string, unknown>) {
       listed.summary = updated.summary
       listed.kind = updated.kind
     }
-    justSaved.value = true
-    if (savedTimer) clearTimeout(savedTimer)
-    savedTimer = setTimeout(() => (justSaved.value = false), 1500)
-  } finally {
-    saving.value = false
   }
-}
-
-function scheduleSave() {
-  if (!current.value) return
-  if (debounceTimer) clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(() => {
-    if (!current.value) return
-    const body: Record<string, unknown> = {}
-    const t = editing.title.trim()
-    if (t && t !== current.value.title) body.title = t
-    if (editing.summary !== (current.value.summary ?? '')) {
-      body.summary = editing.summary.trim() ? editing.summary : null
-    }
-    if (editing.bodyMd !== (current.value.bodyMd ?? '')) {
-      body.bodyMd = editing.bodyMd
-    }
-    if (Object.keys(body).length > 0) patch(body)
-  }, 800)
-}
-
-watch(() => [editing.title, editing.summary, editing.bodyMd], scheduleSave)
+})
 
 function setKind(kind: DocKind) {
-  patch({ kind })
+  save({ kind })
 }
 
 const createOpen = ref(false)

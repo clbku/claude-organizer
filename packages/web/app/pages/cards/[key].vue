@@ -29,12 +29,6 @@ const allCards = ref<Card[]>([])
 const cardLoading = ref(true)
 const cardError = ref<unknown>(null)
 
-const editing = reactive({
-  title: '',
-  summary: '',
-  descriptionMd: ''
-})
-
 async function fetchCard(): Promise<Card | null> {
   try {
     return await api<Card>(`/cards/by-key/${cardKey.value}`)
@@ -58,16 +52,14 @@ async function fetchProjectCards(projectId: string) {
   return api<Card[]>('/cards', { query: { projectId } })
 }
 
-// Initial load: full state replacement, syncs editing fields, toggles loading.
+// Initial load: full state replacement, toggles loading. The editable buffer
+// follows the card via useAutoSave's smart-sync (below).
 async function loadCard() {
   cardLoading.value = true
   cardError.value = null
   const fresh = await fetchCard()
   card.value = fresh
   if (fresh) {
-    editing.title = fresh.title
-    editing.summary = fresh.summary ?? ''
-    editing.descriptionMd = fresh.descriptionMd ?? '';
     [comments.value, sprints.value, allCards.value] = await Promise.all([
       fetchComments(fresh.id),
       fetchSprints(fresh.projectId),
@@ -77,30 +69,12 @@ async function loadCard() {
   cardLoading.value = false
 }
 
-// Silent refresh: no loading flag, smart-syncs editing fields only when the
-// user hasn't diverged locally (avoids overwriting mid-edit).
+// Silent refresh: swap in the fresh card without the loading flag; the buffer
+// follows via useAutoSave's smart-sync (no mid-edit clobber).
 async function refreshCard() {
   const fresh = await fetchCard()
   if (!fresh) return
-  const previous = card.value
   card.value = fresh
-  if (previous && previous.id === fresh.id) {
-    if (editing.title === previous.title && fresh.title !== editing.title) {
-      editing.title = fresh.title
-    }
-    if (
-      editing.summary === (previous.summary ?? '')
-      && (fresh.summary ?? '') !== editing.summary
-    ) {
-      editing.summary = fresh.summary ?? ''
-    }
-    if (
-      editing.descriptionMd === (previous.descriptionMd ?? '')
-      && (fresh.descriptionMd ?? '') !== editing.descriptionMd
-    ) {
-      editing.descriptionMd = fresh.descriptionMd ?? ''
-    }
-  }
 }
 
 async function refreshComments() {
@@ -139,63 +113,25 @@ useProjectEvents(
   }
 )
 
-const saving = ref(false)
-const justSaved = ref(false)
-let savedTimer: ReturnType<typeof setTimeout> | null = null
-let debounceTimer: ReturnType<typeof setTimeout> | null = null
-
-async function patch(body: Record<string, unknown>) {
-  if (!card.value) return
-  saving.value = true
-  try {
-    const updated = await api<Card>(`/cards/${card.value.id}`, {
-      method: 'PATCH',
-      body
-    })
-    card.value = { ...card.value, ...updated }
-    justSaved.value = true
-    if (savedTimer) clearTimeout(savedTimer)
-    savedTimer = setTimeout(() => {
-      justSaved.value = false
-    }, 1500)
-  } finally {
-    saving.value = false
+const { editing, saving, justSaved, save } = useAutoSave<
+  Card,
+  'title' | 'summary' | 'descriptionMd'
+>(card, {
+  resource: 'cards',
+  fields: [
+    { key: 'title', mode: 'required' },
+    { key: 'summary', mode: 'nullable' },
+    'descriptionMd'
+  ],
+  onSaved: (updated) => {
+    card.value = card.value ? { ...card.value, ...updated } : updated
   }
-}
-
-function buildDirtyPatch(): Record<string, unknown> | null {
-  if (!card.value) return null
-  const body: Record<string, unknown> = {}
-  const trimmedTitle = editing.title.trim()
-  if (trimmedTitle && trimmedTitle !== card.value.title) {
-    body.title = trimmedTitle
-  }
-  if (editing.summary !== (card.value.summary ?? '')) {
-    body.summary = editing.summary.trim() ? editing.summary : null
-  }
-  if (editing.descriptionMd !== (card.value.descriptionMd ?? '')) {
-    body.descriptionMd = editing.descriptionMd
-  }
-  return Object.keys(body).length > 0 ? body : null
-}
-
-function scheduleSave() {
-  if (debounceTimer) clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(() => {
-    const body = buildDirtyPatch()
-    if (body) patch(body)
-  }, 800)
-}
-
-watch(
-  () => [editing.title, editing.summary, editing.descriptionMd],
-  scheduleSave
-)
+})
 
 const dueDateInput = computed({
   get: () => (card.value?.dueDate ? card.value.dueDate.slice(0, 10) : ''),
   set: (val) => {
-    patch({ dueDate: val ? new Date(val).toISOString() : null })
+    save({ dueDate: val ? new Date(val).toISOString() : null })
   }
 })
 
@@ -775,7 +711,7 @@ function formatDate(iso: string) {
                 :items="statusOptions"
                 value-key="value"
                 class="w-full"
-                @update:model-value="(v: CardStatus) => patch({ status: v })"
+                @update:model-value="(v: CardStatus) => save({ status: v })"
               />
             </div>
 
@@ -788,7 +724,7 @@ function formatDate(iso: string) {
                 :items="priorityOptions"
                 value-key="value"
                 class="w-full"
-                @update:model-value="(v: number) => patch({ priority: v })"
+                @update:model-value="(v: number) => save({ priority: v })"
               />
             </div>
 
@@ -801,7 +737,7 @@ function formatDate(iso: string) {
                 :items="sprintOptions"
                 value-key="value"
                 class="w-full"
-                @update:model-value="(v: string | null) => patch({ sprintId: v })"
+                @update:model-value="(v: string | null) => save({ sprintId: v })"
               />
             </div>
 
@@ -814,7 +750,7 @@ function formatDate(iso: string) {
                 :items="storyOptions"
                 value-key="value"
                 class="w-full"
-                @update:model-value="(v: string | null) => patch({ parentId: v })"
+                @update:model-value="(v: string | null) => save({ parentId: v })"
               />
             </div>
 
