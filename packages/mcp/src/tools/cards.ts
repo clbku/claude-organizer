@@ -18,6 +18,7 @@ import type { Database } from '@claude-organizer/db'
 import { asJson } from './index'
 
 const cardStatus = z.enum([
+  'backlog',
   'todo',
   'in_progress',
   'review',

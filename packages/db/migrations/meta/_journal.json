@@ -50,6 +50,20 @@
       "when": 1779290801495,
       "tag": "0006_cloudy_redwing",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779405134244,
+      "tag": "0007_unique_jocasta",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779405149252,
+      "tag": "0008_backfill_backlog_status",
+      "breakpoints": true
     }
   ]
 }

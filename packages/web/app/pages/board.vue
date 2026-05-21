@@ -66,6 +66,7 @@ useProjectData(currentProjectId, loadCards, {
 
 const columns = computed<Record<CardStatus, Card[]>>(() => {
   const grouped: Record<CardStatus, Card[]> = {
+    backlog: [],
     todo: [],
     in_progress: [],
     review: [],

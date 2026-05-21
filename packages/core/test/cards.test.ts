@@ -72,10 +72,62 @@ describe('moving cards between backlog and sprint', () => {
       projectId: project.id,
       title: 'status'
     })
-    expect(card.status).toBe('todo')
 
     await updateCard(ctx.db, { id: card.id, status: 'in_progress' })
     const reloaded = await getCard(ctx.db, card.id)
     expect(reloaded?.status).toBe('in_progress')
+  })
+})
+
+describe('default status by sprint membership', () => {
+  it('a card with no sprint lands in the backlog status', async () => {
+    const project = await freshProject(ctx.db)
+    const card = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'parked'
+    })
+    expect(card.sprintId).toBeNull()
+    expect(card.status).toBe('backlog')
+  })
+
+  it('a card created straight into a sprint starts in todo', async () => {
+    const project = await freshProject(ctx.db)
+    const sprint = await createSprint(ctx.db, {
+      projectId: project.id,
+      name: 'S'
+    })
+    const card = await createCard(ctx.db, {
+      projectId: project.id,
+      sprintId: sprint.id,
+      title: 'committed'
+    })
+    expect(card.status).toBe('todo')
+  })
+
+  it('an explicit status always wins over the default', async () => {
+    const project = await freshProject(ctx.db)
+    const card = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'explicit',
+      status: 'in_progress'
+    })
+    expect(card.status).toBe('in_progress')
+  })
+
+  it('moves backlog -> todo and back without a sprint', async () => {
+    const project = await freshProject(ctx.db)
+    const card = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'promote'
+    })
+    expect(card.status).toBe('backlog')
+
+    const promoted = await updateCard(ctx.db, { id: card.id, status: 'todo' })
+    expect(promoted?.status).toBe('todo')
+    expect(promoted?.sprintId).toBeNull()
+
+    const back = await updateCard(ctx.db, { id: card.id, status: 'backlog' })
+    expect(back?.status).toBe('backlog')
+    expect(back?.sprintId).toBeNull()
   })
 })

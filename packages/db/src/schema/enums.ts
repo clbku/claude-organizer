@@ -8,6 +8,7 @@ export const sprintStatusEnum = pgEnum('sprint_status', [
 ])
 
 export const cardStatusEnum = pgEnum('card_status', [
+  'backlog',
   'todo',
   'in_progress',
   'review',

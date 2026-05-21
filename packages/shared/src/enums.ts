@@ -2,6 +2,7 @@
 // @claude-organizer/db. The conformance check there asserts they stay in sync.
 
 export const CARD_STATUSES = [
+  'backlog',
   'todo',
   'in_progress',
   'review',

@@ -69,6 +69,7 @@ const sections = computed(() => {
 function statsFor(sprintId: string) {
   const list = cards.value.filter(c => c.sprintId === sprintId)
   const counts: Record<CardStatus, number> = {
+    backlog: 0,
     todo: 0,
     in_progress: 0,
     review: 0,

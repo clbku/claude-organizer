@@ -53,6 +53,7 @@ useProjectData(currentProjectId, loadDashboard, {
 
 const statusCounts = computed<Record<CardStatus, number>>(() => {
   const counts: Record<CardStatus, number> = {
+    backlog: 0,
     todo: 0,
     in_progress: 0,
     review: 0,

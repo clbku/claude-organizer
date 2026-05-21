@@ -10,6 +10,7 @@ import { notify } from './events'
 import { listCardTags, tagsByCardIds } from './tags'
 
 const cardStatus = z.enum([
+  'backlog',
   'todo',
   'in_progress',
   'review',
@@ -153,7 +154,9 @@ export async function createCard(db: Database, input: CreateCardInput) {
         title: parsed.title,
         summary: parsed.summary,
         descriptionMd: parsed.descriptionMd,
-        status: parsed.status ?? 'todo',
+        // A card with no sprint lands in the backlog (its own status); a card
+        // created straight into a sprint starts in `todo`.
+        status: parsed.status ?? (parsed.sprintId ? 'todo' : 'backlog'),
         priority: parsed.priority ?? 0,
         dueDate: parsed.dueDate
       })

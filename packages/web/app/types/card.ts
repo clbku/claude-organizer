@@ -19,6 +19,7 @@ export const cardStatusMeta: Record<
   CardStatus,
   { label: string, color: 'neutral' | 'info' | 'warning' | 'success' | 'error' }
 > = {
+  backlog: { label: 'Backlog', color: 'neutral' },
   todo: { label: 'To do', color: 'neutral' },
   in_progress: { label: 'In progress', color: 'info' },
   review: { label: 'Review', color: 'warning' },
