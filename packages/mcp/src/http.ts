@@ -90,7 +90,15 @@ export function startHttpServer({ db, port, authToken }: HttpServerOptions): Ser
 
       let transport = sessionId ? transports.get(sessionId) : undefined
       if (!transport) {
-        if (sessionId || !isInitializeRequest(body)) {
+        // Stale/unknown session (e.g. this process restarted and lost the map):
+        // answer 404 so the client knows the session is gone and reinitializes a
+        // new one, per the MCP spec. A 400 here is an unrecoverable error that
+        // leaves the client's open session broken until it's fully restarted.
+        if (sessionId) {
+          sendError(res, 404, -32001, 'Session not found')
+          return
+        }
+        if (!isInitializeRequest(body)) {
           sendError(res, 400, -32000, 'Bad Request: no valid session ID')
           return
         }
@@ -114,7 +122,10 @@ export function startHttpServer({ db, port, authToken }: HttpServerOptions): Ser
     if (req.method === 'GET' || req.method === 'DELETE') {
       const transport = sessionId ? transports.get(sessionId) : undefined
       if (!transport) {
-        sendError(res, 400, -32000, 'Bad Request: no valid session ID')
+        // Same contract as POST: a known-but-gone session is 404 (reinitialize),
+        // a missing header is 400.
+        if (sessionId) sendError(res, 404, -32001, 'Session not found')
+        else sendError(res, 400, -32000, 'Bad Request: no valid session ID')
         return
       }
       await transport.handleRequest(req, res)
