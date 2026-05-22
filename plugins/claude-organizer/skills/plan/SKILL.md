@@ -14,7 +14,11 @@ Do NOT write code, scaffold, edit files, or take any implementation action until
 ## Flow
 
 1. **Orient.** Read the current state first: `list_projects` → `get_active_sprint` → `list_unread_comments` → `list_cards`. Then scan the **docs tree** (Modules / Decisions / Notes) and read what's relevant to the demand's area — a past decision or a note can change the design, and modules tell you how the area already works. Don't read everything; glance and decide. Know what exists before proposing anything.
-2. **Understand.** Ask clarifying questions to remove ambiguity about the goal, constraints, edge cases, and what "done" looks like. **One topic per message**; prefer multiple-choice when possible (open-ended is fine). Keep asking until nothing remains that would materially change what gets built. It's far cheaper to ask now than to bake a wrong assumption into a card executed blindly later.
+2. **Understand & surface decisions.** Two kinds of unknowns block a well-formed card; resolve both _with the user_ before you create anything:
+   - **Ambiguities** — what the user actually wants: goal, scope, constraints, edge cases, what "done" looks like. Ask to remove them.
+   - **Decisions** — open choices where more than one reasonable path exists (runtime/language, which API or library, auth model, session strategy, storage…). Never pick one silently — surface each as **ready-made options** the user chooses from (see _Surfacing decisions, not assuming them_ below).
+
+   **One topic per message**; prefer multiple-choice (open-ended is fine for ambiguities). Keep going until nothing remains that would materially change what gets built. It's far cheaper to ask now than to bake a wrong assumption into a card executed blindly later.
 3. **Organize (propose).** Decide the shape of the work and present it with your reasoning (see _Where the work lives_ for the sprint-vs-standalone call):
    - **single task** — one coherent, testable deliverable. May live on the board with no sprint (a standalone task) or sit in the backlog for later.
    - **history (story) + tasks** — a cohesive feature split into a few testable deliverables.
@@ -23,7 +27,25 @@ Do NOT write code, scaffold, edit files, or take any implementation action until
 5. **Create in the MCP.** Materialize the approved structure: `create_sprint` (if needed) → histories (cards) → tasks (cards, with `parentId` for a history's children). Create cards in dependency order — a task before the ones that depend on it — so a card you need to reference already has its key. Wire dependencies with blockers when one task must precede another. **Tag every task you create** (see the tagging rule in the `claude-organizer` skill): attach the tags that fit; if none fit, suggest new tag(s) and ask the user before creating them.
    - **Tasks live only as cards — never as a list in prose.** A history's `descriptionMd` describes the _history_: its goal, scope and decisions. It does **not** enumerate its tasks. The tasks ARE the child cards (`parentId`), and the board already shows them nested under the history. Re-listing them in the body creates a second, drifting copy of the breakdown and invites positional references like `CO-46.1` ("task 1 of the history") instead of the card's real key.
    - **Cross-reference by the card's real key.** When one card points at another — a dependency, a follow-up, "the foundation task" — use the key the MCP assigned (e.g. `CO-51`), which auto-links. Never invent a positional alias (`CO-46.1`, "task 1"): it links to nothing and breaks the moment order or scope changes. Likewise, write each key in full — `CO-53, CO-54`, not a shorthand range like `CO-53/54` (only the first half links). This is exactly why you create in dependency order — so the real key exists when you write the reference.
-6. **Hand off.** Tell the user the plan is on the board; execution proceeds via the `claude-organizer` skill (in_progress → implement → review → done).
+6. **Review what you created.** Once the cards exist, do a verification pass before handing off — light for a single task, **mandatory and thorough when the scope is large** (multiple sprints, dozens of cards), because breadth is exactly where a card comes out thin and where drift goes unnoticed. Read **card by card**:
+   - **Pending decisions** — did any open choice slip through unsettled? Surface it (see _Surfacing decisions, not assuming them_), then fold the answer into the card.
+   - **Completeness** — is each card self-sufficient (the memoryless-session test in _Writing a task_), or did something come out half-written under the volume?
+   - **Coherence & objective** — step back to the whole: do the cards fit together (dependency order, no gap or contradiction), and does the set actually achieve the objective the user set for that sprint/story? Fix what doesn't — adjust, split, merge or drop cards as needed, and tell the user what you changed.
+7. **Hand off.** Tell the user the plan is on the board; execution proceeds via the `claude-organizer` skill (in_progress → implement → review → done).
+
+## Surfacing decisions, not assuming them
+
+A demand almost always hides choices with more than one defensible answer. The wrong move — and the easy one — is to silently pick one and bake it into a card; that's a decision made _for_ the user instead of _by_ them. Surface it. This holds even for demands that look trivial: "too simple to have decisions" is exactly where a silent assumption slips in.
+
+For each open decision, present **ready-made options** — concrete and already worked out, not "what do you think?". Each option carries its **trade-offs (pros and cons)**, and you mark the one you **recommend**, with the reason. This serves both the user who just takes the recommendation and the one who knows enough to choose differently. When you can't offer good options from knowledge alone — _which_ weather API exists, its free tier, accuracy, rate limits — **research first**, then present what you found. A multiple-choice fits: each option's description holds its trade-offs, the recommended one marked.
+
+Decisions often **chain** — settle the earlier one first, because it narrows the next. "Get the current temperature" hides at least two, in order:
+1. **How to access it** — Node, Python, a shell one-liner… each with trade-offs (what's already installed, dependencies, how it'll run). Recommend one.
+2. **Where the data comes from** — _which_ weather API (open vs. key-gated, free tier, accuracy, rate limits) or scraping. Recommend one.
+
+Only once both are settled do you create the card — now aligned with what the user wants, not a guess. "Build an auth system" hides more: OAuth or not, third-party identity providers, session as token or cookie, hashing algorithm, and so on.
+
+**These are the decisions that shape the _card_ — the _what_, not the _how_.** Stop at the choices needed to write a well-formed card. The implementation may surface further decisions later; those belong to execution (the `claude-organizer` skill), not here. Don't drift into designing the code.
 
 ## Granularity — Scrum, adapted for full-IA execution
 
@@ -65,7 +87,9 @@ Judge by size and cohesion, not habit. **When in doubt, suggest** a placement �
 ## Key principles
 
 - **One question at a time** — don't overwhelm.
+- **Surface decisions, don't assume them** — every meaningful choice goes to the user as ready-made options with trade-offs and a recommendation, before the card exists.
 - **Remove ambiguity before creating** — a decision that lives only in chat is lost; bake it into the card.
 - **Approve before executing** — the hard gate above.
+- **Review what you created** — for large scopes especially, sweep card by card for pending decisions, gaps and whether the whole still achieves the goal; fix before handing off.
 - **YAGNI** — cut features that don't serve the goal.
 - **Self-sufficient cards** — each must survive a memoryless future session.
