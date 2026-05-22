@@ -33,8 +33,8 @@ const sprintFilter = ref<SprintFilter>('all')
 
 const sprintFilterOptions: { value: SprintFilter, label: string }[] = [
   { value: 'all', label: 'All' },
-  { value: 'sprint', label: 'Sprint' },
-  { value: 'loose', label: 'No sprint' }
+  { value: 'sprint', label: 'Sprint cards' },
+  { value: 'loose', label: 'Loose cards' }
 ]
 
 async function loadCards() {
@@ -184,7 +184,7 @@ async function onMoveToBacklog(cardId: string) {
             :items="sprintFilterOptions"
             value-key="value"
             icon="i-lucide-filter"
-            class="w-36"
+            class="w-44"
             @update:model-value="(v: SprintFilter) => (sprintFilter = v)"
           />
           <BoardTagFilter
