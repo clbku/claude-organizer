@@ -74,6 +74,7 @@ export interface ProjectRow {
   nextKeySeq: number
   createdAt: string
   updatedAt: string
+  archivedAt: string | null
 }
 
 export interface TagRow {

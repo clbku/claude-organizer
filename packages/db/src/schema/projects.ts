@@ -27,7 +27,8 @@ export const projects = pgTable(
       .default(sql`now()`),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
-      .default(sql`now()`)
+      .default(sql`now()`),
+    archivedAt: timestamp('archived_at', { withTimezone: true })
   },
   t => [uniqueIndex('projects_slug_uk').on(t.slug)]
 )

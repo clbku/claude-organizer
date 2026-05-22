@@ -3,7 +3,9 @@ import { z } from 'zod'
 
 import { createId, type Database, schema } from '@claude-organizer/db'
 
+import { archivedCondition, type ArchiveFilter } from './archive'
 import { InputError } from './errors'
+import { notify } from './events'
 import { derivePrefixFromSlug, isValidKeyPrefix } from './keys'
 
 export const createProjectInput = z.object({
@@ -40,8 +42,56 @@ export async function createProject(db: Database, input: CreateProjectInput) {
   return row
 }
 
-export async function listProjects(db: Database) {
-  return db.select().from(schema.projects).orderBy(schema.projects.createdAt)
+export async function listProjects(db: Database, filter?: ArchiveFilter) {
+  const archived = archivedCondition(schema.projects.archivedAt, filter)
+  const base = db.select().from(schema.projects)
+  const rows = archived
+    ? await base.where(archived).orderBy(schema.projects.createdAt)
+    : await base.orderBy(schema.projects.createdAt)
+  return rows
+}
+
+export async function archiveProject(db: Database, id: string) {
+  const [row] = await db
+    .update(schema.projects)
+    .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
+    .where(eq(schema.projects.id, id))
+    .returning()
+  if (row) await notify(db, { type: 'project.changed', projectId: row.id })
+  return row ?? null
+}
+
+export async function restoreProject(db: Database, id: string) {
+  const [row] = await db
+    .update(schema.projects)
+    .set({ archivedAt: null, updatedAt: sql`now()` })
+    .where(eq(schema.projects.id, id))
+    .returning()
+  if (row) await notify(db, { type: 'project.changed', projectId: row.id })
+  return row ?? null
+}
+
+/**
+ * Hard-delete a project and everything under it. Sprints, cards, docs, tags and
+ * roadmaps reference the project with `onDelete: cascade` (comments, card_tags
+ * and blockers cascade from cards), so a single delete removes the whole tree.
+ * Irreversible — guarded by `confirmSlug`, which must equal the project's slug.
+ */
+export async function destroyProject(
+  db: Database,
+  id: string,
+  confirmSlug: string
+) {
+  const project = await getProjectById(db, id)
+  if (!project) return null
+  if (confirmSlug !== project.slug) {
+    throw new InputError(
+      `Slug confirmation does not match. Type "${project.slug}" to destroy this project.`
+    )
+  }
+  await db.delete(schema.projects).where(eq(schema.projects.id, id))
+  await notify(db, { type: 'project.deleted', projectId: id })
+  return { id: project.id, slug: project.slug, name: project.name }
 }
 
 export async function getProjectBySlug(db: Database, slug: string) {

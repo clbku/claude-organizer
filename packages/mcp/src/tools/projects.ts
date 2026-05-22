@@ -2,9 +2,12 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 
 import {
+  archiveProject,
   createProject,
+  destroyProject,
   getProjectBySlug,
   listProjects,
+  restoreProject,
   updateProjectKeyPrefix
 } from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
@@ -15,10 +18,21 @@ export function registerProjectTools(server: McpServer, db: Database) {
   server.registerTool(
     'list_projects',
     {
-      description: 'List all projects tracked by claude-organizer.',
-      inputSchema: {}
+      description:
+        'List all projects tracked by claude-organizer. Archived projects are hidden by default.',
+      inputSchema: {
+        includeArchived: z
+          .boolean()
+          .optional()
+          .describe('Include archived projects alongside active ones.'),
+        archivedOnly: z
+          .boolean()
+          .optional()
+          .describe('Return ONLY archived projects.')
+      }
     },
-    async () => asJson(await listProjects(db))
+    async ({ includeArchived, archivedOnly }) =>
+      asJson(await listProjects(db, { includeArchived, archivedOnly }))
   )
 
   server.registerTool(
@@ -71,5 +85,40 @@ export function registerProjectTools(server: McpServer, db: Database) {
     },
     async ({ projectId, newPrefix }) =>
       asJson(await updateProjectKeyPrefix(db, projectId, newPrefix))
+  )
+
+  server.registerTool(
+    'archive_project',
+    {
+      description:
+        'Archive a project (soft, reversible). It disappears from list_projects by default and can be restored.',
+      inputSchema: { projectId: z.string() }
+    },
+    async ({ projectId }) => asJson(await archiveProject(db, projectId))
+  )
+
+  server.registerTool(
+    'restore_project',
+    {
+      description: 'Restore a previously archived project.',
+      inputSchema: { projectId: z.string() }
+    },
+    async ({ projectId }) => asJson(await restoreProject(db, projectId))
+  )
+
+  server.registerTool(
+    'destroy_project',
+    {
+      description:
+        'DESTRUCTIVE & IRREVERSIBLE: permanently delete a project and EVERYTHING under it (sprints, cards, docs, tags, comments). Requires `confirmSlug` to equal the project slug; otherwise nothing is deleted.',
+      inputSchema: {
+        projectId: z.string(),
+        confirmSlug: z
+          .string()
+          .describe('Must equal the project slug to confirm the deletion.')
+      }
+    },
+    async ({ projectId, confirmSlug }) =>
+      asJson(await destroyProject(db, projectId, confirmSlug))
   )
 }
