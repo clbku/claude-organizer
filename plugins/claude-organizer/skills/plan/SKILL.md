@@ -53,9 +53,9 @@ The test: *could a fresh session execute this task using only its contents?* If 
 
 ## Where the work lives — sprint, story, or a standalone task
 
-A card no longer needs a sprint to be worked. A sprint-less card in a board
-status (`todo`…`done`) lives on the **board** on its own; a sprint-less card in
-the `backlog` status sits in the **backlog**. So choosing the shape is three
+A card doesn't need a sprint to be worked. A sprint-less card in a board status
+(`todo`…`done`) lives on the **board** on its own; a sprint-less card in the
+`backlog` status sits in the **backlog**. So choosing the shape is three
 independent questions:
 
 - **Open a sprint, or not?** A large, cohesive effort worth isolating → its own
