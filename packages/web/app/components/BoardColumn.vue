@@ -29,9 +29,12 @@ watch(
 
 function onAdd(event: { data: Card }) {
   const card = event.data
-  // `add` fires on cross-column drops. Move the card to this column's status;
-  // sprint membership is left untouched (a sprint-less card stays standalone).
-  if (card.status !== props.status) {
+  // `add` fires on cross-column drops. Emit when the status changes OR when the
+  // card is sprint-less: on the sprint board a sprint-less card dropped into a
+  // column must be attachable to the sprint even if its status already matches.
+  // What happens to sprintId is the page's call (the main board leaves it null;
+  // the sprint detail attaches it) — the handler no-ops if nothing changed.
+  if (card.status !== props.status || card.sprintId === null) {
     emit('card-moved', card.id, props.status)
   }
 }
