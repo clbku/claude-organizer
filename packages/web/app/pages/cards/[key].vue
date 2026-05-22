@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { buildCommitUrl } from '@claude-organizer/shared'
+
 import type { Card, CardStatus } from '~/types/card'
 import { cardStatusMeta, cardStatusSelectOrder } from '~/types/card'
+import type { CardCommit } from '~/types/cardCommit'
 import type { Comment } from '~/types/comment'
 import type { Sprint } from '~/types/sprint'
 import type { Tag } from '~/types/tag'
@@ -26,6 +29,7 @@ function goBack() {
 
 const card = ref<Card | null>(null)
 const comments = ref<Comment[]>([])
+const commits = ref<CardCommit[]>([])
 const sprints = ref<Sprint[]>([])
 const allCards = ref<Card[]>([])
 const cardLoading = ref(true)
@@ -46,6 +50,10 @@ async function fetchComments(cardId: string) {
   })
 }
 
+async function fetchCommits(cardId: string) {
+  return api<CardCommit[]>(`/cards/${cardId}/commits`)
+}
+
 async function fetchSprints(projectId: string) {
   return api<Sprint[]>('/sprints', { query: { projectId } })
 }
@@ -62,11 +70,13 @@ async function loadCard() {
   const fresh = await fetchCard()
   card.value = fresh
   if (fresh) {
-    [comments.value, sprints.value, allCards.value] = await Promise.all([
-      fetchComments(fresh.id),
-      fetchSprints(fresh.projectId),
-      fetchProjectCards(fresh.projectId)
-    ])
+    [comments.value, commits.value, sprints.value, allCards.value]
+      = await Promise.all([
+        fetchComments(fresh.id),
+        fetchCommits(fresh.id),
+        fetchSprints(fresh.projectId),
+        fetchProjectCards(fresh.projectId)
+      ])
   }
   cardLoading.value = false
 }
@@ -82,6 +92,11 @@ async function refreshCard() {
 async function refreshComments() {
   if (!card.value) return
   comments.value = await fetchComments(card.value.id)
+}
+
+async function refreshCommits() {
+  if (!card.value) return
+  commits.value = await fetchCommits(card.value.id)
 }
 
 useProjectData(() => card.value?.projectId ?? null, loadCard, {
@@ -101,6 +116,11 @@ useProjectData(() => card.value?.projectId ?? null, loadCard, {
       && event.cardId === card.value.id
     ) {
       refreshComments()
+    } else if (
+      event.type === 'commit.changed'
+      && event.cardId === card.value.id
+    ) {
+      refreshCommits()
     } else if (event.type === 'project.changed') {
       refreshCard()
     }
@@ -323,6 +343,57 @@ function authorLabel(author: 'ai' | 'user') {
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString()
 }
+
+// Each commit's diff starts collapsed; clicking the header toggles it.
+const expandedCommits = ref(new Set<string>())
+function toggleCommit(id: string) {
+  const next = new Set(expandedCommits.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  expandedCommits.value = next
+}
+function shortSha(sha: string) {
+  return sha.slice(0, 8)
+}
+function commitSubject(message: string) {
+  return message.split('\n', 1)[0] ?? ''
+}
+// Parse the last line of `git --stat` ("N files changed, X insertions(+), Y
+// deletions(-)") into counts for the GitHub-style badges on the collapsed row.
+function parseStat(stat: string | null) {
+  const lines = (stat ?? '').trim().split('\n')
+  const last = lines[lines.length - 1] ?? ''
+  const num = (re: RegExp) => Number(last.match(re)?.[1] ?? 0)
+  return {
+    files: num(/(\d+) files? changed/),
+    additions: num(/(\d+) insertions?\(\+\)/),
+    deletions: num(/(\d+) deletions?\(-\)/)
+  }
+}
+const commitStats = computed(() =>
+  Object.fromEntries(commits.value.map(c => [c.id, parseStat(c.stat)]))
+)
+
+const projectStore = useProjectStore()
+const cardProject = computed(
+  () => projectStore.projects.find(p => p.id === card.value?.projectId) ?? null
+)
+// The hash links to the provider's commit page when the project has a repo
+// configured (the skill sets it); buildCommitUrl returns null otherwise.
+function commitUrl(sha: string) {
+  return buildCommitUrl(
+    cardProject.value?.repoProvider ?? null,
+    cardProject.value?.repoWebUrl ?? null,
+    sha
+  )
+}
+// mdi glyph for the configured provider — monochrome (currentColor), so it
+// follows the link color and stays visible in dark mode.
+const providerIcon = computed(() =>
+  cardProject.value?.repoProvider === 'gitlab'
+    ? 'i-mdi-gitlab'
+    : 'i-mdi-github'
+)
 </script>
 
 <template>
@@ -445,6 +516,82 @@ function formatDate(iso: string) {
               placeholder="No description. Click to edit."
               editor-placeholder="Write a description… (markdown supported)"
             />
+          </section>
+
+          <section v-if="commits.length">
+            <h2 class="text-xs font-semibold text-muted uppercase tracking-wide mb-3">
+              Changes
+              <span class="text-default ml-1">({{ commits.length }})</span>
+            </h2>
+            <ul class="space-y-2">
+              <li
+                v-for="c in commits"
+                :key="c.id"
+                class="border border-default rounded-md overflow-hidden"
+              >
+                <div
+                  role="button"
+                  tabindex="0"
+                  class="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-elevated/50 transition cursor-pointer"
+                  @click="toggleCommit(c.id)"
+                  @keydown.enter.prevent="toggleCommit(c.id)"
+                  @keydown.space.prevent="toggleCommit(c.id)"
+                >
+                  <UIcon
+                    :name="expandedCommits.has(c.id) ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+                    class="shrink-0 text-muted"
+                  />
+                  <a
+                    v-if="commitUrl(c.sha)"
+                    :href="commitUrl(c.sha)!"
+                    target="_blank"
+                    rel="noopener"
+                    class="font-mono text-xs font-semibold text-primary shrink-0 inline-flex items-center gap-1 hover:underline"
+                    :title="`Open commit on ${cardProject?.repoProvider}`"
+                    @click.stop
+                  >
+                    {{ shortSha(c.sha) }}
+                    <UIcon :name="providerIcon" class="size-3.5" />
+                  </a>
+                  <span
+                    v-else
+                    class="font-mono text-xs font-semibold text-primary shrink-0"
+                  >{{ shortSha(c.sha) }}</span>
+                  <span class="min-w-0 flex-1 truncate text-sm">
+                    {{ commitSubject(c.message) }}
+                  </span>
+                  <span class="hidden sm:flex items-center gap-1.5 shrink-0 font-mono text-xs">
+                    <span v-if="commitStats[c.id]?.files" class="text-muted/70">
+                      {{ commitStats[c.id]?.files }} {{ commitStats[c.id]?.files === 1 ? "file" : "files" }}
+                    </span>
+                    <span
+                      v-if="commitStats[c.id]?.additions"
+                      class="text-success bg-success/10 rounded px-1"
+                    >+{{ commitStats[c.id]?.additions }}</span>
+                    <span
+                      v-if="commitStats[c.id]?.deletions"
+                      class="text-error bg-error/10 rounded px-1"
+                    >-{{ commitStats[c.id]?.deletions }}</span>
+                  </span>
+                  <span
+                    v-if="c.committedAt"
+                    class="text-xs text-muted/70 shrink-0"
+                  >
+                    {{ formatDate(c.committedAt) }}
+                  </span>
+                </div>
+                <div
+                  v-if="expandedCommits.has(c.id)"
+                  class="border-t border-default p-3"
+                >
+                  <DiffView v-if="c.diff" :diff="c.diff" />
+                  <p v-else class="text-xs text-muted italic">
+                    Diff not stored (cleared when the card or sprint was archived).
+                    {{ commitUrl(c.sha) ? "Open it on the provider via the hash above" : "Re-run attach-commit" }} to see the changes.
+                  </p>
+                </div>
+              </li>
+            </ul>
           </section>
 
           <section v-if="!card.parentId">

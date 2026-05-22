@@ -29,6 +29,8 @@ Do this sequence _before_ exploring the codebase or making changes:
 
 If no project matches the current repo, ask the user before creating one.
 
+**Wire the repo link once.** After step 1, if the project has no `repoWebUrl`, detect the current repo's remote so commit hashes link to the provider: read `git remote get-url origin` (fallback: the first of `git remote -v`), convert it to a web URL (`git@github.com:owner/repo.git` or `https://github.com/owner/repo.git` → `https://github.com/owner/repo`; GitLab the same, subgroups included), pick the `provider` by host (`github`/`gitlab`; skip a self-hosted host you can't classify), and save it with `set_project_repo(projectId, provider, repoWebUrl)`. Skip when it's already set or there's no git remote.
+
 ## Before you analyze or act — read the tasks first, code second
 
 Whether you're **starting a single card** or **analyzing a group of them** (the backlog, a sprint, a set of tech-debt cards, "what's left to do?"), read what the board already knows _before_ you open the codebase: each card's full **description** (`get_card` / `get_card_by_key`) **and its comments** (`list_comments`), plus which **sprint** it sits in. `list_cards` returns only short summaries — never base an analysis on summaries alone.
@@ -44,7 +46,8 @@ Comments routinely carry the decisive context: a card may be flagged _"consolida
 3. **Glance at the docs, then implement.** Scan the docs tree and read what's pertinent to this card's area — the relevant `module`, an `adr` that affects it, a `note` that might carry a constraint. Don't read unrelated docs (a back-end note for a front-end card), but do decide what's worth opening — important context often lives only there.
 4. **`add_comment(cardId, ...)`** to record what carries **signal** — decisions, scope changes, deviations (see _Comments_). This is the project's memory for the next session.
 5. **`set_card_status(id, "review")`** when you believe it's done — and post a **test plan** comment (see below). Then **wait for the user to validate**. Don't self-approve.
-6. **`set_card_status(id, "done")`** only after the user confirms.
+6. **Attach the commit's diff** — right after the commit lands (one commit per card, key in the message) and the user has confirmed. Run the capture script bundled with this skill: `node "<skill dir>/scripts/attach-commit.mjs" <sha>` — or `python3 "<skill dir>/scripts/attach-commit.py" <sha>` where Node isn't available — `<skill dir>` being this skill's own directory. It runs `git show` in the current repo and POSTs the diff straight to the API (`CO_API_URL`, default `http://127.0.0.1:4400`), so the card's **Changes** section shows what the commit produced. The diff is captured **outside your context on purpose** — **never read it or paste it into a comment** (it would burn tokens and add noise; see _Comments_).
+7. **`set_card_status(id, "done")`** only after the user confirms.
 
 ## Git — agree on the flow before you start
 

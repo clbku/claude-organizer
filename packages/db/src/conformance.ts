@@ -7,6 +7,7 @@
 import type { InferSelectModel } from 'drizzle-orm'
 
 import type {
+  CardCommitRow,
   CardRow,
   CardStatus,
   CommentAuthor,
@@ -14,6 +15,7 @@ import type {
   DocKind,
   DocRow,
   ProjectRow,
+  RepoProvider,
   RoadmapRow,
   SprintRow,
   SprintStatus,
@@ -21,6 +23,7 @@ import type {
 } from '@claude-organizer/shared'
 
 import {
+  cardCommits,
   cards,
   cardStatusEnum,
   commentAuthorEnum,
@@ -28,6 +31,7 @@ import {
   docKindEnum,
   docs,
   projects,
+  repoProviderEnum,
   roadmaps,
   sprints,
   sprintStatusEnum,
@@ -59,6 +63,7 @@ export type SchemaConformance = [
   Assert<Equal<CardRow, Wire<InferSelectModel<typeof cards>>>>,
   Assert<Equal<SprintRow, Wire<InferSelectModel<typeof sprints>>>>,
   Assert<Equal<CommentRow, Wire<InferSelectModel<typeof comments>>>>,
+  Assert<Equal<CardCommitRow, Wire<InferSelectModel<typeof cardCommits>>>>,
   Assert<Equal<DocRow, Wire<Omit<InferSelectModel<typeof docs>, 'bodyTsv'>>>>,
   Assert<Equal<ProjectRow, Wire<InferSelectModel<typeof projects>>>>,
   Assert<Equal<TagRow, Wire<InferSelectModel<typeof tags>>>>,
@@ -66,5 +71,6 @@ export type SchemaConformance = [
   Assert<Equal<CardStatus, (typeof cardStatusEnum.enumValues)[number]>>,
   Assert<Equal<SprintStatus, (typeof sprintStatusEnum.enumValues)[number]>>,
   Assert<Equal<CommentAuthor, (typeof commentAuthorEnum.enumValues)[number]>>,
-  Assert<Equal<DocKind, (typeof docKindEnum.enumValues)[number]>>
+  Assert<Equal<DocKind, (typeof docKindEnum.enumValues)[number]>>,
+  Assert<Equal<RepoProvider, (typeof repoProviderEnum.enumValues)[number]>>
 ]
