@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useProjectStore } from '~/stores/project'
 import type { Card, CardStatus } from '~/types/card'
-import { cardStatusOrder } from '~/types/card'
 
 type SprintFilter = 'all' | 'sprint' | 'loose'
 
@@ -26,8 +25,6 @@ const { editing, saving, justSaved } = useSprintInlineEdit(
 // sprint-less cards (any status, including `backlog`). The columns and the
 // backlog peek are both derived from this single list.
 const cards = ref<Card[]>([])
-const backlogExpanded = ref(false)
-const blockedExpanded = ref(false)
 const selectedTagIds = ref<string[]>([])
 const sprintFilter = ref<SprintFilter>('all')
 
@@ -71,7 +68,8 @@ useProjectData(currentProjectId, loadCards, {
 })
 
 // Cards shown in the status columns: everything not parked in the backlog,
-// narrowed by the sprint-presence filter and then the tag filter.
+// narrowed by the sprint-presence and tag filters. Story envelopes and grouping
+// are handled inside <BoardColumns>.
 const columnCards = computed(() => {
   let list = cards.value.filter(c => c.status !== 'backlog')
   if (sprintFilter.value === 'sprint') list = list.filter(c => c.sprintId)
@@ -88,22 +86,6 @@ const backlogCards = computed(() =>
   cards.value.filter(c => !c.sprintId && c.status === 'backlog')
 )
 
-const columns = computed<Record<CardStatus, Card[]>>(() => {
-  const grouped: Record<CardStatus, Card[]> = {
-    backlog: [],
-    todo: [],
-    in_progress: [],
-    review: [],
-    done: [],
-    blocked: []
-  }
-  for (const c of columnCards.value) grouped[c.status].push(c)
-  for (const status of cardStatusOrder) {
-    grouped[status].sort((a, b) => a.position - b.position || b.priority - a.priority)
-  }
-  return grouped
-})
-
 async function patchCard(cardId: string, body: Record<string, unknown>) {
   try {
     await api(`/cards/${cardId}`, { method: 'PATCH', body })
@@ -113,13 +95,31 @@ async function patchCard(cardId: string, body: Record<string, unknown>) {
   }
 }
 
-// Dropped into a status column. Moves/promotes the card to that status; sprint
-// membership is left untouched (a sprint-less card stays standalone).
-async function onCardMoved(cardId: string, toStatus: CardStatus) {
-  const card = cards.value.find(c => c.id === cardId)
-  if (!card || card.status === toStatus) return
-  card.status = toStatus
-  await patchCard(cardId, { status: toStatus })
+// Column reorder/drop. A dropped card takes the column's status; its sprint
+// membership is left untouched (a sprint-less card stays standalone). Positions
+// are persisted so the dropped order sticks across reloads.
+async function onReorder({
+  status,
+  orderedIds,
+  movedId
+}: { status: CardStatus, orderedIds: string[], movedId?: string }) {
+  if (movedId) {
+    const moved = cards.value.find(c => c.id === movedId)
+    if (moved) moved.status = status
+  }
+  orderedIds.forEach((id, i) => {
+    const c = cards.value.find(x => x.id === id)
+    if (c) c.position = i
+  })
+  try {
+    await api('/cards/reorder', {
+      method: 'POST',
+      body: { orderedIds, moved: movedId ? { id: movedId, status } : undefined }
+    })
+  } catch (err) {
+    console.error('Failed to reorder, reloading', err)
+    await loadCards()
+  }
 }
 
 // Dropped into the backlog peek. Parks the card: `backlog` status, no sprint.
@@ -192,47 +192,12 @@ async function onMoveToBacklog(cardId: string) {
             :project-id="currentProjectId"
           />
         </div>
-        <div class="flex gap-3 flex-1 min-h-0 min-w-0 overflow-x-auto">
-          <BacklogColumn
-            v-if="backlogExpanded"
-            :cards="backlogCards"
-            closable
-            @card-moved-to-backlog="onMoveToBacklog"
-            @close="backlogExpanded = false"
-          />
-          <CollapsedColumn
-            v-else
-            icon="i-lucide-inbox"
-            label="Backlog"
-            :count="backlogCards.length"
-            @expand="backlogExpanded = true"
-          />
-          <template v-for="status in cardStatusOrder" :key="status">
-            <template v-if="status === 'blocked'">
-              <BoardColumn
-                v-if="blockedExpanded"
-                :status="status"
-                :cards="columns[status]"
-                closable
-                @card-moved="onCardMoved"
-                @close="blockedExpanded = false"
-              />
-              <CollapsedColumn
-                v-else
-                icon="i-lucide-ban"
-                label="Blocked"
-                :count="columns[status].length"
-                @expand="blockedExpanded = true"
-              />
-            </template>
-            <BoardColumn
-              v-else
-              :status="status"
-              :cards="columns[status]"
-              @card-moved="onCardMoved"
-            />
-          </template>
-        </div>
+        <BoardColumns
+          :cards="columnCards"
+          :backlog="backlogCards"
+          @reorder="onReorder"
+          @move-to-backlog="onMoveToBacklog"
+        />
       </template>
     </template>
   </UDashboardPanel>

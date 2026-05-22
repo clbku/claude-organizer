@@ -6,6 +6,7 @@ import {
   getCard,
   moveCardToBacklog,
   moveCardToSprint,
+  reorderCards,
   updateCard
 } from '../src/index'
 import { freshProject, useTestDb } from './helpers'
@@ -129,5 +130,40 @@ describe('default status by sprint membership', () => {
     const back = await updateCard(ctx.db, { id: card.id, status: 'backlog' })
     expect(back?.status).toBe('backlog')
     expect(back?.sprintId).toBeNull()
+  })
+})
+
+describe('reordering cards', () => {
+  it('persists position from the given order', async () => {
+    const project = await freshProject(ctx.db)
+    const a = await createCard(ctx.db, { projectId: project.id, title: 'a' })
+    const b = await createCard(ctx.db, { projectId: project.id, title: 'b' })
+    const c = await createCard(ctx.db, { projectId: project.id, title: 'c' })
+
+    await reorderCards(ctx.db, { orderedIds: [c.id, a.id, b.id] })
+
+    expect((await getCard(ctx.db, c.id))?.position).toBe(0)
+    expect((await getCard(ctx.db, a.id))?.position).toBe(1)
+    expect((await getCard(ctx.db, b.id))?.position).toBe(2)
+  })
+
+  it('applies a moved card status and sprint within the reorder', async () => {
+    const project = await freshProject(ctx.db)
+    const sprint = await createSprint(ctx.db, {
+      projectId: project.id,
+      name: 'S'
+    })
+    const card = await createCard(ctx.db, { projectId: project.id, title: 'x' })
+    expect(card.status).toBe('backlog')
+
+    await reorderCards(ctx.db, {
+      orderedIds: [card.id],
+      moved: { id: card.id, status: 'todo', sprintId: sprint.id }
+    })
+
+    const reloaded = await getCard(ctx.db, card.id)
+    expect(reloaded?.status).toBe('todo')
+    expect(reloaded?.sprintId).toBe(sprint.id)
+    expect(reloaded?.position).toBe(0)
   })
 })

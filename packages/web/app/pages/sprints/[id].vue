@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { Card, CardStatus } from '~/types/card'
-import { cardStatusOrder } from '~/types/card'
 import type { Sprint } from '~/types/sprint'
 
 const route = useRoute()
@@ -23,15 +22,6 @@ const { editing, saving, justSaved } = useSprintInlineEdit(sprint, (updated) => 
 
 const showBacklog = computed(
   () => sprint.value?.status === 'planned' || sprint.value?.status === 'active'
-)
-
-const backlogExpanded = ref(false)
-const blockedExpanded = ref(false)
-watch(
-  () => sprint.value?.status,
-  (status) => {
-    backlogExpanded.value = status === 'planned'
-  }
 )
 
 async function loadSprint() {
@@ -111,54 +101,47 @@ useProjectData(
 )
 
 const selectedTagIds = ref<string[]>([])
+
+// Cards for the columns; story envelopes and grouping live in <BoardColumns>.
+// Only the tag filter is applied here.
 const filteredCards = computed(() => {
   if (!selectedTagIds.value.length) return cards.value
   const sel = new Set(selectedTagIds.value)
   return cards.value.filter(c => c.tags?.some(t => sel.has(t.id)))
 })
 
-const columns = computed<Record<CardStatus, Card[]>>(() => {
-  const grouped: Record<CardStatus, Card[]> = {
-    backlog: [],
-    todo: [],
-    in_progress: [],
-    review: [],
-    done: [],
-    blocked: []
-  }
-  for (const c of filteredCards.value) grouped[c.status].push(c)
-  for (const status of cardStatusOrder) {
-    grouped[status].sort(
-      (a, b) => a.position - b.position || b.priority - a.priority
-    )
-  }
-  return grouped
-})
-
-async function onCardMoved(cardId: string, toStatus: CardStatus) {
+async function onReorder({
+  status,
+  orderedIds,
+  movedId
+}: { status: CardStatus, orderedIds: string[], movedId?: string }) {
   if (!sprint.value) return
   const sprintIdLocal = sprint.value.id
-  // Check if card came from backlog or from another status column
-  const fromBacklogIdx = backlogCards.value.findIndex(c => c.id === cardId)
-  const fromSprintIdx = cards.value.findIndex(c => c.id === cardId)
-  const body: Record<string, unknown> = { status: toStatus }
-  if (fromBacklogIdx !== -1) {
-    const card = backlogCards.value[fromBacklogIdx]
-    if (!card) return
-    body.sprintId = sprintIdLocal
-    backlogCards.value.splice(fromBacklogIdx, 1)
-    cards.value.push({ ...card, status: toStatus, sprintId: sprintIdLocal })
-  } else if (fromSprintIdx !== -1) {
-    const prev = cards.value[fromSprintIdx]
-    if (!prev || prev.status === toStatus) return
-    cards.value[fromSprintIdx] = { ...prev, status: toStatus }
-  } else {
-    return
+  let moved: { id: string, status: CardStatus, sprintId?: string | null } | undefined
+  if (movedId) {
+    const fromBacklogIdx = backlogCards.value.findIndex(c => c.id === movedId)
+    if (fromBacklogIdx !== -1) {
+      // dropped from the backlog peek → attach to this sprint
+      const card = backlogCards.value[fromBacklogIdx]
+      if (card) {
+        backlogCards.value.splice(fromBacklogIdx, 1)
+        cards.value.push({ ...card, status, sprintId: sprintIdLocal })
+      }
+      moved = { id: movedId, status, sprintId: sprintIdLocal }
+    } else {
+      const c = cards.value.find(x => x.id === movedId)
+      if (c) c.status = status
+      moved = { id: movedId, status }
+    }
   }
+  orderedIds.forEach((id, i) => {
+    const c = cards.value.find(x => x.id === id)
+    if (c) c.position = i
+  })
   try {
-    await api(`/cards/${cardId}`, { method: 'PATCH', body })
+    await api('/cards/reorder', { method: 'POST', body: { orderedIds, moved } })
   } catch (err) {
-    console.error('Failed to update card, reloading', err)
+    console.error('Failed to reorder, reloading', err)
     await loadCards()
   }
 }
@@ -313,113 +296,81 @@ async function restoreCard(cardId: string) {
             :project-id="sprint.projectId"
           />
         </div>
-        <div class="flex gap-3 flex-1 min-h-0 min-w-0 overflow-x-auto">
-          <template v-if="showBacklog">
-            <BacklogColumn
-              v-if="backlogExpanded"
-              :cards="backlogCards"
-              :closable="sprint.status === 'active'"
-              @card-moved-to-backlog="onMoveToBacklog"
-              @close="backlogExpanded = false"
-            />
-            <CollapsedColumn
-              v-else
-              icon="i-lucide-inbox"
-              label="Backlog"
-              :count="backlogCards.length"
-              @expand="backlogExpanded = true"
-            />
-          </template>
-          <template v-for="status in cardStatusOrder" :key="status">
-            <template v-if="status === 'blocked'">
-              <BoardColumn
-                v-if="blockedExpanded"
-                :status="status"
-                :cards="columns[status]"
-                closable
-                @card-moved="onCardMoved"
-                @close="blockedExpanded = false"
-              />
+        <BoardColumns
+          :cards="filteredCards"
+          :backlog="showBacklog ? backlogCards : null"
+          :backlog-closable="sprint.status === 'active'"
+          :backlog-start-expanded="sprint.status === 'planned'"
+          @reorder="onReorder"
+          @move-to-backlog="onMoveToBacklog"
+        >
+          <template #trailing>
+            <template v-if="archivedCards.length">
               <CollapsedColumn
-                v-else
-                icon="i-lucide-ban"
-                label="Blocked"
-                :count="columns[status].length"
-                @expand="blockedExpanded = true"
+                v-if="!archivedExpanded"
+                icon="i-lucide-archive"
+                label="Archived"
+                :count="archivedCards.length"
+                @expand="archivedExpanded = true"
               />
-            </template>
-            <BoardColumn
-              v-else
-              :status="status"
-              :cards="columns[status]"
-              @card-moved="onCardMoved"
-            />
-          </template>
-          <template v-if="archivedCards.length">
-            <CollapsedColumn
-              v-if="!archivedExpanded"
-              icon="i-lucide-archive"
-              label="Archived"
-              :count="archivedCards.length"
-              @expand="archivedExpanded = true"
-            />
-            <div
-              v-else
-              class="flex flex-col bg-elevated/20 rounded-lg border border-dashed border-default overflow-hidden h-full"
-              style="flex: 1 1 0; min-width: 200px;"
-            >
               <div
-                class="flex items-center justify-between px-3 py-2 border-b border-default border-dashed shrink-0"
-              >
-                <div class="flex items-center gap-2">
-                  <UIcon name="i-lucide-archive" class="text-muted size-4" />
-                  <span class="text-sm font-semibold text-muted">Archived</span>
-                  <span class="text-xs text-muted">{{ archivedCards.length }}</span>
-                </div>
-                <UButton
-                  icon="i-lucide-x"
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                  @click="archivedExpanded = false"
-                />
-              </div>
-              <div
-                class="flex flex-col gap-2 p-2 flex-1 overflow-y-auto overflow-x-hidden"
+                v-else
+                class="flex flex-col bg-elevated/20 rounded-lg border border-dashed border-default overflow-hidden h-full"
+                style="flex: 1 1 0; min-width: 200px;"
               >
                 <div
-                  v-for="card in archivedCards"
-                  :key="card.id"
-                  class="min-w-0 shrink-0 bg-default border border-default rounded-md px-2.5 py-2"
+                  class="flex items-center justify-between px-3 py-2 border-b border-default border-dashed shrink-0"
                 >
-                  <NuxtLink
-                    :to="`/cards/${card.key}`"
-                    class="text-sm leading-snug wrap-break-word min-w-0 hover:underline decoration-primary/40 underline-offset-2"
+                  <div class="flex items-center gap-2">
+                    <UIcon name="i-lucide-archive" class="text-muted size-4" />
+                    <span class="text-sm font-semibold text-muted">Archived</span>
+                    <span class="text-xs text-muted">{{ archivedCards.length }}</span>
+                  </div>
+                  <UButton
+                    icon="i-lucide-x"
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                    @click="archivedExpanded = false"
+                  />
+                </div>
+                <div
+                  class="flex flex-col gap-2 p-2 flex-1 overflow-y-auto overflow-x-hidden"
+                >
+                  <div
+                    v-for="card in archivedCards"
+                    :key="card.id"
+                    class="min-w-0 shrink-0 bg-default border border-default rounded-md px-2.5 py-2"
                   >
-                    <span class="font-mono font-bold text-default mr-1.5">{{ card.key }}</span>
-                    <span class="font-medium">{{ card.title }}</span>
-                  </NuxtLink>
-                  <p
-                    v-if="card.summary"
-                    class="text-xs text-muted leading-snug line-clamp-2 mt-1"
-                  >
-                    {{ card.summary }}
-                  </p>
-                  <div class="mt-2 flex justify-end">
-                    <UButton
-                      icon="i-lucide-archive-restore"
-                      size="xs"
-                      color="neutral"
-                      variant="soft"
-                      label="Restore"
-                      @click="restoreCard(card.id)"
-                    />
+                    <NuxtLink
+                      :to="`/cards/${card.key}`"
+                      class="text-sm leading-snug wrap-break-word min-w-0 hover:underline decoration-primary/40 underline-offset-2"
+                    >
+                      <span class="font-mono font-bold text-default mr-1.5">{{ card.key }}</span>
+                      <span class="font-medium">{{ card.title }}</span>
+                    </NuxtLink>
+                    <p
+                      v-if="card.summary"
+                      class="text-xs text-muted leading-snug line-clamp-2 mt-1"
+                    >
+                      {{ card.summary }}
+                    </p>
+                    <div class="mt-2 flex justify-end">
+                      <UButton
+                        icon="i-lucide-archive-restore"
+                        size="xs"
+                        color="neutral"
+                        variant="soft"
+                        label="Restore"
+                        @click="restoreCard(card.id)"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </template>
           </template>
-        </div>
+        </BoardColumns>
       </template>
     </template>
   </UDashboardPanel>

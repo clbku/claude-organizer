@@ -8,6 +8,7 @@ import {
   getCard,
   getCardByKey,
   listCards,
+  reorderCards,
   restoreCard,
   updateCard
 } from '@claude-organizer/core'
@@ -54,6 +55,8 @@ export function registerCardRoutes(app: FastifyInstance, db: Database) {
   })
 
   app.post('/cards', async req => createCard(db, req.body as never))
+
+  app.post('/cards/reorder', async req => reorderCards(db, req.body as never))
 
   app.patch<{ Params: { id: string } }>('/cards/:id', async req =>
     updateCard(db, { ...(req.body as object), id: req.params.id } as never)

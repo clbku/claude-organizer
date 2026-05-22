@@ -38,11 +38,24 @@ export const updateCardInput = z.object({
   descriptionMd: z.string().optional(),
   status: cardStatus.optional(),
   priority: z.number().int().min(0).max(10).optional(),
+  position: z.number().int().min(0).optional(),
   dueDate: z.coerce.date().nullable().optional(),
   sprintId: z.string().nullable().optional(),
   parentId: z.string().nullable().optional()
 })
 export type UpdateCardInput = z.infer<typeof updateCardInput>
+
+export const reorderCardsInput = z.object({
+  orderedIds: z.array(z.string()),
+  moved: z
+    .object({
+      id: z.string(),
+      status: cardStatus,
+      sprintId: z.string().nullable().optional()
+    })
+    .optional()
+})
+export type ReorderCardsInput = z.infer<typeof reorderCardsInput>
 
 export interface ListCardsFilters extends ArchiveFilter {
   projectId: string
@@ -194,6 +207,53 @@ export async function updateCard(db: Database, input: UpdateCardInput) {
     })
   }
   return row ?? null
+}
+
+/**
+ * Persist a column's order: write `position = index` for `orderedIds`. If a card
+ * changed columns (`moved`), apply its new status (and sprintId when provided)
+ * in the same transaction. Emits a single card.changed (for the moved card, or
+ * the first reordered one) so other clients refresh.
+ */
+export async function reorderCards(db: Database, input: ReorderCardsInput) {
+  const { orderedIds, moved } = reorderCardsInput.parse(input)
+  const row = await db.transaction(async (tx) => {
+    if (moved) {
+      const set: Record<string, unknown> = {
+        status: moved.status,
+        updatedAt: sql`now()`
+      }
+      if (moved.sprintId !== undefined) set.sprintId = moved.sprintId
+      await tx.update(schema.cards).set(set).where(eq(schema.cards.id, moved.id))
+    }
+    for (let i = 0; i < orderedIds.length; i++) {
+      await tx
+        .update(schema.cards)
+        .set({ position: i })
+        .where(eq(schema.cards.id, orderedIds[i]!))
+    }
+    const probeId = moved?.id ?? orderedIds[0]
+    if (!probeId) return null
+    const [c] = await tx
+      .select({
+        id: schema.cards.id,
+        projectId: schema.cards.projectId,
+        key: schema.cards.key
+      })
+      .from(schema.cards)
+      .where(eq(schema.cards.id, probeId))
+      .limit(1)
+    return c ?? null
+  })
+  if (row) {
+    await notify(db, {
+      type: 'card.changed',
+      projectId: row.projectId,
+      cardId: row.id,
+      cardKey: row.key
+    })
+  }
+  return row
 }
 
 export async function moveCardToBacklog(db: Database, cardId: string) {
