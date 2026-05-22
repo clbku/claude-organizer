@@ -93,6 +93,12 @@ useProjectData(
       if (event.type === 'card.changed' || event.type === 'card.deleted') {
         loadCards()
       } else if (
+        event.type === 'sprint.deleted'
+        && event.sprintId === sprintId.value
+      ) {
+        // the sprint being viewed was destroyed — leave the dead page.
+        navigateTo('/sprints')
+      } else if (
         event.type === 'sprint.changed'
         && event.sprintId === sprintId.value
       ) {

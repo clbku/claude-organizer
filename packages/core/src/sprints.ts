@@ -77,6 +77,13 @@ export async function createSprint(db: Database, input: CreateSprintInput) {
       status: 'planned'
     })
     .returning()
+  if (row) {
+    await notify(db, {
+      type: 'sprint.changed',
+      projectId: row.projectId,
+      sprintId: row.id
+    })
+  }
   return row
 }
 

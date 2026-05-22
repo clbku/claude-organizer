@@ -99,6 +99,12 @@ useProjectData(currentProjectId, loadDocs, {
             current.value = null
           })
       }
+    } else if (event.type === 'doc.deleted') {
+      loadDocs()
+      if (event.docId === selectedId.value) {
+        selectedId.value = null
+        current.value = null
+      }
     }
   }
 })

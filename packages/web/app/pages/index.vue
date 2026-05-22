@@ -39,13 +39,20 @@ async function loadDashboard() {
 useProjectData(currentProjectId, loadDashboard, {
   watch: [currentProjectId, activeSprint],
   onEvent: (event) => {
-    if (event.type === 'sprint.changed') {
+    if (event.type === 'sprint.changed' || event.type === 'sprint.deleted') {
       refreshSprint()
     } else if (
       event.type === 'card.changed'
       || event.type === 'card.deleted'
-      || event.type === 'project.changed'
     ) {
+      loadDashboard()
+    } else if (
+      event.type === 'project.changed'
+      || event.type === 'project.deleted'
+    ) {
+      // a project was renamed, archived or destroyed — refresh the list (the
+      // store falls back to another project if the current one is gone).
+      store.loadProjects()
       loadDashboard()
     }
   }

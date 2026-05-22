@@ -43,7 +43,7 @@ async function reloadAll() {
 
 useProjectData(currentProjectId, reloadAll, {
   onEvent: (event) => {
-    if (event.type === 'sprint.changed') {
+    if (event.type === 'sprint.changed' || event.type === 'sprint.deleted') {
       loadSprints()
     } else if (event.type === 'card.changed' || event.type === 'card.deleted') {
       loadCards()

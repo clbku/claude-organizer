@@ -39,6 +39,7 @@ export async function createProject(db: Database, input: CreateProjectInput) {
       nextKeySeq: 1
     })
     .returning()
+  if (row) await notify(db, { type: 'project.changed', projectId: row.id })
   return row
 }
 
@@ -127,5 +128,6 @@ export async function updateProjectKeyPrefix(
     .set({ keyPrefix: newPrefix, updatedAt: sql`now()` })
     .where(eq(schema.projects.id, projectId))
     .returning()
+  if (row) await notify(db, { type: 'project.changed', projectId: row.id })
   return row ?? null
 }

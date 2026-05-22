@@ -52,7 +52,10 @@ useProjectData(currentProjectId, reload, {
   onEvent: (event) => {
     if (event.type === 'card.changed' || event.type === 'card.deleted') {
       loadCards()
-    } else if (event.type === 'sprint.changed') {
+    } else if (
+      event.type === 'sprint.changed'
+      || event.type === 'sprint.deleted'
+    ) {
       loadSprints()
     }
   }
