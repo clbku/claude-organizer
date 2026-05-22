@@ -15,13 +15,13 @@ Do NOT write code, scaffold, edit files, or take any implementation action until
 
 1. **Orient.** Read the current state first: `list_projects` → `get_active_sprint` → `list_unread_comments` → `list_cards`. Then scan the **docs tree** (Modules / Decisions / Notes) and read what's relevant to the demand's area — a past decision or a note can change the design, and modules tell you how the area already works. Don't read everything; glance and decide. Know what exists before proposing anything.
 2. **Understand.** Ask clarifying questions to remove ambiguity about the goal, constraints, edge cases, and what "done" looks like. **One topic per message**; prefer multiple-choice when possible (open-ended is fine). Keep asking until nothing remains that would materially change what gets built. It's far cheaper to ask now than to bake a wrong assumption into a card executed blindly later.
-3. **Organize (propose).** Decide the shape of the work and present it with your reasoning (see *Where the work lives* for the sprint-vs-standalone call):
+3. **Organize (propose).** Decide the shape of the work and present it with your reasoning (see _Where the work lives_ for the sprint-vs-standalone call):
    - **single task** — one coherent, testable deliverable. May live on the board with no sprint (a standalone task) or sit in the backlog for later.
    - **history (story) + tasks** — a cohesive feature split into a few testable deliverables.
    - **sprint + histories + tasks** — a large, cohesive effort worth isolating.
 4. **Get approval.** Present the proposed structure (and, when useful, 2–3 approaches with a recommendation). Revise until the user approves. Only then create anything.
 5. **Create in the MCP.** Materialize the approved structure: `create_sprint` (if needed) → histories (cards) → tasks (cards, with `parentId` for a history's children). Create cards in dependency order — a task before the ones that depend on it — so a card you need to reference already has its key. Wire dependencies with blockers when one task must precede another. **Tag every task you create** (see the tagging rule in the `claude-organizer` skill): attach the tags that fit; if none fit, suggest new tag(s) and ask the user before creating them.
-   - **Tasks live only as cards — never as a list in prose.** A history's `descriptionMd` describes the *history*: its goal, scope and decisions. It does **not** enumerate its tasks. The tasks ARE the child cards (`parentId`), and the board already shows them nested under the history. Re-listing them in the body creates a second, drifting copy of the breakdown and invites positional references like `CO-46.1` ("task 1 of the history") instead of the card's real key.
+   - **Tasks live only as cards — never as a list in prose.** A history's `descriptionMd` describes the _history_: its goal, scope and decisions. It does **not** enumerate its tasks. The tasks ARE the child cards (`parentId`), and the board already shows them nested under the history. Re-listing them in the body creates a second, drifting copy of the breakdown and invites positional references like `CO-46.1` ("task 1 of the history") instead of the card's real key.
    - **Cross-reference by the card's real key.** When one card points at another — a dependency, a follow-up, "the foundation task" — use the key the MCP assigned (e.g. `CO-51`), which auto-links. Never invent a positional alias (`CO-46.1`, "task 1"): it links to nothing and breaks the moment order or scope changes. Likewise, write each key in full — `CO-53, CO-54`, not a shorthand range like `CO-53/54` (only the first half links). This is exactly why you create in dependency order — so the real key exists when you write the reference.
 6. **Hand off.** Tell the user the plan is on the board; execution proceeds via the `claude-organizer` skill (in_progress → implement → review → done).
 
@@ -32,6 +32,7 @@ This is executed **full-IA with the user's review and validation**. Think in rea
 **A task is a deliverable the user can test** — not a micro-step.
 
 Example — "CRUD for customers":
+
 - a **history**: "Customer registration"
 - **tasks**: list customers · create customer · edit customer · delete customer
 
@@ -45,31 +46,21 @@ Write each task so a developer — or a fresh agent with **zero chat context** �
 - **Expected behavior** — user-visible behavior and rules.
 - **Acceptance criteria** — how to know it's done.
 - **Decisions** — what was settled during clarification.
-- *(as needed)* constraints, out-of-scope, references, links.
+- _(as needed)_ constraints, out-of-scope, references, links.
 
-Describe **behavior and intent, not code**. Do **not** write the implementation or hard-prescribe *how* to build it — the executor decides that — **unless** it's a real constraint or an already-diagnosed bug (then being specific is correct). Naming a real endpoint/table/file is fine; writing function bodies is not.
+Describe **behavior and intent, not code**. Do **not** write the implementation or hard-prescribe _how_ to build it — the executor decides that — **unless** it's a real constraint or an already-diagnosed bug (then being specific is correct). Naming a real endpoint/table/file is fine; writing function bodies is not.
 
-The test: *could a fresh session execute this task using only its contents?* If not, it's underspecified — keep refining (go back to the user if needed).
+The test: _could a fresh session execute this task using only its contents?_ If not, it's underspecified — keep refining (go back to the user if needed).
 
 ## Where the work lives — sprint, story, or a standalone task
 
-A card doesn't need a sprint to be worked. A sprint-less card in a board status
-(`todo`…`done`) lives on the **board** on its own; a sprint-less card in the
-`backlog` status sits in the **backlog**. So choosing the shape is three
-independent questions:
+A card doesn't need a sprint to be worked. A sprint-less card in a board status (`todo`…`done`) lives on the **board** on its own; a sprint-less card in the `backlog` status sits in the **backlog**. So choosing the shape is three independent questions:
 
-- **Open a sprint, or not?** A large, cohesive effort worth isolating → its own
-  **sprint**. A small, one-off demand (a handful of quick tasks, like a few
-  fixes) → **standalone task(s)** on the board, no sprint. Something that fits
-  what's already underway → the **active sprint**.
-- **Group under a story, or not?** A cohesive feature that splits into several
-  testable deliverables → a **story (history) + tasks**. A single coherent
-  deliverable → **one task**.
-- **Now, or later?** Worked now → the board (active sprint or standalone). Parked
-  for later → the **backlog** (status `backlog`) or a **future sprint**.
+- **Open a sprint, or not?** A large, cohesive effort worth isolating → its own **sprint**. A small, one-off demand (a handful of quick tasks, like a few fixes) → **standalone task(s)** on the board, no sprint. Something that fits what's already underway → the **active sprint**.
+- **Group under a story, or not?** A cohesive feature that splits into several testable deliverables → a **story (history) + tasks**. A single coherent deliverable → **one task**.
+- **Now, or later?** Worked now → the board (active sprint or standalone). Parked for later → the **backlog** (status `backlog`) or a **future sprint**.
 
-Judge by size and cohesion, not habit. **When in doubt, suggest** a placement —
-and say why — then confirm with the user; don't silently pick one.
+Judge by size and cohesion, not habit. **When in doubt, suggest** a placement — and say why — then confirm with the user; don't silently pick one.
 
 ## Key principles
 
