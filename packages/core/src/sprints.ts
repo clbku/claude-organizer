@@ -198,6 +198,33 @@ export async function startSprint(db: Database, sprintId: string) {
   return row
 }
 
+/**
+ * Reopen a completed (or archived) sprint back to `planned` so work can resume
+ * or missing cards can be added. Clears `endsAt` and unarchives it in one move.
+ * Never activates — there can be only one active sprint, so reopening goes to
+ * `planned` and the user starts it explicitly.
+ */
+export async function reopenSprint(db: Database, sprintId: string) {
+  const [row] = await db
+    .update(schema.sprints)
+    .set({
+      status: 'planned',
+      endsAt: null,
+      archivedAt: null,
+      updatedAt: sql`now()`
+    })
+    .where(eq(schema.sprints.id, sprintId))
+    .returning()
+  if (row) {
+    await notify(db, {
+      type: 'sprint.changed',
+      projectId: row.projectId,
+      sprintId: row.id
+    })
+  }
+  return row ?? null
+}
+
 export async function completeSprint(db: Database, sprintId: string) {
   const [row] = await db
     .update(schema.sprints)

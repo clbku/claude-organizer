@@ -10,7 +10,7 @@ defineProps<{
 }>()
 
 defineEmits<{
-  (e: 'start' | 'complete'): void
+  (e: 'start' | 'complete' | 'reopen'): void
 }>()
 </script>
 
@@ -46,6 +46,15 @@ defineEmits<{
           variant="soft"
           label="Complete"
           @click="$emit('complete')"
+        />
+        <UButton
+          v-if="sprint.status === 'completed' || sprint.status === 'cancelled'"
+          icon="i-lucide-rotate-ccw"
+          size="xs"
+          color="neutral"
+          variant="soft"
+          label="Reopen"
+          @click="$emit('reopen')"
         />
       </div>
     </div>

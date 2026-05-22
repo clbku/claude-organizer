@@ -9,6 +9,7 @@ import {
   getActiveSprint,
   getSprint,
   listSprints,
+  reopenSprint,
   restoreSprint,
   startSprint,
   updateSprint
@@ -59,6 +60,11 @@ export function registerSprintRoutes(app: FastifyInstance, db: Database) {
   app.post<{ Params: { id: string } }>(
     '/sprints/:id/complete',
     async req => completeSprint(db, req.params.id)
+  )
+
+  app.post<{ Params: { id: string } }>(
+    '/sprints/:id/reopen',
+    async req => reopenSprint(db, req.params.id)
   )
 
   app.post<{ Params: { id: string } }>(

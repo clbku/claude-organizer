@@ -8,6 +8,7 @@ import {
   destroySprint,
   getActiveSprint,
   listSprints,
+  reopenSprint,
   restoreSprint,
   startSprint,
   updateSprint
@@ -101,6 +102,16 @@ export function registerSprintTools(server: McpServer, db: Database) {
       inputSchema: { sprintId: z.string() }
     },
     async ({ sprintId }) => asJson(await completeSprint(db, sprintId))
+  )
+
+  server.registerTool(
+    'reopen_sprint',
+    {
+      description:
+        'Reopen a completed (or archived) sprint back to `planned` so work can resume or missing cards can be added. Clears endsAt and unarchives it. Never activates — use start_sprint afterwards to make it active.',
+      inputSchema: { sprintId: z.string() }
+    },
+    async ({ sprintId }) => asJson(await reopenSprint(db, sprintId))
   )
 
   server.registerTool(

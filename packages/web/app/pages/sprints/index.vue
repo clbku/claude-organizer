@@ -100,6 +100,11 @@ async function restoreSprint(id: string) {
   await loadSprints()
 }
 
+async function reopenSprint(id: string) {
+  await api(`/sprints/${id}/reopen`, { method: 'POST' })
+  await loadSprints()
+}
+
 function formatStatus(status: Sprint['status']) {
   return { active: 'Active', planned: 'Planned', completed: 'Completed', cancelled: 'Cancelled' }[
     status
@@ -180,6 +185,7 @@ async function createSprint() {
               :format-date="formatDate"
               @start="startSprint(s.id)"
               @complete="completeSprint(s.id)"
+              @reopen="reopenSprint(s.id)"
             />
           </div>
         </section>
@@ -198,15 +204,24 @@ async function createSprint() {
                 <h3 class="font-semibold text-sm truncate">{{ s.name }}</h3>
                 <p class="text-xs text-muted">{{ formatStatus(s.status) }}</p>
               </NuxtLink>
-              <UButton
-                icon="i-lucide-archive-restore"
-                size="xs"
-                color="neutral"
-                variant="soft"
-                label="Restore"
-                class="shrink-0"
-                @click="restoreSprint(s.id)"
-              />
+              <div class="flex items-center gap-1 shrink-0">
+                <UButton
+                  icon="i-lucide-rotate-ccw"
+                  size="xs"
+                  color="neutral"
+                  variant="soft"
+                  label="Reopen"
+                  @click="reopenSprint(s.id)"
+                />
+                <UButton
+                  icon="i-lucide-archive-restore"
+                  size="xs"
+                  color="neutral"
+                  variant="soft"
+                  label="Restore"
+                  @click="restoreSprint(s.id)"
+                />
+              </div>
             </div>
           </div>
         </ArchivedDisclosure>

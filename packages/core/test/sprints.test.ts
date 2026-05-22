@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  archiveSprint,
   completeSprint,
   createSprint,
   getActiveSprint,
   getSprint,
+  listSprints,
+  reopenSprint,
   startSprint
 } from '../src/index'
 import { freshProject, useTestDb } from './helpers'
@@ -53,5 +56,34 @@ describe('sprint lifecycle', () => {
 
     expect(await getActiveSprint(ctx.db, p2.id)).toBeNull()
     expect((await getActiveSprint(ctx.db, p1.id))?.id).toBe(s1.id)
+  })
+})
+
+describe('reopening a sprint', () => {
+  it('moves a completed sprint back to planned, clears endsAt, never activates', async () => {
+    const project = await freshProject(ctx.db)
+    const sprint = await createSprint(ctx.db, { projectId: project.id, name: 'R' })
+    await startSprint(ctx.db, sprint.id)
+    const completed = await completeSprint(ctx.db, sprint.id)
+    expect(completed?.status).toBe('completed')
+    expect(completed?.endsAt).toBeInstanceOf(Date)
+
+    const reopened = await reopenSprint(ctx.db, sprint.id)
+    expect(reopened?.status).toBe('planned')
+    expect(reopened?.endsAt).toBeNull()
+    expect(await getActiveSprint(ctx.db, project.id)).toBeNull()
+  })
+
+  it('unarchives an archived sprint as part of reopening', async () => {
+    const project = await freshProject(ctx.db)
+    const sprint = await createSprint(ctx.db, { projectId: project.id, name: 'A' })
+    await archiveSprint(ctx.db, sprint.id)
+
+    const reopened = await reopenSprint(ctx.db, sprint.id)
+    expect(reopened?.status).toBe('planned')
+    expect(reopened?.archivedAt).toBeNull()
+
+    const listed = await listSprints(ctx.db, project.id)
+    expect(listed.some(s => s.id === sprint.id)).toBe(true)
   })
 })
