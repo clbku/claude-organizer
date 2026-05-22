@@ -3,6 +3,8 @@ import { useProjectStore } from '~/stores/project'
 import type { Card, CardStatus } from '~/types/card'
 import { cardStatusOrder } from '~/types/card'
 
+type SprintFilter = 'all' | 'sprint' | 'loose'
+
 const store = useProjectStore()
 const { currentProject, currentProjectId } = storeToRefs(store)
 const api = useApi()
@@ -20,35 +22,36 @@ const { editing, saving, justSaved } = useSprintInlineEdit(
   }
 )
 
+// Every card the board cares about: the active sprint's cards plus all
+// sprint-less cards (any status, including `backlog`). The columns and the
+// backlog peek are both derived from this single list.
 const cards = ref<Card[]>([])
-const backlogCards = ref<Card[]>([])
 const backlogExpanded = ref(false)
 const blockedExpanded = ref(false)
 const selectedTagIds = ref<string[]>([])
+const sprintFilter = ref<SprintFilter>('all')
 
-const filteredCards = computed(() => {
-  if (!selectedTagIds.value.length) return cards.value
-  const sel = new Set(selectedTagIds.value)
-  return cards.value.filter(c => c.tags?.some(t => sel.has(t.id)))
-})
+const sprintFilterOptions: { value: SprintFilter, label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'sprint', label: 'Sprint' },
+  { value: 'loose', label: 'No sprint' }
+]
 
 async function loadCards() {
-  if (!activeSprint.value || !currentProjectId.value) {
+  if (!currentProjectId.value) {
     cards.value = []
-    backlogCards.value = []
     return
   }
   const projectId = currentProjectId.value
-  const [sprintList, backlogList] = await Promise.all([
-    api<Card[]>('/cards', {
-      query: { projectId, sprintId: activeSprint.value.id }
-    }),
-    api<Card[]>('/cards', {
-      query: { projectId, backlogOnly: 'true' }
-    })
+  const [sprintList, looseList] = await Promise.all([
+    activeSprint.value
+      ? api<Card[]>('/cards', {
+          query: { projectId, sprintId: activeSprint.value.id }
+        })
+      : Promise.resolve<Card[]>([]),
+    api<Card[]>('/cards', { query: { projectId, backlogOnly: 'true' } })
   ])
-  cards.value = sprintList
-  backlogCards.value = backlogList
+  cards.value = [...sprintList, ...looseList]
 }
 
 useProjectData(currentProjectId, loadCards, {
@@ -67,6 +70,24 @@ useProjectData(currentProjectId, loadCards, {
   }
 })
 
+// Cards shown in the status columns: everything not parked in the backlog,
+// narrowed by the sprint-presence filter and then the tag filter.
+const columnCards = computed(() => {
+  let list = cards.value.filter(c => c.status !== 'backlog')
+  if (sprintFilter.value === 'sprint') list = list.filter(c => c.sprintId)
+  else if (sprintFilter.value === 'loose') list = list.filter(c => !c.sprintId)
+  if (selectedTagIds.value.length) {
+    const sel = new Set(selectedTagIds.value)
+    list = list.filter(c => c.tags?.some(t => sel.has(t.id)))
+  }
+  return list
+})
+
+// The backlog peek: sprint-less cards still in the `backlog` status.
+const backlogCards = computed(() =>
+  cards.value.filter(c => !c.sprintId && c.status === 'backlog')
+)
+
 const columns = computed<Record<CardStatus, Card[]>>(() => {
   const grouped: Record<CardStatus, Card[]> = {
     backlog: [],
@@ -76,33 +97,14 @@ const columns = computed<Record<CardStatus, Card[]>>(() => {
     done: [],
     blocked: []
   }
-  for (const c of filteredCards.value) grouped[c.status].push(c)
+  for (const c of columnCards.value) grouped[c.status].push(c)
   for (const status of cardStatusOrder) {
     grouped[status].sort((a, b) => a.position - b.position || b.priority - a.priority)
   }
   return grouped
 })
 
-async function onCardMoved(cardId: string, toStatus: CardStatus) {
-  if (!activeSprint.value) return
-  const sprintIdLocal = activeSprint.value.id
-  // A card can arrive from the backlog or from another status column.
-  const fromBacklogIdx = backlogCards.value.findIndex(c => c.id === cardId)
-  const fromSprintIdx = cards.value.findIndex(c => c.id === cardId)
-  const body: Record<string, unknown> = { status: toStatus }
-  if (fromBacklogIdx !== -1) {
-    const card = backlogCards.value[fromBacklogIdx]
-    if (!card) return
-    body.sprintId = sprintIdLocal
-    backlogCards.value.splice(fromBacklogIdx, 1)
-    cards.value.push({ ...card, status: toStatus, sprintId: sprintIdLocal })
-  } else if (fromSprintIdx !== -1) {
-    const prev = cards.value[fromSprintIdx]
-    if (!prev || prev.status === toStatus) return
-    cards.value[fromSprintIdx] = { ...prev, status: toStatus }
-  } else {
-    return
-  }
+async function patchCard(cardId: string, body: Record<string, unknown>) {
   try {
     await api(`/cards/${cardId}`, { method: 'PATCH', body })
   } catch (err) {
@@ -111,22 +113,22 @@ async function onCardMoved(cardId: string, toStatus: CardStatus) {
   }
 }
 
+// Dropped into a status column. Moves/promotes the card to that status; sprint
+// membership is left untouched (a sprint-less card stays standalone).
+async function onCardMoved(cardId: string, toStatus: CardStatus) {
+  const card = cards.value.find(c => c.id === cardId)
+  if (!card || card.status === toStatus) return
+  card.status = toStatus
+  await patchCard(cardId, { status: toStatus })
+}
+
+// Dropped into the backlog peek. Parks the card: `backlog` status, no sprint.
 async function onMoveToBacklog(cardId: string) {
-  const idx = cards.value.findIndex(c => c.id === cardId)
-  if (idx === -1) return
-  const card = cards.value[idx]
+  const card = cards.value.find(c => c.id === cardId)
   if (!card) return
-  cards.value.splice(idx, 1)
-  backlogCards.value.push({ ...card, sprintId: null })
-  try {
-    await api(`/cards/${cardId}`, {
-      method: 'PATCH',
-      body: { sprintId: null }
-    })
-  } catch (err) {
-    console.error('Failed to move card to backlog, reloading', err)
-    await loadCards()
-  }
+  card.status = 'backlog'
+  card.sprintId = null
+  await patchCard(cardId, { status: 'backlog', sprintId: null })
 }
 </script>
 
@@ -136,21 +138,9 @@ async function onMoveToBacklog(cardId: string) {
     :ui="{ body: 'flex flex-col gap-4 sm:gap-6 flex-1 overflow-hidden p-4 sm:p-6' }"
   >
     <template #header>
-      <UDashboardNavbar
-        :title="activeSprint?.name ?? 'Board'"
-        :ui="{ left: 'flex-1 min-w-0', title: 'flex-1 min-w-0' }"
-      >
+      <UDashboardNavbar title="Board" :ui="{ left: 'flex-1 min-w-0' }">
         <template #leading>
           <UIcon name="i-lucide-kanban" class="text-primary" />
-        </template>
-        <template v-if="activeSprint" #title>
-          <UInput
-            v-model="editing.name"
-            variant="ghost"
-            size="lg"
-            placeholder="Sprint name"
-            class="w-full [&_input]:text-lg! [&_input]:font-semibold! [&_input]:px-0!"
-          />
         </template>
         <template #right>
           <span
@@ -166,7 +156,7 @@ async function onMoveToBacklog(cardId: string) {
             <UIcon name="i-lucide-check" /> Saved
           </span>
           <UBadge v-if="activeSprint" color="info" variant="subtle">
-            active sprint
+            {{ activeSprint.name }}
           </UBadge>
         </template>
       </UDashboardNavbar>
@@ -176,21 +166,29 @@ async function onMoveToBacklog(cardId: string) {
       <div v-if="!currentProject" class="text-center text-muted py-12">
         Pick a project in the sidebar.
       </div>
-      <div v-else-if="!activeSprint" class="text-center text-muted py-12">
-        No active sprint for <strong>{{ currentProject.name }}</strong>.
-        Start one from /sprints.
-      </div>
       <template v-else>
         <UTextarea
+          v-if="activeSprint"
           v-model="editing.goal"
           variant="ghost"
           :rows="1"
           autoresize
-          placeholder="Add a goal for this sprint…"
+          placeholder="Add a goal for the active sprint…"
           class="w-full shrink-0"
           :ui="{ base: 'text-sm text-muted !px-0 resize-none' }"
         />
         <div class="flex items-center justify-end gap-2 shrink-0">
+          <div v-if="activeSprint" class="flex items-center gap-1 mr-auto">
+            <UButton
+              v-for="opt in sprintFilterOptions"
+              :key="opt.value"
+              size="xs"
+              :variant="sprintFilter === opt.value ? 'solid' : 'ghost'"
+              :color="sprintFilter === opt.value ? 'primary' : 'neutral'"
+              :label="opt.label"
+              @click="sprintFilter = opt.value"
+            />
+          </div>
           <BoardTagFilter
             v-model="selectedTagIds"
             :project-id="currentProjectId"

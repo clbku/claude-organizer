@@ -25,7 +25,9 @@ watch(
 
 function onAdd(event: { data: Card }) {
   const card = event.data
-  if (card.sprintId !== null) {
+  // Park the card in the backlog (status `backlog`, no sprint) unless it is
+  // already there.
+  if (card.status !== 'backlog') {
     emit('card-moved-to-backlog', card.id)
   }
 }
