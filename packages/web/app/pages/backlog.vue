@@ -21,9 +21,15 @@ async function loadCards() {
     return
   }
   [cards.value, archivedCards.value] = await Promise.all([
+    // The backlog now means cards parked in the `backlog` status (sprint-less).
     api<Card[]>('/cards', {
-      query: { projectId: currentProjectId.value, backlogOnly: 'true' }
+      query: {
+        projectId: currentProjectId.value,
+        backlogOnly: 'true',
+        status: 'backlog'
+      }
     }),
+    // Archived sprint-less cards keep showing here regardless of status.
     api<Card[]>('/cards', {
       query: {
         projectId: currentProjectId.value,
@@ -75,10 +81,21 @@ const sortedCards = computed(() =>
   )
 )
 
+// Promote a backlog card onto the board, without a sprint: just flip its
+// status to `todo`.
+async function promoteToBoard(cardId: string) {
+  await api(`/cards/${cardId}`, {
+    method: 'PATCH',
+    body: { status: 'todo' }
+  })
+  await loadCards()
+}
+
+// Move into a sprint. A sprint card is never `backlog`, so it lands in `todo`.
 async function moveToSprint(cardId: string, sprintId: string) {
   await api(`/cards/${cardId}`, {
     method: 'PATCH',
-    body: { sprintId }
+    body: { sprintId, status: 'todo' }
   })
   await loadCards()
 }
@@ -89,16 +106,25 @@ async function restoreCard(cardId: string) {
 }
 
 function dropdownItems(cardId: string) {
-  if (moveTargets.value.length === 0) {
-    return [[{ label: 'No active/planned sprints', disabled: true }]]
-  }
-  return [
-    moveTargets.value.map(s => ({
-      label: s.name,
-      icon: s.status === 'active' ? 'i-lucide-flame' : 'i-lucide-calendar',
-      onSelect: () => moveToSprint(cardId, s.id)
-    }))
+  const sections: Record<string, unknown>[][] = [
+    [
+      {
+        label: 'Send to board (To do)',
+        icon: 'i-lucide-arrow-up-circle',
+        onSelect: () => promoteToBoard(cardId)
+      }
+    ]
   ]
+  if (moveTargets.value.length > 0) {
+    sections.push(
+      moveTargets.value.map(s => ({
+        label: `Move to ${s.name}`,
+        icon: s.status === 'active' ? 'i-lucide-flame' : 'i-lucide-calendar',
+        onSelect: () => moveToSprint(cardId, s.id)
+      }))
+    )
+  }
+  return sections
 }
 </script>
 

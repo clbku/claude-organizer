@@ -7,6 +7,8 @@ export type {
   CardSubtask
 } from '@claude-organizer/shared'
 
+// Board columns, in order. `backlog` is intentionally absent: backlog cards
+// live on the Backlog page, not in a board column.
 export const cardStatusOrder: CardStatus[] = [
   'todo',
   'in_progress',
@@ -14,6 +16,9 @@ export const cardStatusOrder: CardStatus[] = [
   'done',
   'blocked'
 ]
+
+// All statuses for status selectors (card detail, etc.), including `backlog`.
+export const cardStatusSelectOrder: CardStatus[] = ['backlog', ...cardStatusOrder]
 
 export const cardStatusMeta: Record<
   CardStatus,
