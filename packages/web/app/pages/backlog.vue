@@ -209,6 +209,15 @@ function dropdownItems(cardId: string) {
                 label="Move"
               />
             </UDropdownMenu>
+            <ArchiveDestroyMenu
+              kind="card"
+              size="xs"
+              :entity-id="card.id"
+              :entity-label="`${card.key} ${card.title}`"
+              class="shrink-0"
+              @archived="loadCards"
+              @destroyed="loadCards"
+            />
           </div>
         </div>
 
@@ -242,6 +251,15 @@ function dropdownItems(cardId: string) {
                 label="Restore"
                 class="shrink-0"
                 @click="restoreCard(card.id)"
+              />
+              <ArchiveDestroyMenu
+                kind="card"
+                size="xs"
+                :can-archive="false"
+                :entity-id="card.id"
+                :entity-label="`${card.key} ${card.title}`"
+                class="shrink-0"
+                @destroyed="loadCards"
               />
             </div>
           </div>

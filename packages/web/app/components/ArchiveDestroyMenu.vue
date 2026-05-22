@@ -19,8 +19,10 @@ const props = withDefaults(
     cascadeNoun?: string
     cascadeNounPlural?: string
     size?: 'xs' | 'sm' | 'md'
+    /** Show the Archive action — set false for an already-archived entity. */
+    canArchive?: boolean
   }>(),
-  { cascadeCount: 0, cascadeNoun: 'item', size: 'sm' }
+  { cascadeCount: 0, cascadeNoun: 'item', size: 'sm', canArchive: true }
 )
 
 const emit = defineEmits<{ archived: [], destroyed: [] }>()
@@ -36,23 +38,27 @@ const destroyOpen = ref(false)
 const archiving = ref(false)
 const destroying = ref(false)
 
-const items = computed<DropdownMenuItem[]>(() => [
-  {
-    label: 'Archive',
-    icon: 'i-lucide-archive',
-    onSelect: () => {
-      archiveOpen.value = true
-    }
-  },
-  {
+const items = computed<DropdownMenuItem[]>(() => {
+  const list: DropdownMenuItem[] = []
+  if (props.canArchive) {
+    list.push({
+      label: 'Archive',
+      icon: 'i-lucide-archive',
+      onSelect: () => {
+        archiveOpen.value = true
+      }
+    })
+  }
+  list.push({
     label: 'Destroy',
     icon: 'i-lucide-trash-2',
     color: 'error',
     onSelect: () => {
       destroyOpen.value = true
     }
-  }
-])
+  })
+  return list
+})
 
 const cascadeText = computed(() => {
   const n = props.cascadeCount
