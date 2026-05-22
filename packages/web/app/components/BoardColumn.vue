@@ -141,8 +141,8 @@ function onUpdate() {
           @mousedown.stop
         >
           <UIcon name="i-lucide-layers" class="size-3.5 text-primary shrink-0" />
-          <span class="font-mono font-bold text-default">{{ card.parentKey }}</span>
-          <span class="text-muted truncate">{{ parentTitles[card.parentKey ?? ''] ?? '' }}</span>
+          <span class="font-mono font-bold text-default shrink-0 whitespace-nowrap">{{ card.parentKey }}</span>
+          <span class="text-muted truncate min-w-0">{{ parentTitles[card.parentKey ?? ''] ?? '' }}</span>
         </NuxtLink>
 
         <div
