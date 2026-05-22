@@ -192,6 +192,13 @@ function onSprintRemoved() {
   router.push('/sprints')
 }
 
+// Real history back when we got here from somewhere in the app; otherwise (a
+// direct load / refresh) fall back to the sprints list so we never leave it.
+function goBack() {
+  if (window.history.state?.back) router.back()
+  else router.push('/sprints')
+}
+
 async function restoreCard(cardId: string) {
   await api(`/cards/${cardId}/restore`, { method: 'POST' })
   await loadCards()
@@ -213,7 +220,7 @@ async function restoreCard(cardId: string) {
             icon="i-lucide-arrow-left"
             color="neutral"
             variant="ghost"
-            to="/sprints"
+            @click="goBack"
           />
         </template>
         <template v-if="sprint" #title>
