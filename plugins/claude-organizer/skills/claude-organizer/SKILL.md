@@ -18,7 +18,11 @@ Do this sequence *before* exploring the codebase or making changes:
 1. **`list_projects`** — find the project whose `slug` matches the repo you're working in, and grab its `projectId`. Every other tool takes an explicit `projectId`.
 2. **`get_active_sprint(projectId)`** — what's being worked on right now.
 3. **`list_unread_comments(projectId)`** — feedback the user left that you haven't seen yet. Read it and address it first; it's often a correction or a new priority.
-4. **`list_cards(projectId, sprintId=<active sprint>)`** — the cards in flight. Returns short summaries (not full descriptions), so you can scan many quickly.
+4. **`list_cards`** — the cards in flight. Read **what's on the board now**, not just the active sprint:
+   - `list_cards(projectId, sprintId=<active sprint>)` — the active sprint's cards.
+   - `list_cards(projectId, backlogOnly=true)` — sprint-less cards. Those in a board status (`todo`…`done`) are **standalone cards on the board**; those in the `backlog` status are the **backlog**.
+
+   The board = the active sprint's cards **plus** every sprint-less card in a board status, so a card you must work may belong to no sprint at all. Returns short summaries, so you can scan many quickly.
 5. For one card's full detail: **`get_card(id)`** or **`get_card_by_key(key)`** (e.g. `ABC-12`).
 6. For architecture, decisions, or how-tos: **`list_docs(projectId)`** + **`read_doc(id)`**, or **`search_docs`**. Projects document themselves here — read before reinventing or re-deciding something.
 
@@ -30,6 +34,8 @@ Whether you're **starting a single card** or **analyzing a group of them** (the 
 
 Comments routinely carry the decisive context: a card may be flagged *"consolidated into CO-31 — don't execute in isolation"*, already resolved, deferred, or superseded by another card. Skipping the comments and jumping to the code produces redundant or wrong conclusions (e.g. recommending work that's already planned elsewhere). **Order: tasks first (description + comments + sprint), then code only if still needed.**
 
+**Re-read the board when you pick the next task — don't trust your earlier read or your memory.** Between cards the user may have added or pulled in work manually, re-prioritized, or left a comment. Before starting whatever's "next", re-query the board (active sprint **and** sprint-less `todo`/`backlog` cards) and check `list_unread_comments`, so you act on the current state — not a stale snapshot from earlier in the session.
+
 ## Working a card
 
 1. **`set_card_status(id, "in_progress")`** before you start, so the board reflects reality.
@@ -38,6 +44,24 @@ Comments routinely carry the decisive context: a card may be flagged *"consolida
 4. **`add_comment(cardId, ...)`** to record what carries **signal** — decisions, scope changes, deviations (see *Comments*). This is the project's memory for the next session.
 5. **`set_card_status(id, "review")`** when you believe it's done — and post a **test plan** comment (see below). Then **wait for the user to validate**. Don't self-approve.
 6. **`set_card_status(id, "done")`** only after the user confirms.
+
+## Git — agree on the flow before you start
+
+Before implementing a story (or the first card of a batch), get the git flow
+straight — **don't assume**:
+
+- If the repo's `CLAUDE.md` already defines a flow, follow it.
+- Otherwise, when you're on `main`/`master`, **ask the user how to proceed**: a
+  branch + PR? a branch merged later? commit straight on the current branch?
+  **Mirror what the user already does** — some want a branch + PR per story,
+  others a branch per task, others everything left in review on one branch.
+
+A batch of several cards may mean **several branches** — warn the user that
+you'll need to **switch branches** between cards, and don't pile unrelated work
+onto one branch. Watch for **conflicts**: don't run far ahead in parallel if the
+work will collide; sequence dependent cards with the **blockers** system (a card
+`blocked by` another) so the order is explicit. Commit per card, following the
+repo's `CLAUDE.md` for the commit and versioning rules.
 
 ## Keep a history's status honest
 
@@ -71,7 +95,7 @@ To organize a new demand into the right structure, use the **`plan`** skill. Thi
 
 - **`summary`** — one line (~100 chars) describing *what* the card is about. It's what shows on the board and in `list_cards`.
 - **`descriptionMd`** — the spec: *behavior and intent*, acceptance criteria, decisions — **not** implementation code.
-- A card with **no `sprintId`** goes to the **backlog**.
+- **Sprint and status together decide where a card shows.** A card with **no `sprintId`** is sprint-less: in the **`backlog`** status it sits in the backlog; in a board status (`todo`…`done`) it's a **standalone card on the board**. A card in a sprint shows on the board while that sprint is active. New cards default to `backlog` when created with no sprint, `todo` when created in a sprint.
 - **`parentId`** makes a card a sub-task of a **history** (one level). A card can be **blocked by** others (add/remove blockers) — the board flags it while a blocker isn't `done`.
 
 **Always tag a task after creating it.** Attach the tag(s) that fit — area/layer (e.g. `web`, `api`, `mcp`) or type (e.g. `bug`). If no existing tag fits, **suggest new tag(s) and ask the user before creating them** — never invent tags silently. Tagged cards keep the board filterable and scannable.

@@ -15,8 +15,8 @@ Do NOT write code, scaffold, edit files, or take any implementation action until
 
 1. **Orient.** Read the current state first: `list_projects` → `get_active_sprint` → `list_unread_comments` → `list_cards`. Then scan the **docs tree** (Modules / Decisions / Notes) and read what's relevant to the demand's area — a past decision or a note can change the design, and modules tell you how the area already works. Don't read everything; glance and decide. Know what exists before proposing anything.
 2. **Understand.** Ask clarifying questions to remove ambiguity about the goal, constraints, edge cases, and what "done" looks like. **One topic per message**; prefer multiple-choice when possible (open-ended is fine). Keep asking until nothing remains that would materially change what gets built. It's far cheaper to ask now than to bake a wrong assumption into a card executed blindly later.
-3. **Organize (propose).** Decide the shape of the work and present it with your reasoning:
-   - **single task** — one coherent, testable deliverable.
+3. **Organize (propose).** Decide the shape of the work and present it with your reasoning (see *Where the work lives* for the sprint-vs-standalone call):
+   - **single task** — one coherent, testable deliverable. May live on the board with no sprint (a standalone task) or sit in the backlog for later.
    - **history (story) + tasks** — a cohesive feature split into a few testable deliverables.
    - **sprint + histories + tasks** — a large, cohesive effort worth isolating.
 4. **Get approval.** Present the proposed structure (and, when useful, 2–3 approaches with a recommendation). Revise until the user approves. Only then create anything.
@@ -51,13 +51,25 @@ Describe **behavior and intent, not code**. Do **not** write the implementation 
 
 The test: *could a fresh session execute this task using only its contents?* If not, it's underspecified — keep refining (go back to the user if needed).
 
-## Where the work lives
+## Where the work lives — sprint, story, or a standalone task
 
-- Fits what's being done now → the **active sprint**.
-- Part of a larger effort, or not now → the **backlog** or a **future sprint**.
-- Large, cohesive effort worth isolating → its **own sprint**.
+A card no longer needs a sprint to be worked. A sprint-less card in a board
+status (`todo`…`done`) lives on the **board** on its own; a sprint-less card in
+the `backlog` status sits in the **backlog**. So choosing the shape is three
+independent questions:
 
-Judge by size and cohesion, not habit. When unsure whether something deserves its own sprint, ask.
+- **Open a sprint, or not?** A large, cohesive effort worth isolating → its own
+  **sprint**. A small, one-off demand (a handful of quick tasks, like a few
+  fixes) → **standalone task(s)** on the board, no sprint. Something that fits
+  what's already underway → the **active sprint**.
+- **Group under a story, or not?** A cohesive feature that splits into several
+  testable deliverables → a **story (history) + tasks**. A single coherent
+  deliverable → **one task**.
+- **Now, or later?** Worked now → the board (active sprint or standalone). Parked
+  for later → the **backlog** (status `backlog`) or a **future sprint**.
+
+Judge by size and cohesion, not habit. **When in doubt, suggest** a placement —
+and say why — then confirm with the user; don't silently pick one.
 
 ## Key principles
 
