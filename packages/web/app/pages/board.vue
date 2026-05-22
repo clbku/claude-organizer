@@ -178,17 +178,15 @@ async function onMoveToBacklog(cardId: string) {
           :ui="{ base: 'text-sm text-muted !px-0 resize-none' }"
         />
         <div class="flex items-center justify-end gap-2 shrink-0">
-          <div v-if="activeSprint" class="flex items-center gap-1 mr-auto">
-            <UButton
-              v-for="opt in sprintFilterOptions"
-              :key="opt.value"
-              size="xs"
-              :variant="sprintFilter === opt.value ? 'solid' : 'ghost'"
-              :color="sprintFilter === opt.value ? 'primary' : 'neutral'"
-              :label="opt.label"
-              @click="sprintFilter = opt.value"
-            />
-          </div>
+          <USelectMenu
+            v-if="activeSprint"
+            :model-value="sprintFilter"
+            :items="sprintFilterOptions"
+            value-key="value"
+            icon="i-lucide-filter"
+            class="w-36"
+            @update:model-value="(v: SprintFilter) => (sprintFilter = v)"
+          />
           <BoardTagFilter
             v-model="selectedTagIds"
             :project-id="currentProjectId"
