@@ -151,7 +151,7 @@ const sprintOptions = computed(() => {
       s.status === 'active' || s.status === 'planned' || s.id === currentId
   )
   return [
-    { label: 'Backlog', value: null as string | null },
+    { label: 'Nenhuma', value: null as string | null },
     ...selectable.map(s => ({
       label: `${s.name}${s.status === 'active' ? ' (active)' : ''}`,
       value: s.id as string | null
