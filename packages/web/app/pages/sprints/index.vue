@@ -186,6 +186,8 @@ async function createSprint() {
               @start="startSprint(s.id)"
               @complete="completeSprint(s.id)"
               @reopen="reopenSprint(s.id)"
+              @archived="loadSprints()"
+              @destroyed="reloadAll()"
             />
           </div>
         </section>
@@ -220,6 +222,16 @@ async function createSprint() {
                   variant="soft"
                   label="Restore"
                   @click="restoreSprint(s.id)"
+                />
+                <ArchiveDestroyMenu
+                  kind="sprint"
+                  :entity-id="s.id"
+                  :entity-label="s.name"
+                  :cascade-count="statsFor(s.id).total"
+                  cascade-noun="card"
+                  :can-archive="false"
+                  size="xs"
+                  @destroyed="reloadAll()"
                 />
               </div>
             </div>

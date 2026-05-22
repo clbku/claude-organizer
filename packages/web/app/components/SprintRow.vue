@@ -10,7 +10,7 @@ defineProps<{
 }>()
 
 defineEmits<{
-  (e: 'start' | 'complete' | 'reopen'): void
+  (e: 'start' | 'complete' | 'reopen' | 'archived' | 'destroyed'): void
 }>()
 </script>
 
@@ -55,6 +55,16 @@ defineEmits<{
           variant="soft"
           label="Reopen"
           @click="$emit('reopen')"
+        />
+        <ArchiveDestroyMenu
+          kind="sprint"
+          :entity-id="sprint.id"
+          :entity-label="sprint.name"
+          :cascade-count="stats.total"
+          cascade-noun="card"
+          size="xs"
+          @archived="$emit('archived')"
+          @destroyed="$emit('destroyed')"
         />
       </div>
     </div>
