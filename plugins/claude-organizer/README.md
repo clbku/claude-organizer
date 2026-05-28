@@ -1,9 +1,11 @@
 # claude-organizer (Claude Code plugin)
 
-Two skills:
+Four skills:
 
-- **`claude-organizer`** — how to **use** the board: orient at the start of a session, work cards, comment with signal (not noise), docs.
+- **`claude-organizer`** — how to **operate** the board: orient at the start of a session, keep statuses honest, comment with signal (not noise), docs.
 - **`plan`** — turn a **new demand** into sprints/histories/tasks. Triggers automatically when you describe something to build.
+- **`implement`** — **execute** a card that already exists, through a mandatory lifecycle (`in_progress` → read comments → implement → review → commit → done). Triggers when you start building a specific card.
+- **`review`** — the **mandatory review gate** before work closes (per-task and story-level), run by a fresh subagent: checks acceptance criteria and hunts for reuse/dead-code/comment improvements. Fired by `implement` at task/story completion.
 
 ## Installation
 

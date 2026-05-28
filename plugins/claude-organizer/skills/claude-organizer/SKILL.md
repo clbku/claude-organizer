@@ -1,6 +1,6 @@
 ---
 name: claude-organizer
-description: Use whenever the mcp__claude-organizer__* tools are available and you're about to start, continue, or execute development on a project tracked here. This skill is the source of truth for what to work on and how to keep the board honest — consult it at the START of every coding session (before exploring code) and as you work cards, comments and docs. Trigger even when the user just says "let's continue" or "what's next". To turn a NEW fuzzy demand into structured work (sprints/histories/tasks), use the `plan` skill instead. Do NOT rely on memory; read state from here.
+description: Use whenever the mcp__claude-organizer__* tools are available and you're about to start or continue work on a project tracked here. This is the entry point and panorama for using the board — consult it at the START of every coding session (before exploring code) to orient, and for how the board, comments and docs work. Trigger even when the user just says "let's continue" or "what's next". It does NOT hold the workflow rules: to turn a NEW fuzzy demand into structured work use the `plan` skill, and to execute a specific card through its lifecycle use the `implement` skill. Do NOT rely on memory; read state from here.
 ---
 
 # Using claude-organizer
@@ -9,7 +9,13 @@ claude-organizer is a "Jira for Claude Code" exposed over MCP. It holds a projec
 
 A fresh session starts with no memory of past work. This system is how continuity is preserved: the active sprint says what matters now, cards carry the detail, comments carry the back-and-forth with the user, and docs carry the architecture and decisions. Read it first; keep it honest.
 
-> **Planning vs. using.** This skill covers _using_ the board. When the user brings a **new demand** — a feature, a change, a fix — to turn into work, use the **`plan`** skill: it understands the demand and organizes it into sprints/histories/tasks. Then come back here to execute the cards.
+> **Four skills, one board.** This skill covers **operating** the board — orienting, reading state, keeping it honest, comments and docs. The other three own distinct phases:
+>
+> - **`plan`** — when the user brings a **new demand** (a feature, a change, a fix) to turn into work: it understands the demand and organizes it into sprints/histories/tasks. Planning, not code.
+> - **`implement`** — when you **execute** a card that already exists (a task, a story, a sprint's cards): it owns the **mandatory execution lifecycle** (`in_progress` → read comments → implement → commit → done). The moment you start building a specific card, that skill drives — every step is mandatory.
+> - **`review`** — the **mandatory review gate** the `implement` skill fires before work closes: a per-task review and a story-level review, run by a **fresh subagent** that checks acceptance criteria and hunts for reuse/dead-code/comment improvements.
+>
+> Use this skill to orient and to keep the board honest throughout.
 
 ## Start of every session — orient before touching code
 
@@ -37,30 +43,15 @@ Whether you're **starting a single card** or **analyzing a group of them** (the 
 
 Comments routinely carry the decisive context: a card may be flagged _"consolidated into CO-31 — don't execute in isolation"_, already resolved, deferred, or superseded by another card. Skipping the comments and jumping to the code produces redundant or wrong conclusions (e.g. recommending work that's already planned elsewhere). **Order: tasks first (description + comments + sprint), then code only if still needed.**
 
-**Re-read the board when you pick the next task — don't trust your earlier read or your memory.** Between cards the user may have added or pulled in work manually, re-prioritized, or left a comment. Before starting whatever's "next", re-query the board (active sprint **and** sprint-less `todo`/`backlog` cards) and check `list_unread_comments`, so you act on the current state — not a stale snapshot from earlier in the session.
+## The work phases live in their own skills — not here
 
-## Working a card
+This skill is the **panorama of how to use the board**. The actual workflow rules live elsewhere, and you should switch to them instead of working from memory:
 
-1. **Read this card's comments first — every card, every time.** Call **`list_comments(cardId)`** _before_ implementing, even if you already read comments on the parent history, on a sibling sub-task, or earlier in the same session. Comments are **per-card**: the user may have left a correction or constraint on _this_ specific card — added after the briefing, posted while you were working another card, or one you only skimmed — that changes the whole approach. Never assume "I already read the history's comments, so this child is covered", and never skip because a sibling had nothing. Re-query for this card and address whatever's there before writing a line of code.
-2. **Always `set_card_status(id, "in_progress")` the moment you start working the card** — non-negotiable, even for a trivial card. The board only reflects reality if every card flips from idle to active in lockstep with you actually picking it up.
-3. **Glance at the docs, then implement.** Scan the docs tree and read what's pertinent to this card's area — the relevant `module`, an `adr` that affects it, a `note` that might carry a constraint. Don't read unrelated docs (a back-end note for a front-end card), but do decide what's worth opening — important context often lives only there.
-4. **`add_comment(cardId, ...)`** to record what carries **signal** — decisions, scope changes, deviations (see _Comments_). This is the project's memory for the next session.
-5. **Always `set_card_status(id, "review")` the moment you stop and the user takes over** — when work is done and you're waiting for validation. Do this **even if you haven't committed yet**: the commit only lands after the user confirms it works, but the card belongs in `review` from the instant _you're_ done and _they_ need to look. The status reflects "who holds the ball", not "is there a commit". Always post a **test plan** comment (see below) on the same move, then **wait for the user to validate**. Don't self-approve.
-6. **Attach the commit's diff** — right after the commit lands (one commit per card, key in the message) and the user has confirmed. Run the capture script bundled with this skill: `node "<skill dir>/scripts/attach-commit.mjs" <sha>` — or `python3 "<skill dir>/scripts/attach-commit.py" <sha>` where Node isn't available — `<skill dir>` being this skill's own directory. It runs `git show` in the current repo and POSTs the diff straight to the API (`CO_API_URL`, default `http://127.0.0.1:4400`), so the card's **Changes** section shows what the commit produced. The diff is captured **outside your context on purpose** — **never read it or paste it into a comment** (it would burn tokens and add noise; see _Comments_).
-7. **`set_card_status(id, "done")`** only after the user confirms.
+- **New demand → `plan`.** Turning a fuzzy feature/change/fix into sprints/histories/tasks (clarifying, surfacing decisions, writing the cards) is the **`plan`** skill's job. Don't plan ad-hoc here.
+- **Executing a card → `implement`.** The moment you start building a specific card, the **`implement`** skill drives — it owns the mandatory execution lifecycle so no step gets skipped. Don't reconstruct that flow from memory here.
+- **Closing a task/story → `review`.** Before work closes, the `implement` skill fires the **`review`** skill's mandatory gate (per-task and story-level), run by a fresh subagent. Don't review your own work inline here.
 
-## Git — agree on the flow before you start
-
-Before implementing a story (or the first card of a batch), get the git flow straight — **don't assume**:
-
-- If the repo's `CLAUDE.md` already defines a flow, follow it.
-- Otherwise, when you're on `main`/`master`, **ask the user how to proceed**: a branch + PR? a branch merged later? commit straight on the current branch? **Mirror what the user already does** — some want a branch + PR per story, others a branch per task, others everything left in review on one branch.
-
-A batch of several cards may mean **several branches** — warn the user that you'll need to **switch branches** between cards, and don't pile unrelated work onto one branch. Watch for **conflicts**: don't run far ahead in parallel if the work will collide; sequence dependent cards with the **blockers** system (a card `blocked by` another) so the order is explicit. Commit per card, following the repo's `CLAUDE.md` for the commit and versioning rules.
-
-## Keep a history's status honest
-
-A **history** (a parent card with sub-tasks) is a container, and its status should track its children instead of lagging behind them. The moment work starts on any child — you move the first sub-task to `in_progress`, or one is already `done` — move the history to `in_progress` too: a history sitting in `todo` while its tasks are underway misreads the board. Move it to `done` only when **every** child is `done`. The board shows each history's child counts, so an out-of-sync status is visible and confusing.
+Everything below is about **operating** the board itself — comments, card/sprint structure, docs — and applies across all phases.
 
 ## Comments — write signal, not noise
 
@@ -82,9 +73,9 @@ A comment exists to change what the **next reader** (a memoryless future session
 
 Learn the _criterion_ (signal vs. noise; deducible vs. new) — don't follow a fixed blacklist. "typecheck passed" is just one example of the concept.
 
-**Test plan on review.** When you move a card to `review`, add **one comment** with how to validate it — what to open, what to do, what to expect (and what was already checked, briefly). The console scrollback is ephemeral; this comment is where the user (and you) sees exactly how to test what's in review.
+This signal-vs-noise criterion applies to **every** comment you write — including the **test plan** the `implement` skill makes you post when a card goes to `review`.
 
-User comments arrive flagged unread. `list_unread_comments` lists them _without_ marking them read; `list_comments(cardId)` marks that card's user comments as read. Check unread comments at session start **and call `list_comments(cardId)` on every card the moment you pick it up to develop** — once per card, every card, including each sub-task of a history (reading the history's comments does **not** cover its children). Never skip this step because you "already read the comments around here".
+User comments arrive flagged unread. `list_unread_comments` lists them _without_ marking them read; `list_comments(cardId)` marks that card's user comments as read. Check unread comments at session start. **When you pick a card up to develop, `list_comments(cardId)` is mandatory before implementing** — the `implement` skill enforces this (every card, every time, even if read before, because new context may have landed). Reading the history's comments does **not** cover its children.
 
 ## Cards — field reference
 
@@ -114,5 +105,7 @@ Use **`write_doc`** (no `id` creates, `id` updates; pass `parentId` to nest unde
 
 - The board only reflects reality if you keep statuses honest as you go.
 - New demand → **`plan`** skill (understand & organize) before executing.
+- Executing a card → **`implement`** skill (mandatory lifecycle: `in_progress` → read comments → implement → review status → commit → done). Every step is obligatory — don't skip.
+- Closing a task/story → **`review`** skill (mandatory gate, fresh subagent: per-task + story-level — acceptance criteria + reuse/dead-code/comment improvements).
 - **Durable knowledge lives in docs, not in `CLAUDE.md`.** Architecture, data model, decisions (ADRs) and patterns belong in the docs — consult them, don't copy them into `CLAUDE.md`. Keep `CLAUDE.md` lean: it points at the project and its skills and holds only project-specific rules and overrides.
 - Respect the repo's `CLAUDE.md`. When `CLAUDE.md` conflicts with a doc or this skill, `CLAUDE.md` wins — it's the project-specific override.

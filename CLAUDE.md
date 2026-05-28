@@ -5,12 +5,18 @@ system to organize its own development (auto-inception). **International** produ
 
 ## Skills
 
-Two skills drive the work (packaged in `plugins/claude-organizer`):
+Four skills drive the work (packaged in `plugins/claude-organizer`):
 
-- **`claude-organizer`** — how to work the board: orient at the start of a session,
-  work cards, comment with signal, docs.
+- **`claude-organizer`** — how to operate the board: orient at the start of a
+  session, keep statuses honest, comment with signal, docs.
 - **`plan`** — turn a new demand into sprints/histories/tasks (auto-triggers
   when you describe something to build).
+- **`implement`** — execute a card that already exists, through a mandatory
+  lifecycle (in_progress → read comments → implement → review → commit → done).
+  Auto-triggers when you start building a specific card.
+- **`review`** — mandatory review gate before work closes (per-task + story-level),
+  run by a fresh subagent: checks acceptance criteria and hunts for reuse/dead-code/
+  comment improvements. Fired by `implement` at task/story completion.
 
 Let the skills drive. **What** to do (active sprint, cards, backlog, comments,
 docs) is the source of truth and lives **in the MCP**, not here — query it via

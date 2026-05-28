@@ -1,6 +1,6 @@
 {
   "name": "claude-organizer",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "private": true,
   "description": "Project management system for Claude Code: cards, sprints, roadmaps, docs - exposed via MCP",
   "packageManager": "pnpm@9.12.0",
@@ -19,7 +19,7 @@
     "dev:mcp": "pnpm --filter @claude-organizer/mcp dev",
     "dev": "pnpm db:up && pnpm -r --parallel --filter './packages/*' dev",
     "build": "pnpm -r build",
-    "attach-commit": "node plugins/claude-organizer/skills/claude-organizer/scripts/attach-commit.mjs",
+    "attach-commit": "node plugins/claude-organizer/skills/implement/scripts/attach-commit.mjs",
     "bump": "node scripts/bump-version.mjs",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm --filter @claude-organizer/core test",

@@ -5,7 +5,7 @@ description: Use to turn a NEW fuzzy demand — a feature, a change, a fix — i
 
 # Planning a demand into sprints, histories and tasks
 
-Turn an idea into well-formed work through collaborative dialogue, then materialize it as **cards in claude-organizer**. The artifact here is the **cards in the MCP** — not a spec file. Execution happens afterwards via the `claude-organizer` skill, card by card, with the user validating.
+Turn an idea into well-formed work through collaborative dialogue, then materialize it as **cards in claude-organizer**. The artifact here is the **cards in the MCP** — not a spec file. Execution happens afterwards via the **`implement`** skill, card by card, with the user validating.
 
 <HARD-GATE>
 Do NOT write code, scaffold, edit files, or take any implementation action until you have presented the organization (the plan) and the user has approved it. This applies to EVERY demand regardless of perceived simplicity — "too simple to plan" is exactly where wrong assumptions get baked in. The plan can be short, but you MUST present it and get approval.
@@ -33,7 +33,7 @@ Do NOT write code, scaffold, edit files, or take any implementation action until
    - **Completeness** — is each card self-sufficient (the memoryless-session test in _Writing a task_), or did something come out half-written under the volume?
    - **Order** — do the `priority` values reflect the intended top-to-bottom execution order (board order = `priority` descending while un-dragged)? Fix any card left at the default or out of sequence.
    - **Coherence & objective** — step back to the whole: do the cards fit together (dependency order, no gap or contradiction), and does the set actually achieve the objective the user set for that sprint/story? Fix what doesn't — adjust, split, merge or drop cards as needed, and tell the user what you changed.
-7. **Hand off.** Tell the user the plan is on the board; execution proceeds via the `claude-organizer` skill (in_progress → implement → review → done).
+7. **Hand off.** Tell the user the plan is on the board; execution proceeds via the **`implement`** skill, card by card (in_progress → read comments → implement → review → commit → done), with the user validating each card, and the **`review`** skill's gate (per-task + story-level) before work closes.
 
 ## Surfacing decisions, not assuming them
 
