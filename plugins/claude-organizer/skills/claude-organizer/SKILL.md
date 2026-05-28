@@ -41,11 +41,11 @@ Comments routinely carry the decisive context: a card may be flagged _"consolida
 
 ## Working a card
 
-1. **`set_card_status(id, "in_progress")`** before you start, so the board reflects reality.
-2. **Read the card's comments first** — call **`list_comments(cardId)`** _before_ implementing. The user often leaves a correction or constraint on the **card itself**, not just in the session: a comment added after the initial briefing, or one you only skimmed, can change the whole approach. Address it before writing a line of code.
+1. **Read this card's comments first — every card, every time.** Call **`list_comments(cardId)`** _before_ implementing, even if you already read comments on the parent history, on a sibling sub-task, or earlier in the same session. Comments are **per-card**: the user may have left a correction or constraint on _this_ specific card — added after the briefing, posted while you were working another card, or one you only skimmed — that changes the whole approach. Never assume "I already read the history's comments, so this child is covered", and never skip because a sibling had nothing. Re-query for this card and address whatever's there before writing a line of code.
+2. **Always `set_card_status(id, "in_progress")` the moment you start working the card** — non-negotiable, even for a trivial card. The board only reflects reality if every card flips from idle to active in lockstep with you actually picking it up.
 3. **Glance at the docs, then implement.** Scan the docs tree and read what's pertinent to this card's area — the relevant `module`, an `adr` that affects it, a `note` that might carry a constraint. Don't read unrelated docs (a back-end note for a front-end card), but do decide what's worth opening — important context often lives only there.
 4. **`add_comment(cardId, ...)`** to record what carries **signal** — decisions, scope changes, deviations (see _Comments_). This is the project's memory for the next session.
-5. **`set_card_status(id, "review")`** when you believe it's done — and post a **test plan** comment (see below). Then **wait for the user to validate**. Don't self-approve.
+5. **Always `set_card_status(id, "review")` the moment you stop and the user takes over** — when work is done and you're waiting for validation. Do this **even if you haven't committed yet**: the commit only lands after the user confirms it works, but the card belongs in `review` from the instant _you're_ done and _they_ need to look. The status reflects "who holds the ball", not "is there a commit". Always post a **test plan** comment (see below) on the same move, then **wait for the user to validate**. Don't self-approve.
 6. **Attach the commit's diff** — right after the commit lands (one commit per card, key in the message) and the user has confirmed. Run the capture script bundled with this skill: `node "<skill dir>/scripts/attach-commit.mjs" <sha>` — or `python3 "<skill dir>/scripts/attach-commit.py" <sha>` where Node isn't available — `<skill dir>` being this skill's own directory. It runs `git show` in the current repo and POSTs the diff straight to the API (`CO_API_URL`, default `http://127.0.0.1:4400`), so the card's **Changes** section shows what the commit produced. The diff is captured **outside your context on purpose** — **never read it or paste it into a comment** (it would burn tokens and add noise; see _Comments_).
 7. **`set_card_status(id, "done")`** only after the user confirms.
 
@@ -84,7 +84,7 @@ Learn the _criterion_ (signal vs. noise; deducible vs. new) — don't follow a f
 
 **Test plan on review.** When you move a card to `review`, add **one comment** with how to validate it — what to open, what to do, what to expect (and what was already checked, briefly). The console scrollback is ephemeral; this comment is where the user (and you) sees exactly how to test what's in review.
 
-User comments arrive flagged unread. `list_unread_comments` lists them _without_ marking them read; `list_comments(cardId)` marks that card's user comments as read. Check unread comments at session start **and** when you open a card.
+User comments arrive flagged unread. `list_unread_comments` lists them _without_ marking them read; `list_comments(cardId)` marks that card's user comments as read. Check unread comments at session start **and call `list_comments(cardId)` on every card the moment you pick it up to develop** — once per card, every card, including each sub-task of a history (reading the history's comments does **not** cover its children). Never skip this step because you "already read the comments around here".
 
 ## Cards — field reference
 
