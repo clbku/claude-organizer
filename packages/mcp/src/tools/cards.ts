@@ -12,6 +12,7 @@ import {
   listCards,
   moveCardToBacklog,
   moveCardToSprint,
+  reorderCards,
   restoreCard,
   updateCard
 } from '@claude-organizer/core'
@@ -182,6 +183,23 @@ export function registerCardTools(server: McpServer, db: Database) {
       inputSchema: { id: z.string(), status: cardStatus }
     },
     async ({ id, status }) => asJson(await updateCard(db, { id, status }))
+  )
+
+  server.registerTool(
+    'reorder_cards',
+    {
+      description:
+        'Persist the board order of cards in batch: writes position = index (0,1,2,…) for each id in `orderedIds`, in the given order. The board sorts by position ASC, so pass the cards in the order they should appear top-to-bottom. Mirrors the board drag-reorder; use it to order a set of cards programmatically (e.g. by execution order after planning).',
+      inputSchema: {
+        orderedIds: z
+          .array(z.string())
+          .min(1)
+          .describe(
+            'Card ids (crd_xxx) in the desired order; each card gets position = its index in this list.'
+          )
+      }
+    },
+    async ({ orderedIds }) => asJson(await reorderCards(db, { orderedIds }))
   )
 
   server.registerTool(
