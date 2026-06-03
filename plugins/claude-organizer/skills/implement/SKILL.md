@@ -7,7 +7,11 @@ description: Use to EXECUTE a card that already exists on the board in claude-or
 
 This skill governs the **execution of a card that already exists** on the board — a task, a history (story), or the cards of a sprint. Planning produced the card; here you build it and walk it through its lifecycle while keeping the board honest.
 
-If you arrived here without orienting first, stop and orient via the **`claude-organizer`** skill (active sprint, unread comments, the board). To break a new demand into cards, use **`plan`** — not this skill.
+To break a new demand into cards, use **`plan`** — not this skill.
+
+<SKILL-GATE>
+**Load the `claude-organizer` panorama first.** This skill assumes you are oriented on the board. If you have **not** already loaded the **`claude-organizer`** skill in this conversation, invoke it now (Skill tool) and run its start-of-session orientation **before** anything below. If it is already loaded in this conversation, don't reload it — just continue. Don't enter this skill cold.
+</SKILL-GATE>
 
 <HARD-GATE>
 Every step in **The lifecycle** below is **MANDATORY and ORDERED**, for **every** card — trivial or not. You do **not** skip a step, reorder it, or fold it away because:

@@ -7,6 +7,10 @@ description: Use to turn a NEW fuzzy demand — a feature, a change, a fix — i
 
 Turn an idea into well-formed work through collaborative dialogue, then materialize it as **cards in claude-organizer**. The artifact here is the **cards in the MCP** — not a spec file. Execution happens afterwards via the **`implement`** skill, card by card, with the user validating.
 
+<SKILL-GATE>
+**Load the `claude-organizer` panorama first.** This skill assumes you are oriented on the board. If you have **not** already loaded the **`claude-organizer`** skill in this conversation, invoke it now (Skill tool) and run its start-of-session orientation **before** anything below. If it is already loaded in this conversation, don't reload it — just continue. Don't enter this skill cold.
+</SKILL-GATE>
+
 <HARD-GATE>
 Do NOT write code, scaffold, edit files, or take any implementation action until you have presented the organization (the plan) and the user has approved it. This applies to EVERY demand regardless of perceived simplicity — "too simple to plan" is exactly where wrong assumptions get baked in. The plan can be short, but you MUST present it and get approval.
 </HARD-GATE>
