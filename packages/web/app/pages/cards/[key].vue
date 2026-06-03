@@ -16,15 +16,7 @@ const cardKey = computed(() => String(route.params.key))
 useHead({ title: cardKey })
 
 function goBack() {
-  const sprintId = card.value?.sprintId
-  if (!sprintId) {
-    router.push('/tasks')
-    return
-  }
-  const active = sprints.value.find(s => s.status === 'active')
-  router.push(
-    active && active.id === sprintId ? '/board' : `/sprints/${sprintId}`
-  )
+  router.back()
 }
 
 const card = ref<Card | null>(null)
