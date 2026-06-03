@@ -1,3 +1,9 @@
+import { readFileSync } from 'node:fs'
+
+const { version } = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8')
+)
+
 export default defineNuxtConfig({
   // SPA: all data fetching happens in the browser, so only the public API URL
   // matters (no SSR/internal-URL split). See ADR "MCP remoto via HTTP" sibling
@@ -13,7 +19,8 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     public: {
-      apiUrl: process.env.NUXT_PUBLIC_API_URL ?? 'http://127.0.0.1:4400'
+      apiUrl: process.env.NUXT_PUBLIC_API_URL ?? 'http://127.0.0.1:4400',
+      appVersion: version
     }
   },
   future: { compatibilityVersion: 4 },
