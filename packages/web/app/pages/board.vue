@@ -67,32 +67,12 @@ useProjectData(currentProjectId, loadCards, {
   }
 })
 
-// A loose card just dropped into `done` lingers here for a beat before the
-// filter drops it off the board (it lives on the Tasks screen now); vanishing
-// the instant you release the drag reads as a glitch.
-const recentlyDoneLoose = ref<Set<string>>(new Set())
-
-function lingerLooseDone(cardId: string) {
-  recentlyDoneLoose.value = new Set(recentlyDoneLoose.value).add(cardId)
-  setTimeout(() => {
-    const next = new Set(recentlyDoneLoose.value)
-    next.delete(cardId)
-    recentlyDoneLoose.value = next
-  }, 3000)
-}
-
 // Cards shown in the status columns: sprint cards (any status) plus loose cards
-// still in flight. Loose cards in `backlog` (peek-only) and `done` (they live in
-// the Tasks screen now) are excluded; sprint cards in `done` stay. Narrowed by
-// the sprint-presence and tag filters. Story envelopes/grouping live in <BoardColumns>.
+// in any board status, including `done` (a loose done card stays on the board
+// until archived). Only `backlog` (peek-only) is excluded. Narrowed by the
+// sprint-presence and tag filters. Story envelopes/grouping live in <BoardColumns>.
 const columnCards = computed(() => {
-  let list = cards.value.filter((c) => {
-    if (c.status === 'backlog') return false
-    if (!c.sprintId && c.status === 'done' && !recentlyDoneLoose.value.has(c.id)) {
-      return false
-    }
-    return true
-  })
+  let list = cards.value.filter(c => c.status !== 'backlog')
   if (sprintFilter.value === 'sprint') list = list.filter(c => c.sprintId)
   else if (sprintFilter.value === 'loose') list = list.filter(c => !c.sprintId)
   if (selectedTagIds.value.length) {
@@ -126,10 +106,7 @@ async function onReorder({
 }: { status: CardStatus, orderedIds: string[], movedId?: string }) {
   if (movedId) {
     const moved = cards.value.find(c => c.id === movedId)
-    if (moved) {
-      moved.status = status
-      if (status === 'done' && !moved.sprintId) lingerLooseDone(moved.id)
-    }
+    if (moved) moved.status = status
   }
   orderedIds.forEach((id, i) => {
     const c = cards.value.find(x => x.id === id)
