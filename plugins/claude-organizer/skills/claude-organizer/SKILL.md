@@ -99,7 +99,21 @@ Docs are organized into **four top-level groups**; put each new doc under the ri
 
 **Consult the docs before creating or executing a task.** Scan the docs tree first and read what's relevant to the task's area — the `module` for the code you'll touch, an `adr` for a decision that affects it, a `note` that might carry a constraint. You don't need to read _everything_ (no need to read a back-end note for a front-end task), but you DO need to glance at the tree and decide what's worth opening. Important context often lives only in a doc.
 
-Use **`write_doc`** (no `id` creates, `id` updates; pass `parentId` to nest under a group), **`search_docs`** to find, **`read_doc`** for full content. When you make a notable decision, write an `adr` (under the Decisions group) — terse is fine; the _why_ is what matters.
+Use **`write_doc`** (no `id` creates, `id` updates; pass `parentId` to nest under a group), **`search_docs`** to find, **`read_doc`** for full content.
+
+### Record durable knowledge the moment it appears — without being asked
+
+Writing a doc is a **default action, not a favor the user has to request**. Apply the same assertiveness as the signal-vs-noise rule for comments: the moment durable, non-deducible knowledge appears, **write or update the doc yourself** — don't wait to be told. Triggers (learn the criterion, not a fixed list):
+
+- A **decision** with more than one defensible path was made (or reversed) → write an `adr` (Context · Decision · Consequences, terse) under Decisions. Capture the **why**.
+- A **standardization / convention** emerged or changed — a code/UI pattern, a naming or structural rule → update the matching `guide`/`module`.
+- **Long-lived knowledge** about a module/feature — how it works, what it depends on, a gotcha a future reader would trip on → the `module`/`note`.
+
+Rules of thumb:
+
+- **Default to acting, not asking.** Recording is the normal path when the content is durable; only ask the user in a real doubt (e.g. creating a brand-new doc _group_).
+- **Update > duplicate.** If a doc for the area already exists, edit it (pass its `id`) — don't create a second one that drifts.
+- **No doc spam** — the same signal-vs-noise discipline as comments. Durable and non-deducible → record. Ephemeral, obvious, or deducible from the code/board → leave it out. If it would rot on the next refactor or just restate the obvious, it's not a doc.
 
 ## Conventions
 

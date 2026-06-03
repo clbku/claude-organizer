@@ -92,13 +92,17 @@ Now that the behavior is validated, run the **per-task review** via the **`revie
 
 Once the behavior is validated and the per-task review is settled, **let the user review the diff first**. Don't commit on your own initiative. Wait for the user's go-ahead on the actual changes before creating the commit.
 
-### 9. Commit, then attach the commit's diff to the card — **always**
+### 9. Capture durable knowledge in the docs — before you close
+
+Before committing, ask once: **did a decision, a standardization, or long-lived knowledge surface while building this card?** If so, **write or update the doc now** — don't wait to be asked: an `adr` for a decision (with the _why_), the matching `guide`/`module` for a new or changed convention, a `module`/`note` for a durable gotcha. Prefer **updating** an existing doc over creating a second; **skip** the ephemeral or deducible (no doc spam). This checkpoint is what makes the docs habit happen during the work, not just in theory — the full criterion lives in the **`claude-organizer`** skill (_Docs_). Docs live in the MCP, not in git, so this is independent of the commit below.
+
+### 10. Commit, then attach the commit's diff to the card — **always**
 
 - After the user confirms, create **one commit per card**, message in English referencing the key (e.g. `feat(tags): … (CO-4)`), per the repo's `CLAUDE.md` (commit + versioning rules).
 - **Always attach the commit's diff to the card** — right after it lands. Run the project's `pnpm attach-commit <sha>`, or the bundled script in this skill's own `scripts/`: `node "<skill dir>/scripts/attach-commit.mjs" <sha>` (or the `.py` twin where Node isn't available). It runs `git show` and POSTs the diff straight to the API (`CO_API_URL`, default `http://127.0.0.1:4400`), so the card's **Changes** section shows what the commit produced.
 - The diff is captured **outside your context on purpose** — **never read it or paste it into a comment** (it burns tokens and adds noise).
 
-### 10. Move to `done` — **always**, only after the user confirms
+### 11. Move to `done` — **always**, only after the user confirms
 
 **`set_card_status(id, "done")`** once the user has confirmed it works. Don't leave a validated card sitting in `review`, and never mark `done` before validation.
 
@@ -109,7 +113,7 @@ If this is the **last child of a story**, the **story-level review gate** fires 
 Work gets an independent review so acceptance criteria are actually met and the change carries no more code than it needs. Don't review it yourself — the **`review`** skill spawns a **fresh subagent** for objective eyes, reports the findings, and asks what to do (fix now / follow-up card / other). Fixes come back through this lifecycle. There are **two levels**, at **two moments**:
 
 - **Per task — before commit (step 7).** Reviews **that task's working-tree diff** (`git diff`): its own acceptance criteria + reuse/dead-code/comments. Fixes fold into the single commit. A **trivial** task (one-liner, rename, config — nothing with real logic) may **skip** by quick judgment; note the skip so it's visible, not silent.
-- **Per story — when the last child is done, before the story closes (step 10).** An additional pass over the **whole story** (≈ one PR), from the story's **commits / branch diff** (`git diff <base>...HEAD`), scoped to what a single task can't see: **the story's acceptance criteria**, **duplication across tasks**, **coherence of the PR**. It does **not** re-review each task line-by-line — the per-task gates already did. A **standalone task** (no parent) has no story layer: its per-task review *is* the whole review.
+- **Per story — when the last child is done, before the story closes (step 11).** An additional pass over the **whole story** (≈ one PR), from the story's **commits / branch diff** (`git diff <base>...HEAD`), scoped to what a single task can't see: **the story's acceptance criteria**, **duplication across tasks**, **coherence of the PR**. It does **not** re-review each task line-by-line — the per-task gates already did. A **standalone task** (no parent) has no story layer: its per-task review *is* the whole review.
 
 Skipping a gate (beyond the trivial-task exception) is a defect.
 
@@ -138,5 +142,6 @@ For each card, in order — no step skipped. **Standing rule: never assume — a
 6. `review` status the moment you hand off (even uncommitted) + test-plan comment → wait for behavioral validation.
 7. **Per-task review gate** (`review` skill, fresh subagent, working-tree diff; skip only if trivial) → report & ask → fixes fold in.
 8. Let the user review the diff before committing.
-9. Commit (one per card, key in message) → attach the diff to the card.
-10. `done` after the user confirms — and if this is a story's last child, the **story-level review gate** first, then close the story.
+9. Capture durable knowledge in the docs (decision/convention/gotcha → write or update the doc; skip the ephemeral).
+10. Commit (one per card, key in message) → attach the diff to the card.
+11. `done` after the user confirms — and if this is a story's last child, the **story-level review gate** first, then close the story.

@@ -44,7 +44,11 @@ Both gates are **mandatory** and the `implement` skill fires them automatically 
 
 ## How — spawn a fresh subagent
 
-Do **not** review in this context. Spawn a **subagent** (`Agent` tool) per pass, starting from a clean slate, and give it what it needs to work alone:
+Do **not** review in this context. Spawn a **subagent** (`Agent` tool) per pass, starting from a clean slate, and give it what it needs to work alone.
+
+**Use the `general-purpose` agent type.** Spawn with `subagent_type: "general-purpose"` (it can run git and read files) and put the **review mandate in the prompt** — the scope, checks, and output format below.
+
+Give the subagent:
 
 - **The card** — pass the **card id or key** (e.g. `CO-42`). For a per-task review, that task; for a story review, the **story** (the subagent reads the parent **and all children** via `get_card` / `get_card_by_key` + `list_comments`, so it has the acceptance criteria and any constraints from comments straight from the source). You may also paste the criteria inline, but the id lets it pull the full current context itself.
 - **The changeset, from git** (not the attached-commit blobs):
@@ -72,6 +76,7 @@ Then review the change the way a **senior engineer reviewing a real PR** would. 
 - **No more code than needed** — dead code, unused exports, speculative options nobody asked for, copy-paste, over-engineering for a case the card doesn't require.
 - **Comments that earn their place** — comments that restate the code or narrate the obvious, per the project's comment rules (capture a non-obvious *why*, not the *what*). Don't flag comments that carry real signal.
 - **Consistency with the codebase** — deviations from the project's established patterns/conventions where there's no reason to deviate.
+- **Docs reflect durable changes** — a decision, a new or changed convention, or durable module knowledge introduced by this change should be recorded in the project docs (`adr`/`guide`/`module`/`note`). If a notable decision or pattern from the diff isn't reflected there, flag it (type `docs`). Don't write the doc or create a card here — just surface the gap, per the docs discipline in the `claude-organizer` skill.
 
 Match the depth to the change: don't manufacture findings to look thorough, and don't wave through a risky one because the diff is small. Frame each finding as an **improvement with a rationale**, not a nitpick — what, where (`file:line`), why it matters, the concrete fix, and how sure you are.
 
@@ -83,7 +88,7 @@ Match the depth to the change: don't manufacture findings to look thorough, and 
   …one line per criterion in scope…
 
 ## Findings
-- [bug | security | performance | dependency | complexity | reuse | dead-code | comment | consistency | other] <file:line> — <what & why> → <suggested fix> (severity: high|med|low)
+- [bug | security | performance | dependency | complexity | reuse | dead-code | comment | consistency | docs | other] <file:line> — <what & why> → <suggested fix> (severity: high|med|low)
   …one per finding, ordered by severity; empty if none…
 
 ## Verdict
