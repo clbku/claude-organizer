@@ -1,11 +1,14 @@
 # claude-organizer (Claude Code plugin)
 
-Four skills:
+Five skills:
 
 - **`claude-organizer`** — how to **operate** the board: orient at the start of a session, keep statuses honest, comment with signal (not noise), docs.
 - **`plan`** — turn a **new demand** into sprints/histories/tasks. Triggers automatically when you describe something to build.
 - **`implement`** — **execute** a card that already exists, through a mandatory lifecycle (`in_progress` → read comments → implement → review → commit → done). Triggers when you start building a specific card.
 - **`review`** — the **mandatory review gate** before work closes (per-task and story-level), run by a fresh subagent: checks acceptance criteria and hunts for reuse/dead-code/comment improvements. Fired by `implement` at task/story completion.
+- **`autopilot`** — **run the board autonomously**: advance through several ready cards as independent PRs off `main` (trunk-based, no stacked PRs), guided by the blocker graph. Settles each ready card's decisions up front, asks sequential vs. parallel (worktrees), and stops when only PR-dependent/blocked work remains — never merging to `main` itself.
+
+The shared "never assume — resolve open decisions" doctrine lives once in `shared/deciding.md`; `plan`, `implement` and `autopilot` reference it.
 
 ## Installation
 
@@ -28,7 +31,7 @@ Installing the plugin registers the `claude-organizer` MCP automatically (bundle
 
 ## The MCP server
 
-The plugin ships the two skills **and** registers an MCP client pointing at an HTTP URL — but the MCP **server** must be running somewhere:
+The plugin ships the skills **and** registers an MCP client pointing at an HTTP URL — but the MCP **server** must be running somewhere:
 
 - **Local**: run the stack (Postgres + the MCP over HTTP) from this monorepo via Docker. Default URL `http://localhost:4402/mcp`, no auth.
 - **Remote / VPS**: point the plugin at your host by exporting `CO_MCP_URL` (e.g. `https://mcp.example.com/mcp`); if the server requires a token, also export `CO_MCP_TOKEN`.

@@ -26,27 +26,12 @@ The board is only honest if **every** card walks the **full** lifecycle in locks
 
 ## Never assume — ask the user
 
-Execution constantly hits things the card didn't fully nail down. **Never assume your way past one — ask.** This covers **both** kinds of unknown, exactly as the `plan` skill separates them:
+Execution constantly hits things the card didn't fully nail down. **Never assume your way past one — ask.** The full doctrine — the two kinds of unknown (ambiguities vs. decisions), how to surface a decision as ready-made options with trade-offs and a recommendation, one topic per message, chaining, checking the card first, and recording the answer — lives in **`../../shared/deciding.md`** (relative to this skill's base directory). Read it and apply it. A wrong assumption baked into code is expensive to undo; asking now is far cheaper than rebuilding later.
 
-- **Ambiguities** — anything unclear about what the user wants: vague wording, an unstated expectation, an edge case the card doesn't mention, "did they mean X or Y?". Even a *small* ambiguity gets a question — don't resolve it by guessing the "probably intended" reading.
-- **Decisions** — open choices where more than one reasonable path exists: which library or existing helper, how to shape data, where code lives, a naming/contract call, behavior on an edge case.
+Two things specific to **execution** (vs. planning):
 
-A wrong assumption baked into code is expensive to undo and is often not what the user wanted; asking now is far cheaper than rebuilding later. **Make it clear what you're about to do** — before building, state the approach in plain terms so the user can catch a wrong assumption *before* it's code. Don't disappear and come back with choices already made.
-
-Apply the **same method as the `plan` skill**:
-
-- **For an ambiguity**, a direct question is fine (open-ended where that fits). **For a decision**, present **ready-made options**, not "what do you think?" — each concrete and worked out, with its **trade-offs (pros/cons)**, and the one you **recommend** marked, with the reason.
-- **One topic per message**; prefer multiple-choice. Use the `AskUserQuestion` tool.
-- **Unknowns chain** — settle the earlier one first, because it narrows the next.
-- **Research when you can't offer good options from knowledge alone** (e.g. which library, its trade-offs), then present what you found.
-
-Keep asking until **nothing material is left to guess**. Assuming instead of asking is a **defect**, the same as skipping a lifecycle step.
-
-**Check before you ask — the answer may already exist.** It may be settled in the card's **description** or, crucially, in its **comments** (this is exactly why reading comments at task start is mandatory, even if you read them before — see step 2). Only ask what isn't already answered; don't re-litigate a settled call.
-
-**Record the answer once you have it.** Save each resolved decision/clarification as a **comment** on the card (it's signal — see step 5), so it survives for the next session and isn't re-asked.
-
-**A story is decided up front, as a whole.** Before you start building a story with several cards, **read all of its cards** (description + comments) and gather **every** open decision and ambiguity across them, then clear them with the user **before writing code**. Don't start card 1, hit a fork mid-way, and guess — surface the doubts as a batch (still one decision per message, chained) so the whole story is unblocked before execution begins.
+- **The moment you hit one mid-build, stop and ask** — don't push past it. Fold the answer back in and record it as a **comment** on the card (it's signal — see step 5), so it survives for the next session.
+- **A story is decided up front, as a whole.** Before building a story with several cards, **read all of its cards** (description + comments) and gather **every** open decision and ambiguity across them, then clear them with the user **before writing code**. Don't start card 1, hit a fork mid-way, and guess — surface the doubts as a batch (still one per message, chained) so the whole story is unblocked before execution begins.
 
 ## The lifecycle — every card, every time, in order
 

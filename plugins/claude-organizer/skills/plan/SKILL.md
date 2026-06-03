@@ -46,15 +46,9 @@ Do NOT write code, scaffold, edit files, or take any implementation action until
 
 A demand almost always hides choices with more than one defensible answer. The wrong move — and the easy one — is to silently pick one and bake it into a card; that's a decision made _for_ the user instead of _by_ them. Surface it. This holds even for demands that look trivial: "too simple to have decisions" is exactly where a silent assumption slips in.
 
-For each open decision, present **ready-made options** — concrete and already worked out, not "what do you think?". Each option carries its **trade-offs (pros and cons)**, and you mark the one you **recommend**, with the reason. This serves both the user who just takes the recommendation and the one who knows enough to choose differently. When you can't offer good options from knowledge alone — _which_ weather API exists, its free tier, accuracy, rate limits — **research first**, then present what you found. A multiple-choice fits: each option's description holds its trade-offs, the recommended one marked.
+The method — ready-made options with trade-offs and a recommendation, one topic per message, chaining (settle the earlier choice first because it narrows the next), research when you can't offer good options from knowledge alone — is the shared doctrine in **`../../shared/deciding.md`** (relative to this skill's base directory). Read it and apply it. Example chain: "get the current temperature" hides *how to access it* (Node/Python/shell) then *which weather API* (free tier, accuracy, rate limits); "build an auth system" hides OAuth-or-not, identity providers, session as token or cookie, hashing algorithm, and so on.
 
-Decisions often **chain** — settle the earlier one first, because it narrows the next. "Get the current temperature" hides at least two, in order:
-1. **How to access it** — Node, Python, a shell one-liner… each with trade-offs (what's already installed, dependencies, how it'll run). Recommend one.
-2. **Where the data comes from** — _which_ weather API (open vs. key-gated, free tier, accuracy, rate limits) or scraping. Recommend one.
-
-Only once both are settled do you create the card — now aligned with what the user wants, not a guess. "Build an auth system" hides more: OAuth or not, third-party identity providers, session as token or cookie, hashing algorithm, and so on.
-
-**These are the decisions that shape the _card_ — the _what_, not the _how_.** Stop at the choices needed to write a well-formed card. The implementation may surface further decisions later; those belong to execution (the `claude-organizer` skill), not here. Don't drift into designing the code.
+**What's specific to planning: these are the decisions that shape the _card_ — the _what_, not the _how_.** Stop at the choices needed to write a well-formed card, and fold each answer into the card before creating it (a decision that lives only in chat is lost). The implementation may surface further decisions later; those belong to execution (the `implement` skill), not here. Don't drift into designing the code.
 
 ## Granularity — Scrum, adapted for full-IA execution
 

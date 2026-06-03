@@ -9,11 +9,12 @@ claude-organizer is a "Jira for Claude Code" exposed over MCP. It holds a projec
 
 A fresh session starts with no memory of past work. This system is how continuity is preserved: the active sprint says what matters now, cards carry the detail, comments carry the back-and-forth with the user, and docs carry the architecture and decisions. Read it first; keep it honest.
 
-> **Four skills, one board.** This skill covers **operating** the board — orienting, reading state, keeping it honest, comments and docs. The other three own distinct phases:
+> **Five skills, one board.** This skill covers **operating** the board — orienting, reading state, keeping it honest, comments and docs. The other four own distinct phases:
 >
 > - **`plan`** — when the user brings a **new demand** (a feature, a change, a fix) to turn into work: it understands the demand and organizes it into sprints/histories/tasks. Planning, not code.
 > - **`implement`** — when you **execute** a card that already exists (a task, a story, a sprint's cards): it owns the **mandatory execution lifecycle** (`in_progress` → read comments → implement → commit → done). The moment you start building a specific card, that skill drives — every step is mandatory.
 > - **`review`** — the **mandatory review gate** the `implement` skill fires before work closes: a per-task review and a story-level review, run by a **fresh subagent** that checks acceptance criteria and hunts for reuse/dead-code/comment improvements.
+> - **`autopilot`** — when the user asks to **run the board on its own** ("run the board", "knock out the ready tasks"): it advances through several ready cards as **independent PRs off `main`** (trunk-based, no stacked PRs), guided by the blocker graph — settling each ready card's decisions up front, then driving `implement`+`review` per card, and stopping when only PR-dependent/blocked work remains. It never merges to `main` itself.
 >
 > Use this skill to orient and to keep the board honest throughout.
 
@@ -50,6 +51,7 @@ This skill is the **panorama of how to use the board**. The actual workflow rule
 - **New demand → `plan`.** Turning a fuzzy feature/change/fix into sprints/histories/tasks (clarifying, surfacing decisions, writing the cards) is the **`plan`** skill's job. Don't plan ad-hoc here.
 - **Executing a card → `implement`.** The moment you start building a specific card, the **`implement`** skill drives — it owns the mandatory execution lifecycle so no step gets skipped. Don't reconstruct that flow from memory here.
 - **Closing a task/story → `review`.** Before work closes, the `implement` skill fires the **`review`** skill's mandatory gate (per-task and story-level), run by a fresh subagent. Don't review your own work inline here.
+- **Running the board on its own → `autopilot`.** When the user wants the AI to advance through several ready cards autonomously (independent PRs off `main`, no stacked PRs), the **`autopilot`** skill drives the board-level orchestration around `implement`+`review`. Don't improvise an autonomous run here.
 
 Everything below is about **operating** the board itself — comments, card/sprint structure, docs — and applies across all phases.
 
@@ -121,5 +123,6 @@ Rules of thumb:
 - New demand → **`plan`** skill (understand & organize) before executing.
 - Executing a card → **`implement`** skill (mandatory lifecycle: `in_progress` → read comments → implement → review status → commit → done). Every step is obligatory — don't skip.
 - Closing a task/story → **`review`** skill (mandatory gate, fresh subagent: per-task + story-level — acceptance criteria + reuse/dead-code/comment improvements).
+- Running the board autonomously → **`autopilot`** skill (board-level orchestrator: ready set from the blocker graph → decide it up front → independent PRs off `main`, no stacked PRs → stop & report; never merges to `main`).
 - **Durable knowledge lives in docs, not in `CLAUDE.md`.** Architecture, data model, decisions (ADRs) and patterns belong in the docs — consult them, don't copy them into `CLAUDE.md`. Keep `CLAUDE.md` lean: it points at the project and its skills and holds only project-specific rules and overrides.
 - Respect the repo's `CLAUDE.md`. When `CLAUDE.md` conflicts with a doc or this skill, `CLAUDE.md` wins — it's the project-specific override.
