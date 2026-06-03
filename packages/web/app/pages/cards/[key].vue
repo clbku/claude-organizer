@@ -18,7 +18,7 @@ useHead({ title: cardKey })
 function goBack() {
   const sprintId = card.value?.sprintId
   if (!sprintId) {
-    router.push('/backlog')
+    router.push('/tasks')
     return
   }
   const active = sprints.value.find(s => s.status === 'active')

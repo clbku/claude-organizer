@@ -51,7 +51,7 @@ async function loadCards() {
         query: { projectId, sprintId: sprintIdLocal }
       }),
       api<Card[]>('/cards', {
-        query: { projectId, backlogOnly: 'true' }
+        query: { projectId, backlogOnly: 'true', status: 'backlog' }
       }),
       fetchArchived
     ])

@@ -21,6 +21,8 @@ const props = withDefaults(
     size?: 'xs' | 'sm' | 'md'
     /** Show the Archive action — set false for an already-archived entity. */
     canArchive?: boolean
+    /** Extra menu groups shown above Archive/Destroy (e.g. move actions). */
+    extraSections?: DropdownMenuItem[][]
   }>(),
   { cascadeCount: 0, cascadeNoun: 'item', size: 'sm', canArchive: true }
 )
@@ -38,10 +40,10 @@ const destroyOpen = ref(false)
 const archiving = ref(false)
 const destroying = ref(false)
 
-const items = computed<DropdownMenuItem[]>(() => {
-  const list: DropdownMenuItem[] = []
+const items = computed<DropdownMenuItem[][]>(() => {
+  const own: DropdownMenuItem[] = []
   if (props.canArchive) {
-    list.push({
+    own.push({
       label: 'Archive',
       icon: 'i-lucide-archive',
       onSelect: () => {
@@ -49,7 +51,7 @@ const items = computed<DropdownMenuItem[]>(() => {
       }
     })
   }
-  list.push({
+  own.push({
     label: 'Destroy',
     icon: 'i-lucide-trash-2',
     color: 'error',
@@ -57,7 +59,7 @@ const items = computed<DropdownMenuItem[]>(() => {
       destroyOpen.value = true
     }
   })
-  return list
+  return [...(props.extraSections ?? []), own]
 })
 
 const cascadeText = computed(() => {

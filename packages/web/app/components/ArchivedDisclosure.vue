@@ -1,8 +1,9 @@
 <script setup lang="ts">
-// Collapsible "Archived" section, closed by default. Hidden entirely when the
-// count is 0 (nothing to reveal). Body goes in the default slot.
-withDefaults(defineProps<{ count: number, label?: string }>(), {
-  label: 'Archived'
+// Collapsible section, closed by default. Hidden entirely when the count is 0
+// (nothing to reveal). Body goes in the default slot.
+withDefaults(defineProps<{ count: number, label?: string, icon?: string }>(), {
+  label: 'Archived',
+  icon: 'i-lucide-archive'
 })
 
 const open = ref(false)
@@ -19,7 +20,7 @@ const open = ref(false)
         :name="open ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
         class="size-4 shrink-0"
       />
-      <UIcon name="i-lucide-archive" class="size-4 shrink-0" />
+      <UIcon :name="icon" class="size-4 shrink-0" />
       {{ label }}
       <span class="text-default">({{ count }})</span>
     </button>

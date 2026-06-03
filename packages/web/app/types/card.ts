@@ -8,7 +8,7 @@ export type {
 } from '@claude-organizer/shared'
 
 // Board columns, in order. `backlog` is intentionally absent: backlog cards
-// live on the Backlog page, not in a board column.
+// live on the Tasks page, not in a board column.
 export const cardStatusOrder: CardStatus[] = [
   'todo',
   'in_progress',
