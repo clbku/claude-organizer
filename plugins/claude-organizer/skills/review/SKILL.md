@@ -42,58 +42,22 @@ A task with **no parent** is its own unit (≈ its own PR). It gets a **single r
 Both gates are **mandatory** and the `implement` skill fires them automatically — they are **not** optional and **not** skippable because the work "looks fine" (trivial tasks are the only exception, and only at the per-task level). The point is exactly that the implementing session's confidence is unreliable; an independent pass catches what it's blind to. Run the gate **before** the unit closes (`done`). Skipping it is a defect.
 </HARD-GATE>
 
-## How — spawn a fresh subagent
+## How — dispatch the `card-reviewer` agent
 
-Do **not** review in this context. Spawn a **subagent** (`Agent` tool) per pass, starting from a clean slate, and give it what it needs to work alone.
+Do **not** review in this context. Spawn a **fresh subagent** per pass, starting from a clean slate.
 
-**Use the `general-purpose` agent type.** Spawn with `subagent_type: "general-purpose"` (it can run git and read files) and put the **review mandate in the prompt** — the scope, checks, and output format below.
+**Use the dedicated `claude-organizer:card-reviewer` agent** (`Agent` tool, `subagent_type: "claude-organizer:card-reviewer"`). It is **read-only by construction** — its tool roster has no `Edit`/`Write` and no board-write MCP tools, so it physically **cannot** fix code or touch the board, only read code + git + the board and report. The full review **mandate** (scope discipline, the checks, the output format) lives in the **agent definition** — this skill does not restate it; it just hands the agent the scope and the changeset.
 
-Give the subagent:
+Give the agent, in the spawn prompt:
 
-- **The card** — pass the **card id or key** (e.g. `CO-42`). For a per-task review, that task; for a story review, the **story** (the subagent reads the parent **and all children** via `get_card` / `get_card_by_key` + `list_comments`, so it has the acceptance criteria and any constraints from comments straight from the source). You may also paste the criteria inline, but the id lets it pull the full current context itself.
-- **The changeset, from git** (not the attached-commit blobs):
-  - **per-task** → that task's change: the task's commit (`git show <sha>`) or the working-tree diff of just that task's files.
-  - **story** → the whole unit: the branch/PR diff against the base (`git diff <base>...HEAD`), or the commits whose messages reference the story's key **and its children's keys**.
-  It reads the **actual changed files**, and for reuse checks **searches the surrounding codebase** for existing helpers/components — reuse can't be judged from the diff alone.
-- **The mandate** — the scope for this level (above), the checks (below), and the **output format** (below).
+- **The card** — pass the **card id or key** (e.g. `CO-42`) **and the scope** (per-task / story / standalone). The agent pulls the card itself (`get_card` / `get_card_by_key` + `list_comments`; for a story, the parent **and all children**) so it has the acceptance criteria and constraints **straight from the source**.
+- **The changeset spec** — how to see exactly the code in scope (it runs the git itself; don't paste diffs):
+  - **per-task / standalone** → that task's commit (`git show <sha>`) or the working-tree diff of just its files (`git diff`).
+  - **story** → the whole unit: the branch/PR diff against the base (`git diff <base>...HEAD`), or the commits referencing the story's key **and its children's keys**.
 
-The subagent **finds and reports** — it does not fix and does not touch the board. It returns its findings to you as data.
+The agent returns a structured report — **Acceptance criteria** (met/partial/not-met per criterion, with evidence), **Findings** (typed, ordered by severity, with `file:line` + fix + severity), and a one-line **Verdict** — as data, not prose. It **finds and reports**; it does not fix and does not touch the board.
 
-### What the subagent checks
-
-**Acceptance criteria come first** — that's what the review is *for*:
-
-1. **Acceptance criteria — met, and met well.** For each criterion in scope, decide **met / partial / not-met** with concrete evidence (the file/function that satisfies it, or what's missing). "Met well" counts: a criterion satisfied by convoluted or fragile code is **partial**.
-
-Then review the change the way a **senior engineer reviewing a real PR** would. The lenses below are the **usual suspects, not an exhaustive checklist** — apply the ones that fit *this* change (a CSS tweak has no DB concern; a query change does), and follow your nose to whatever else looks wrong:
-
-- **Correctness & edge cases** — bugs, off-by-one, unhandled `null`/empty/error paths, race conditions, broken assumptions, wrong status codes, missing `await`.
-- **Security** — injection (SQL/command/XSS), missing authz/authn or tenant checks, secrets or tokens committed, unsafe handling of user input, overly broad permissions, sensitive data in logs.
-- **Performance & data access** — DB query problems (N+1, missing index, over-fetching columns/rows, query in a loop, missing pagination), expensive work in hot paths, needless re-renders/recomputation, unbounded memory.
-- **Dependencies** — newly added or bumped packages that are **outdated, deprecated, unmaintained, or carry known vulnerabilities**; a heavyweight dep for something trivial the codebase or stdlib already does; and the project's supply-chain rule (don't adopt a version published <7 days ago).
-- **Complexity** — functions/components doing too much, deep nesting, tangled control flow, premature abstraction. Flag what should be simplified or split, with the simpler shape.
-- **Reuse over reinvention** — re-implementing a util/helper/hook/component/type/constant the codebase already provides. Point at the existing thing. (Story level: focus on duplication **between tasks**.)
-- **No more code than needed** — dead code, unused exports, speculative options nobody asked for, copy-paste, over-engineering for a case the card doesn't require.
-- **Comments that earn their place** — comments that restate the code or narrate the obvious, per the project's comment rules (capture a non-obvious *why*, not the *what*). Don't flag comments that carry real signal.
-- **Consistency with the codebase** — deviations from the project's established patterns/conventions where there's no reason to deviate.
-- **Docs reflect durable changes** — a decision, a new or changed convention, or durable module knowledge introduced by this change should be recorded in the project docs (`adr`/`guide`/`module`/`note`). If a notable decision or pattern from the diff isn't reflected there, flag it (type `docs`). Don't write the doc or create a card here — just surface the gap, per the docs discipline in the `claude-organizer` skill.
-
-Match the depth to the change: don't manufacture findings to look thorough, and don't wave through a risky one because the diff is small. Frame each finding as an **improvement with a rationale**, not a nitpick — what, where (`file:line`), why it matters, the concrete fix, and how sure you are.
-
-### Output format the subagent returns
-
-```
-## Acceptance criteria
-- [met | partial | not-met] <criterion> — <evidence / what's missing>
-  …one line per criterion in scope…
-
-## Findings
-- [bug | security | performance | dependency | complexity | reuse | dead-code | comment | consistency | docs | other] <file:line> — <what & why> → <suggested fix> (severity: high|med|low)
-  …one per finding, ordered by severity; empty if none…
-
-## Verdict
-<one line: are the in-scope acceptance criteria met the right way? biggest thing to address, if any>
-```
+> If `subagent_type: "claude-organizer:card-reviewer"` isn't resolvable in this environment (agent not loaded), fall back to `general-purpose` and paste the mandate from `agents/card-reviewer.md` into the prompt — but prefer the named agent, so the read-only roster is enforced.
 
 ## After the subagent returns — report, then ask
 

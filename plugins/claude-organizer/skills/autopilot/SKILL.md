@@ -84,7 +84,7 @@ One subagent (`Agent` tool, `subagent_type: "general-purpose"`) per ready card, 
 A subagent does **not** load this session's skills and can't be relied on to invoke the Skill tool. So the orchestrator **assembles each subagent's prompt inline** — paste, as text:
 
 - the **relevant `claude-organizer`** orientation (board/comments/docs conventions, signal-vs-noise for comments);
-- the **`implement` lifecycle** (the steps it must walk) and the **`review` gate** (it runs the per-task review via a *further* fresh subagent, or returns its own diff for the orchestrator to review — decide per run);
+- the **`implement` lifecycle** (the steps it must walk) and the **`review` gate** — the executor runs the per-task review by spawning the dedicated **`claude-organizer:card-reviewer`** agent (read-only by construction; the mandate lives in the agent, so it needn't be embedded), or returns its own diff for the orchestrator to review — decide per run;
 - the **decision doctrine** from `../../shared/deciding.md`, **with the override that the subagent must NOT ask the user** (point 3 below);
 - the **full card** — description **and comments** (already decided in Phase 2);
 - the relevant **`CLAUDE.md` overrides** (commit message format, versioning, import/gotcha rules);
