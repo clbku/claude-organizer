@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Use to turn a NEW fuzzy demand — a feature, a change, a fix — into structured work in claude-organizer (sprints, histories/stories, tasks). Trigger whenever the user describes something new to build (a feature, a change, a fix) before it's broken down, or asks to plan/organize the work. Understands the demand, organizes it, gets the design approved, then creates the cards. This is PLANNING, not execution — do NOT write code here.
+description: Use to turn a NEW fuzzy demand — a feature, a change, a fix — into structured work in claude-organizer (sprints, histories/stories, tasks). Trigger whenever the user describes something new to build (a feature, a change, a fix) before it's broken down, asks to plan/organize the work, or asks to CREATE A CARD (or several) — card creation always runs through this skill, never a direct create_card call. Even a single obvious card goes through here. Understands the demand, organizes it, gets the design approved, then creates the cards. This is PLANNING, not execution — do NOT write code here.
 ---
 
 # Planning a demand into sprints, histories and tasks
