@@ -280,7 +280,7 @@ const plannedCompleted = computed(() => planned.value.filter(i => i.completed))
               >
                 <AppMarkdown
                   :value="item.bodyMd"
-                  class="flex-1 min-w-0 text-muted line-clamp-1"
+                  class="flex-1 min-w-0 text-muted line-clamp-1 cursor-default"
                 />
                 <UButton
                   icon="i-lucide-archive-restore"
