@@ -14,6 +14,8 @@ import type {
   CommentRow,
   DocKind,
   DocRow,
+  IntakeItemRow,
+  IntakeStatus,
   ProjectRow,
   RepoProvider,
   RoadmapRow,
@@ -30,6 +32,8 @@ import {
   comments,
   docKindEnum,
   docs,
+  intakeItems,
+  intakeStatusEnum,
   projects,
   repoProviderEnum,
   roadmaps,
@@ -68,9 +72,11 @@ export type SchemaConformance = [
   Assert<Equal<ProjectRow, Wire<InferSelectModel<typeof projects>>>>,
   Assert<Equal<TagRow, Wire<InferSelectModel<typeof tags>>>>,
   Assert<Equal<RoadmapRow, Wire<InferSelectModel<typeof roadmaps>>>>,
+  Assert<Equal<IntakeItemRow, Wire<InferSelectModel<typeof intakeItems>>>>,
   Assert<Equal<CardStatus, (typeof cardStatusEnum.enumValues)[number]>>,
   Assert<Equal<SprintStatus, (typeof sprintStatusEnum.enumValues)[number]>>,
   Assert<Equal<CommentAuthor, (typeof commentAuthorEnum.enumValues)[number]>>,
   Assert<Equal<DocKind, (typeof docKindEnum.enumValues)[number]>>,
-  Assert<Equal<RepoProvider, (typeof repoProviderEnum.enumValues)[number]>>
+  Assert<Equal<RepoProvider, (typeof repoProviderEnum.enumValues)[number]>>,
+  Assert<Equal<IntakeStatus, (typeof intakeStatusEnum.enumValues)[number]>>
 ]

@@ -26,3 +26,9 @@ export const docKindEnum = pgEnum('doc_kind', [
 ])
 
 export const repoProviderEnum = pgEnum('repo_provider', ['github', 'gitlab'])
+
+export const intakeStatusEnum = pgEnum('intake_status', [
+  'pending',
+  'planned',
+  'archived'
+])
