@@ -32,6 +32,9 @@ const links = computed<NavigationMenuItem[][]>(() => [
     { label: 'Sprints', icon: 'i-lucide-timer', to: '/sprints' },
     { label: 'Tasks', icon: 'i-lucide-list-todo', to: '/tasks' },
     { label: 'Docs', icon: 'i-lucide-book', to: '/docs' }
+  ],
+  [
+    { label: 'Settings', icon: 'i-lucide-settings', to: '/settings' }
   ]
 ])
 </script>
