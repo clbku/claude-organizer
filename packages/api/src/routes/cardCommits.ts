@@ -1,7 +1,11 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 
-import { attachCardCommit, listCardCommits } from '@claude-organizer/core'
+import {
+  attachCardCommit,
+  clearWorkingTreeCommit,
+  listCardCommits
+} from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
 
 // `committedAt` arrives as an ISO string on the wire; the core coerces it.
@@ -29,5 +33,14 @@ export function registerCardCommitRoutes(app: FastifyInstance, db: Database) {
   app.get<{ Params: { cardId: string } }>(
     '/cards/:cardId/commits',
     async req => listCardCommits(db, req.params.cardId)
+  )
+
+  // Clear the pending working-tree diff (sentinel) when the tree is clean.
+  app.delete<{ Params: { key: string } }>(
+    '/cards/:key/commits/working',
+    async (req) => {
+      const cleared = await clearWorkingTreeCommit(db, req.params.key)
+      return { cleared: cleared !== null }
+    }
   )
 }

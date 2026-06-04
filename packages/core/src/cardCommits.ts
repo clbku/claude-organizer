@@ -2,6 +2,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { createId, type Database, schema } from '@claude-organizer/db'
+import { WORKING_TREE_SHA } from '@claude-organizer/shared'
 
 import { InputError } from './errors'
 import { notify } from './events'
@@ -55,19 +56,35 @@ export async function attachCardCommit(
     committedAt: parsed.committedAt ?? null,
     authorName: parsed.authorName ?? null
   }
-  const [row] = await db
-    .insert(schema.cardCommits)
-    .values({
-      id: createId('ccm'),
-      cardId: card.id,
-      sha: parsed.sha,
-      ...values
-    })
-    .onConflictDoUpdate({
-      target: [schema.cardCommits.cardId, schema.cardCommits.sha],
-      set: values
-    })
-    .returning()
+  const row = await db.transaction(async (tx) => {
+    const [inserted] = await tx
+      .insert(schema.cardCommits)
+      .values({
+        id: createId('ccm'),
+        cardId: card.id,
+        sha: parsed.sha,
+        ...values
+      })
+      .onConflictDoUpdate({
+        target: [schema.cardCommits.cardId, schema.cardCommits.sha],
+        set: values
+      })
+      .returning()
+
+    // The guard stops a sentinel upsert from deleting the row it just wrote.
+    if (parsed.sha !== WORKING_TREE_SHA) {
+      await tx
+        .delete(schema.cardCommits)
+        .where(
+          and(
+            eq(schema.cardCommits.cardId, card.id),
+            eq(schema.cardCommits.sha, WORKING_TREE_SHA)
+          )
+        )
+    }
+    return inserted
+  })
+
   if (row) {
     await notify(db, {
       type: 'commit.changed',
@@ -77,6 +94,35 @@ export async function attachCardCommit(
     })
   }
   return row
+}
+
+export async function clearWorkingTreeCommit(db: Database, cardKey: string) {
+  const [card] = await db
+    .select({ id: schema.cards.id, projectId: schema.cards.projectId })
+    .from(schema.cards)
+    .where(eq(schema.cards.key, cardKey))
+    .limit(1)
+  if (!card) {
+    throw new InputError(`Card ${cardKey} not found`)
+  }
+  const [row] = await db
+    .delete(schema.cardCommits)
+    .where(
+      and(
+        eq(schema.cardCommits.cardId, card.id),
+        eq(schema.cardCommits.sha, WORKING_TREE_SHA)
+      )
+    )
+    .returning()
+  if (row) {
+    await notify(db, {
+      type: 'commit.changed',
+      projectId: card.projectId,
+      cardId: card.id,
+      commitId: row.id
+    })
+  }
+  return row ?? null
 }
 
 export async function listCardCommits(db: Database, cardId: string) {
