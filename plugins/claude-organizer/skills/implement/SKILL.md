@@ -67,11 +67,12 @@ As you work, **`add_comment(cardId, …)`** for what carries **signal** — deci
 
 - **`set_card_status(id, "review")` the instant you stop and the user takes over** to validate. Status reflects **who holds the ball**, not whether a commit exists. Do this **even though the commit hasn't landed yet** — the commit only lands after the user confirms it works (steps 7–8), but the card belongs in `review` from the moment _you're_ done and _they_ need to look.
 - On the **same move**, post **one** comment with the **test plan**: what to open, what to do, what to expect, and briefly what you already checked. The console scrollback is ephemeral; this comment is where the user (and a future session) sees how to validate what's in review.
+- Then **capture the working-tree diff onto the card**: run `pnpm attach-worktree-diff <CO-N>` (or the bundled `scripts/attach-worktree-diff.mjs` / `.py`). Same rule as `attach-commit` — the diff goes straight to the API **outside your context**; **never read or paste it**. This lets the user see what will land while reviewing, before any commit exists.
 - Then **wait for the user to validate**. Do **not** self-approve and do **not** jump ahead to commit or `done`.
 
 ### 7. Per-task review gate — a fresh subagent, **before commit** (skip only if trivial)
 
-Now that the behavior is validated, run the **per-task review** via the **`review`** skill **before** committing — over the **working-tree diff** (`git diff`), so any fixes fold into the change and the card keeps **one clean commit**. It spawns a **fresh subagent** (objective eyes — you just wrote this code, so you're the worst judge of it) that checks **this task's acceptance criteria** and hunts for **reuse / dead code / noise comments**, then reports and asks what to do (fix now / follow-up card / other). A **trivial** task (one-liner, rename, config — nothing with real logic) may **skip** this by quick judgment; note the skip briefly so it's visible, not silent. See _Review gate_.
+Now that the behavior is validated, run the **per-task review** via the **`review`** skill **before** committing — over the **working-tree diff** (`git diff`), so any fixes fold into the change and the card keeps **one clean commit**. It spawns a **fresh subagent** (objective eyes — you just wrote this code, so you're the worst judge of it) that checks **this task's acceptance criteria** and hunts for **reuse / dead code / noise comments**, then reports and asks what to do (fix now / follow-up card / other). A **trivial** task (one-liner, rename, config — nothing with real logic) may **skip** this by quick judgment; note the skip briefly so it's visible, not silent. See _Review gate_. When fixes fold into the working tree, **re-run `pnpm attach-worktree-diff <CO-N>`** so the card's pending diff reflects the adjusted change.
 
 ### 8. Let the user review the diff — **before** committing
 
@@ -86,6 +87,7 @@ Before committing, ask once: **did a decision, a standardization, or long-lived 
 - After the user confirms, create **one commit per card**, message in English referencing the key (e.g. `feat(tags): … (CO-4)`), per the repo's `CLAUDE.md` (commit + versioning rules).
 - **Always attach the commit's diff to the card** — right after it lands. Run the project's `pnpm attach-commit <sha>`, or the bundled script in this skill's own `scripts/`: `node "<skill dir>/scripts/attach-commit.mjs" <sha>` (or the `.py` twin where Node isn't available). It runs `git show` and POSTs the diff straight to the API (`CO_API_URL`, default `http://127.0.0.1:4400`), so the card's **Changes** section shows what the commit produced.
 - The diff is captured **outside your context on purpose** — **never read it or paste it into a comment** (it burns tokens and adds noise).
+- Attaching the **real commit clears the pending working-tree diff** automatically (the `__working__` sentinel row is dropped — see CO-136), so the card swaps from "uncommitted" to the committed diff with **no manual cleanup** on the happy path.
 
 ### 11. Move to `done` — **always**, only after the user confirms
 
@@ -124,8 +126,8 @@ For each card, in order — no step skipped. **Standing rule: never assume — a
 3. Read the relevant docs.
 4. Implement — hit a doubt? stop and ask, don't assume.
 5. Comment the signal.
-6. `review` status the moment you hand off (even uncommitted) + test-plan comment → wait for behavioral validation.
-7. **Per-task review gate** (`review` skill, fresh subagent, working-tree diff; skip only if trivial) → report & ask → fixes fold in.
+6. `review` status the moment you hand off (even uncommitted) + test-plan comment + `attach-worktree-diff <CO-N>` (capture the pending diff, outside context) → wait for behavioral validation.
+7. **Per-task review gate** (`review` skill, fresh subagent, working-tree diff; skip only if trivial) → report & ask → fixes fold in → re-run `attach-worktree-diff`.
 8. Let the user review the diff before committing.
 9. Capture durable knowledge in the docs (decision/convention/gotcha → write or update the doc; skip the ephemeral).
 10. Commit (one per card, key in message) → attach the diff to the card.
