@@ -1,7 +1,16 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
 
-import { exportAll, exportProject, serializeBackup } from '@claude-organizer/core'
+import {
+  exportAll,
+  exportProject,
+  importBackup,
+  serializeBackup
+} from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
+
+// A full export gzips small, but `card_commits.diff` can push it past Fastify's
+// 1MB default; size the upload ceiling for real backups.
+const BACKUP_BODY_LIMIT = 256 * 1024 * 1024
 
 function sendBackup(reply: FastifyReply, filename: string, payload: Buffer) {
   reply.header('Content-Type', 'application/gzip')
@@ -29,4 +38,22 @@ export function registerBackupRoutes(app: FastifyInstance, db: Database) {
     const env = await exportAll(db)
     return sendBackup(reply, `backup-all-v${env.version}.json.gz`, serializeBackup(env))
   })
+
+  app.addContentTypeParser(
+    'application/gzip',
+    { parseAs: 'buffer', bodyLimit: BACKUP_BODY_LIMIT },
+    (_req, body, done) => done(null, body)
+  )
+
+  app.post(
+    '/import',
+    { bodyLimit: BACKUP_BODY_LIMIT },
+    async (req, reply) => {
+      const body = req.body
+      if (!Buffer.isBuffer(body) || !body.length) {
+        return reply.code(400).send({ error: 'expected a gzipped backup body' })
+      }
+      return importBackup(db, body, { mode: 'new' })
+    }
+  )
 }
