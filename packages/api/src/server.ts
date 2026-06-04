@@ -12,6 +12,7 @@ import { registerCardRoutes } from './routes/cards'
 import { registerCommentRoutes } from './routes/comments'
 import { registerDocRoutes } from './routes/docs'
 import { registerEventsWs } from './routes/events-ws'
+import { registerIntakeRoutes } from './routes/intake'
 import { registerProjectRoutes } from './routes/projects'
 import { registerSprintRoutes } from './routes/sprints'
 import { registerTagRoutes } from './routes/tags'
@@ -50,6 +51,7 @@ registerCommentRoutes(app, db)
 registerTagRoutes(app, db)
 registerBlockerRoutes(app, db)
 registerDocRoutes(app, db)
+registerIntakeRoutes(app, db)
 registerEventsWs(app)
 
 const shutdown = async () => {

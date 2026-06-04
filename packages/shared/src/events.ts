@@ -17,6 +17,8 @@ export type CoEvent
     | { type: 'doc.deleted', projectId: string, docId: string }
     | { type: 'project.changed', projectId: string }
     | { type: 'project.deleted', projectId: string }
+    | { type: 'inbox.changed', projectId: string, intakeId: string }
+    | { type: 'inbox.deleted', projectId: string, intakeId: string }
 
 /** Control frame the server sends right after a client connects. */
 export interface CoHello {

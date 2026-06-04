@@ -27,3 +27,6 @@ export type DocKind = (typeof DOC_KINDS)[number]
 
 export const REPO_PROVIDERS = ['github', 'gitlab'] as const
 export type RepoProvider = (typeof REPO_PROVIDERS)[number]
+
+export const INTAKE_STATUSES = ['pending', 'planned', 'archived'] as const
+export type IntakeStatus = (typeof INTAKE_STATUSES)[number]

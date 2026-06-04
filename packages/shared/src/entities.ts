@@ -2,6 +2,7 @@ import type {
   CardStatus,
   CommentAuthor,
   DocKind,
+  IntakeStatus,
   RepoProvider,
   SprintStatus
 } from './enums'
@@ -114,12 +115,24 @@ export interface RoadmapRow {
   updatedAt: string
 }
 
+export interface IntakeItemRow {
+  id: string
+  projectId: string
+  bodyMd: string
+  status: IntakeStatus
+  plannedCardKeys: string | null
+  createdAt: string
+  updatedAt: string
+  archivedAt: string | null
+}
+
 /* ---- API DTOs: what the REST endpoints return and the UI consumes ---- */
 
 export type Project = ProjectRow
 export type Roadmap = RoadmapRow
 export type Comment = CommentRow
 export type CardCommit = CardCommitRow
+export type IntakeItem = IntakeItemRow
 
 /** Tag as embedded in cards or listed for a project (createdAt not surfaced). */
 export interface Tag {
