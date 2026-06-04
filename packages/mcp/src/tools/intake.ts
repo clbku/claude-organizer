@@ -2,6 +2,8 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 
 import {
+  archiveIntakeItem,
+  destroyIntakeItem,
   intakeStatus,
   listIntakeItems,
   markIntakePlanned
@@ -38,5 +40,29 @@ export function registerIntakeTools(server: McpServer, db: Database) {
       }
     },
     async ({ id, cardKeys }) => asJson(await markIntakePlanned(db, id, cardKeys))
+  )
+
+  server.registerTool(
+    'archive_inbox',
+    {
+      description:
+        'Archive an inbox demand (status archived) — recoverable. Use when a demand is discarded during planning but the user may want it back. Restore is done from the web.',
+      inputSchema: {
+        id: z.string()
+      }
+    },
+    async ({ id }) => asJson(await archiveIntakeItem(db, id))
+  )
+
+  server.registerTool(
+    'destroy_inbox',
+    {
+      description:
+        'Permanently delete an inbox demand. Use when a discarded demand should be gone for good; prefer archive_inbox when recovery might be wanted.',
+      inputSchema: {
+        id: z.string()
+      }
+    },
+    async ({ id }) => asJson(await destroyIntakeItem(db, id))
   )
 }
