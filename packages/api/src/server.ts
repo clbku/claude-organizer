@@ -6,6 +6,7 @@ import { createDb } from '@claude-organizer/db'
 
 import errorHandlerPlugin from './plugins/error-handler'
 import eventsPlugin from './plugins/events'
+import { registerBackupRoutes } from './routes/backup'
 import { registerBlockerRoutes } from './routes/blockers'
 import { registerCardCommitRoutes } from './routes/cardCommits'
 import { registerCardRoutes } from './routes/cards'
@@ -52,6 +53,7 @@ registerTagRoutes(app, db)
 registerBlockerRoutes(app, db)
 registerDocRoutes(app, db)
 registerIntakeRoutes(app, db)
+registerBackupRoutes(app, db)
 registerEventsWs(app)
 
 const shutdown = async () => {

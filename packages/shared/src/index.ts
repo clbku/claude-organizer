@@ -1,3 +1,4 @@
+export * from './backup'
 export * from './commits'
 export * from './entities'
 export * from './enums'
