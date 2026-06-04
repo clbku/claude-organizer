@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { buildCommitUrl } from '@claude-organizer/shared'
+import { buildCommitUrl, WORKING_TREE_SHA } from '@claude-organizer/shared'
 
 import type { Card, CardStatus } from '~/types/card'
 import { cardStatusMeta, cardStatusSelectOrder } from '~/types/card'
@@ -347,6 +347,11 @@ function toggleCommit(id: string) {
 function shortSha(sha: string) {
   return sha.slice(0, 8)
 }
+// The pending working-tree diff rides on `card_commits` under a sentinel sha
+// (CO-136); it shows as "uncommitted" until the real commit replaces it.
+function isWorking(sha: string) {
+  return sha === WORKING_TREE_SHA
+}
 function commitSubject(message: string) {
   return message.split('\n', 1)[0] ?? ''
 }
@@ -533,8 +538,16 @@ const providerIcon = computed(() =>
                     :name="expandedCommits.has(c.id) ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
                     class="shrink-0 text-muted"
                   />
+                  <UBadge
+                    v-if="isWorking(c.sha)"
+                    color="warning"
+                    variant="subtle"
+                    size="sm"
+                    label="uncommitted"
+                    class="shrink-0"
+                  />
                   <a
-                    v-if="commitUrl(c.sha)"
+                    v-else-if="commitUrl(c.sha)"
                     :href="commitUrl(c.sha)!"
                     target="_blank"
                     rel="noopener"
