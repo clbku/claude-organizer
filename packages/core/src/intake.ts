@@ -1,8 +1,12 @@
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { createId, type Database, schema } from '@claude-organizer/db'
-import { INTAKE_STATUSES, type IntakeStatus } from '@claude-organizer/shared'
+import {
+  type CardStatus,
+  INTAKE_STATUSES,
+  type IntakeStatus
+} from '@claude-organizer/shared'
 
 import { notify } from './events'
 
@@ -28,6 +32,53 @@ async function notifyChanged(db: Database, row: { id: string, projectId: string 
   })
 }
 
+export function parseCardKeys(csv: string | null): string[] {
+  return (csv ?? '')
+    .split(',')
+    .map(k => k.trim())
+    .filter(Boolean)
+}
+
+interface CardState {
+  status: CardStatus
+  archived: boolean
+}
+
+/** Resolve card keys → their live status/archived, scoped to the project. */
+export async function cardStatesByKeys(
+  db: Database,
+  projectId: string,
+  keys: string[]
+): Promise<Map<string, CardState>> {
+  const map = new Map<string, CardState>()
+  if (keys.length === 0) return map
+  const rows = await db
+    .select({
+      key: schema.cards.key,
+      status: schema.cards.status,
+      archivedAt: schema.cards.archivedAt
+    })
+    .from(schema.cards)
+    .where(
+      and(eq(schema.cards.projectId, projectId), inArray(schema.cards.key, keys))
+    )
+  for (const r of rows) {
+    map.set(r.key, { status: r.status, archived: r.archivedAt !== null })
+  }
+  return map
+}
+
+/** Completed = ≥1 referenced card is non-archived and all such are `done`. */
+function deriveCompleted(
+  plannedCardKeys: string | null,
+  states: Map<string, CardState>
+): boolean {
+  const active = parseCardKeys(plannedCardKeys)
+    .map(k => states.get(k))
+    .filter((c): c is CardState => c !== undefined && !c.archived)
+  return active.length > 0 && active.every(c => c.status === 'done')
+}
+
 export async function listIntakeItems(
   db: Database,
   projectId: string,
@@ -37,11 +88,18 @@ export async function listIntakeItems(
   if (options.status) {
     conditions.push(eq(schema.intakeItems.status, options.status))
   }
-  return db
+  const items = await db
     .select()
     .from(schema.intakeItems)
     .where(and(...conditions))
     .orderBy(desc(schema.intakeItems.createdAt))
+
+  const keys = [...new Set(items.flatMap(i => parseCardKeys(i.plannedCardKeys)))]
+  const states = await cardStatesByKeys(db, projectId, keys)
+  return items.map(item => ({
+    ...item,
+    completed: deriveCompleted(item.plannedCardKeys, states)
+  }))
 }
 
 export async function createIntakeItem(db: Database, input: CreateIntakeItemInput) {
@@ -113,6 +171,97 @@ export async function restoreIntakeItem(db: Database, id: string) {
     .returning()
   if (row) await notifyChanged(db, row)
   return row ?? null
+}
+
+/** Intake items (the only statuses that carry keys) referencing any of `keys`. */
+async function findIntakeItemsByCardKeys(
+  db: Database,
+  projectId: string,
+  keys: string[]
+) {
+  const keySet = new Set(keys)
+  const items = await db
+    .select()
+    .from(schema.intakeItems)
+    .where(
+      and(
+        eq(schema.intakeItems.projectId, projectId),
+        inArray(schema.intakeItems.status, ['planned', 'archived'])
+      )
+    )
+  return items.filter(i =>
+    parseCardKeys(i.plannedCardKeys).some(k => keySet.has(k))
+  )
+}
+
+/**
+ * Cascade a card's archive/restore onto the items referencing it: an item with
+ * no active (non-archived) card left is archived; one that regains an active
+ * card is restored. Idempotent — only writes when the derived state differs.
+ */
+export async function syncIntakeForCard(
+  db: Database,
+  projectId: string,
+  key: string
+) {
+  const items = await findIntakeItemsByCardKeys(db, projectId, [key])
+  for (const item of items) {
+    const itemKeys = parseCardKeys(item.plannedCardKeys)
+    const states = await cardStatesByKeys(db, projectId, itemKeys)
+    const hasActive = itemKeys.some(k => {
+      const s = states.get(k)
+      return s !== undefined && !s.archived
+    })
+    if (!hasActive && item.status !== 'archived') {
+      await archiveIntakeItem(db, item.id)
+    } else if (hasActive && item.status === 'archived') {
+      await restoreIntakeItem(db, item.id)
+    }
+  }
+}
+
+/**
+ * Prune destroyed card keys from referencing items: an item left with no keys
+ * is destroyed; otherwise the CSV is rewritten and its archived/planned state
+ * re-derived from the remaining cards (keeps "archived ⟺ no active card" true).
+ */
+export async function pruneIntakeForDestroyedCards(
+  db: Database,
+  projectId: string,
+  keys: string[]
+) {
+  const removed = new Set(keys)
+  const items = await findIntakeItemsByCardKeys(db, projectId, keys)
+  for (const item of items) {
+    const remaining = parseCardKeys(item.plannedCardKeys).filter(
+      k => !removed.has(k)
+    )
+    if (remaining.length === 0) {
+      await destroyIntakeItem(db, item.id)
+      continue
+    }
+    const states = await cardStatesByKeys(db, projectId, remaining)
+    const hasActive = remaining.some(k => {
+      const s = states.get(k)
+      return s !== undefined && !s.archived
+    })
+    const set: Record<string, unknown> = {
+      plannedCardKeys: remaining.join(','),
+      updatedAt: sql`now()`
+    }
+    if (hasActive) {
+      set.status = 'planned'
+      set.archivedAt = null
+    } else if (item.status !== 'archived') {
+      set.status = 'archived'
+      set.archivedAt = sql`now()`
+    }
+    await db
+      .update(schema.intakeItems)
+      .set(set)
+      .where(eq(schema.intakeItems.id, item.id))
+    await notifyChanged(db, item)
+  }
 }
 
 export async function destroyIntakeItem(db: Database, id: string) {
