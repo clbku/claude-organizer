@@ -33,10 +33,22 @@ Do this sequence _before_ exploring the codebase or making changes:
 
 5. For one card's full detail: **`get_card(id)`** or **`get_card_by_key(key)`** (e.g. `ABC-12`).
 6. For architecture, decisions, or how-tos: **`list_docs(projectId)`** + **`read_doc(id)`**, or **`search_docs`**. Projects document themselves here — read before reinventing or re-deciding something.
+7. **`list_inbox(projectId)`** — the **inbox**: raw demands the user captured (defaults to `pending`) that aren't cards yet. Note how many are waiting; suggest planning them at the right moment — see _Inbox — suggest planning, don't nag_.
 
 If no project matches the current repo, ask the user before creating one.
 
 **Wire the repo link once.** After step 1, if the project has no `repoWebUrl`, detect the current repo's remote so commit hashes link to the provider: read `git remote get-url origin` (fallback: the first of `git remote -v`), convert it to a web URL (`git@github.com:owner/repo.git` or `https://github.com/owner/repo.git` → `https://github.com/owner/repo`; GitLab the same, subgroups included), pick the `provider` by host (`github`/`gitlab`; skip a self-hosted host you can't classify), and save it with `set_project_repo(projectId, provider, repoWebUrl)`. Skip when it's already set or there's no git remote.
+
+## Inbox — suggest planning, don't nag
+
+The inbox (`list_inbox`, pending) holds **raw demands** the user dropped without planning them — not cards yet. You **always do what the user asked first**; then, with judgment, suggest turning pending demands into cards via the **`plan`** skill:
+
+- User asked to **implement / build / fix** something → do it; **at the end**, if demands are pending, offer once: _"want to plan the N pending inbox demand(s)?"_
+- User is **planning** something → plan what they asked; at the end, offer to plan the rest.
+- User is **lost / asks what to do / what's next / asks for board status / is idle** → suggest planning the pending demands **right away** (plan first — it's the most useful next move).
+- **No pending demands → say nothing.** And don't re-offer every turn — suggest sparingly, not on a loop.
+
+Converting a demand into cards is the **`plan`** skill's job (it reads the inbox and marks each planned); here you only orient and suggest.
 
 ## Before you analyze or act — read the tasks first, code second
 
