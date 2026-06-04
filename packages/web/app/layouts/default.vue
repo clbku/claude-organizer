@@ -27,6 +27,7 @@ function onProjectCreated() {
 const links = computed<NavigationMenuItem[][]>(() => [
   [
     { label: 'Home', icon: 'i-lucide-home', to: '/' },
+    { label: 'Inbox', icon: 'i-lucide-inbox', to: '/inbox' },
     { label: 'Board', icon: 'i-lucide-kanban', to: '/board' },
     { label: 'Sprints', icon: 'i-lucide-timer', to: '/sprints' },
     { label: 'Tasks', icon: 'i-lucide-list-todo', to: '/tasks' },
