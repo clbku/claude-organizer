@@ -17,10 +17,11 @@ Do NOT write code, scaffold, edit files, or take any implementation action until
 
 ## Flow
 
-1. **Orient.** Read the current state first: `list_projects` → `get_active_sprint` → `list_unread_comments` → `list_cards`. Then scan the **docs tree** (Modules / Decisions / Notes) and read what's relevant to the demand's area — a past decision or a note can change the design, and modules tell you how the area already works. Don't read everything; glance and decide. Know what exists before proposing anything.
+1. **Orient.** Read the current state first: `list_projects` → `get_active_sprint` → `list_unread_comments` → `list_cards` (and, when planning the **inbox**, `list_inbox` for the pending demands you'll convert). Then scan the **docs tree** (Modules / Decisions / Notes) and read what's relevant to the demand's area — a past decision or a note can change the design, and modules tell you how the area already works. Don't read everything; glance and decide. Know what exists before proposing anything.
 2. **Understand & surface decisions.** Two kinds of unknowns block a well-formed card; resolve both _with the user_ before you create anything:
    - **Ambiguities** — what the user actually wants: goal, scope, constraints, edge cases, what "done" looks like. Ask to remove them.
    - **Decisions** — open choices where more than one reasonable path exists (runtime/language, which API or library, auth model, session strategy, storage…). Never pick one silently — surface each as **ready-made options** the user chooses from (see _Surfacing decisions, not assuming them_ below).
+   - **From the inbox** — when the demand(s) come from `list_inbox` (pending), treat **each demand as raw input** to this step: one demand may become a single task, a story, or several cards. The never-assume rule is unchanged — ambiguities and decisions still go to the user.
 
    **One topic per message**; prefer multiple-choice (open-ended is fine for ambiguities). Keep going until nothing remains that would materially change what gets built. It's far cheaper to ask now than to bake a wrong assumption into a card executed blindly later.
 3. **Organize (propose).** Decide the shape of the work and present it with your reasoning (see _Where the work lives_ for the sprint-vs-standalone call):
@@ -40,7 +41,8 @@ Do NOT write code, scaffold, edit files, or take any implementation action until
 7. **Order the board (reorder).** After the review pass — once the set of cards and their sequence are final — call **`reorder_cards`** once with **every created card id in reading order**; it writes `position = 0,1,2,…` so the board shows the cards top-to-bottom in the exact execution order, with no ceiling and independent of how or when each card was created.
    - **Reading order, grouped by story:** each story (parent card) immediately followed by its children in execution order, then the next story; standalone cards slotted at their right point. The board renders the parent as an envelope and ranks each story block by the **lowest `position` among its children**, so monotonic positions in reading order place every block correctly (the parent's own `position` is harmless — still pass its id).
    - Worth running even for a single batch of standalone tasks — it's one call and makes the order explicit instead of leaning on the creation-time fallback.
-8. **Hand off.** Tell the user the plan is on the board; execution proceeds via the **`implement`** skill, card by card (in_progress → read comments → implement → review → commit → done), with the user validating each card, and the **`review`** skill's gate (per-task + story-level) before work closes.
+8. **Close the inbox loop (when planning from the inbox).** Once the cards exist and are ordered, call **`mark_inbox_planned(id, cardKeys[])`** for **each converted demand**, passing the **real keys** of the cards it produced (one demand may map to several keys; auto-linked in the web). A demand the user **discarded** — it became no card — is **not** marked; the user archives/destroys it from the web.
+9. **Hand off.** Tell the user the plan is on the board; execution proceeds via the **`implement`** skill, card by card (in_progress → read comments → implement → review → commit → done), with the user validating each card, and the **`review`** skill's gate (per-task + story-level) before work closes.
 
 ## Surfacing decisions, not assuming them
 
