@@ -15,6 +15,7 @@ import {
   BACKUP_TABLE_NAMES,
   createCard,
   createDoc,
+  createIntakeItem,
   createSprint,
   createTag,
   exportAll,
@@ -52,6 +53,7 @@ async function seedProject(db: typeof ctx.db) {
   await addBlocker(db, card.id, blocker.id)
   await addComment(db, { cardId: card.id, author: 'user', bodyMd: 'hi' })
   await createDoc(db, { projectId: project.id, title: 'Doc', bodyMd: 'x' })
+  await createIntakeItem(db, { projectId: project.id, bodyMd: 'raw demand' })
   const tag = await createTag(db, { projectId: project.id, name: 'area' })
   await addTagToCard(db, card.id, tag.id)
   // an archived card must still be exported (backup is not filtered by archive)
@@ -81,6 +83,7 @@ describe('exportProject', () => {
     expect(env.data.docs.length).toBeGreaterThan(0)
     expect(env.data.tags.length).toBeGreaterThan(0)
     expect(env.data.card_tags.length).toBeGreaterThan(0)
+    expect(env.data.intake_items.length).toBeGreaterThan(0)
     expect(env.data.card_blockers.length).toBeGreaterThan(0)
   })
 

@@ -22,7 +22,8 @@ export const BACKUP_TABLE_NAMES = [
   'tags',
   'card_tags',
   'card_blockers',
-  'card_commits'
+  'card_commits',
+  'intake_items'
 ] as const
 
 function envelope(
@@ -53,7 +54,8 @@ export async function exportAll(db: Database): Promise<BackupEnvelope> {
     tags,
     cardTags,
     cardBlockers,
-    cardCommits
+    cardCommits,
+    intakeItems
   ] = await Promise.all([
     db.select().from(schema.projects),
     db.select().from(schema.roadmaps),
@@ -64,7 +66,8 @@ export async function exportAll(db: Database): Promise<BackupEnvelope> {
     db.select().from(schema.tags),
     db.select().from(schema.cardTags),
     db.select().from(schema.cardBlockers),
-    db.select().from(schema.cardCommits)
+    db.select().from(schema.cardCommits),
+    db.select().from(schema.intakeItems)
   ])
   return envelope(
     'all',
@@ -79,7 +82,8 @@ export async function exportAll(db: Database): Promise<BackupEnvelope> {
       tags,
       card_tags: cardTags,
       card_blockers: cardBlockers,
-      card_commits: cardCommits
+      card_commits: cardCommits,
+      intake_items: intakeItems
     }
   )
 }
@@ -110,7 +114,8 @@ export async function exportProject(
     tags,
     cardTags,
     cardBlockers,
-    cardCommits
+    cardCommits,
+    intakeItems
   ] = await Promise.all([
     db
       .select()
@@ -152,7 +157,11 @@ export async function exportProject(
         .select()
         .from(schema.cardCommits)
         .where(inArray(schema.cardCommits.cardId, cardIds))
-    )
+    ),
+    db
+      .select()
+      .from(schema.intakeItems)
+      .where(eq(schema.intakeItems.projectId, projectId))
   ])
 
   return envelope(
@@ -168,7 +177,8 @@ export async function exportProject(
       tags,
       card_tags: cardTags,
       card_blockers: cardBlockers,
-      card_commits: cardCommits
+      card_commits: cardCommits,
+      intake_items: intakeItems
     }
   )
 }
