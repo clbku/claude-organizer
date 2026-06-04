@@ -6,6 +6,7 @@ import { registerBlockerTools } from './blockers'
 import { registerCardTools } from './cards'
 import { registerCommentTools } from './comments'
 import { registerDocTools } from './docs'
+import { registerIntakeTools } from './intake'
 import { registerProjectTools } from './projects'
 import { registerSprintTools } from './sprints'
 import { registerTagTools } from './tags'
@@ -18,6 +19,7 @@ export function registerTools(server: McpServer, db: Database) {
   registerTagTools(server, db)
   registerBlockerTools(server, db)
   registerDocTools(server, db)
+  registerIntakeTools(server, db)
 }
 
 export function asJson(value: unknown) {
