@@ -147,8 +147,8 @@ function resolveError(e: unknown): string {
 
       <div v-if="setupMode" class="mt-4 pt-4 border-t border-default">
         <p class="text-xs text-muted mb-2">
-          Ou rode sem autenticação (como antes): qualquer pessoa com acesso à
-          rede usa o board sem login. Dá para reativar depois nas configurações.
+          Ou rode sem autenticação: qualquer pessoa com acesso à rede usa o
+          board sem login. Dá para reativar depois nas configurações.
         </p>
         <UButton
           block

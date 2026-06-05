@@ -7,6 +7,11 @@ const store = useProjectStore()
 const { projects } = storeToRefs(store)
 const { isAdmin, capabilities } = useAuth()
 
+// Load projects here (not only in the boot plugin): the layout renders only for
+// authenticated pages, so by now the session cookie exists and /projects is
+// authorized. Idempotent — a no-op if the boot plugin already loaded them.
+store.ensureLoaded()
+
 const version = useRuntimeConfig().public.appVersion
 
 // Creating a project is admin-only (open in sem-auth mode). A scoped `user`

@@ -206,8 +206,9 @@ function openProject(slug: string) {
               Autenticação
             </h2>
             <p class="text-sm text-muted">
-              Com auth desativada o board funciona sem login (modo aberto), como
-              antes. Ative para exigir login e liberar usuários por papel/projeto.
+              Com auth desativada o board funciona sem login (modo aberto):
+              qualquer um com acesso à rede usa o board. Ative para exigir login
+              e liberar usuários por papel/projeto.
             </p>
           </div>
 
