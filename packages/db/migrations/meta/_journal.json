@@ -92,6 +92,13 @@
       "when": 1780577216381,
       "tag": "0012_fine_penance",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1780617380237,
+      "tag": "0013_nappy_swordsman",
+      "breakpoints": true
     }
   ]
 }
