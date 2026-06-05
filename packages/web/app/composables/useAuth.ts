@@ -40,7 +40,8 @@ export function useAuth() {
       method: 'POST',
       body: { provider: 'github', callbackURL: `${window.location.origin}/` }
     })
-    if (url) window.location.href = url
+    if (!url) throw new Error('GitHub indisponível no momento')
+    window.location.href = url
   }
 
   async function signOut() {

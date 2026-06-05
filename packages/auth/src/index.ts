@@ -1,7 +1,7 @@
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 
-import { createId, type Database } from '@claude-organizer/db'
+import { createId, type Database, idPrefixes } from '@claude-organizer/db'
 import {
   accounts,
   sessions,
@@ -9,18 +9,17 @@ import {
   verifications
 } from '@claude-organizer/db/schema'
 
-// better-auth model name → project id prefix (see packages/db ids.ts).
-const modelPrefixes = {
-  user: 'usr',
-  session: 'ses',
-  account: 'acc',
-  verification: 'ver'
-} as const
-
 export function isGithubConfigured(): boolean {
   return Boolean(
     process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET
   )
+}
+
+// E-mail+password is the zero-config base method (see ADR). Kept as a function
+// so the capabilities endpoint and the auth instance read the same source once
+// the sem-auth toggle (T2.5) makes it conditional.
+export function isEmailPasswordEnabled(): boolean {
+  return true
 }
 
 // The web runs on a different origin (:4401) than the API (:4400) where
@@ -49,7 +48,7 @@ export function createAuth(db: Database) {
     baseURL: process.env.BETTER_AUTH_URL,
     basePath: '/api/auth',
     trustedOrigins: getTrustedOrigins(),
-    emailAndPassword: { enabled: true },
+    emailAndPassword: { enabled: isEmailPasswordEnabled() },
     // Empty object = no social provider registered, so GitHub is truly absent
     // (not just hidden) when the host didn't configure it.
     socialProviders: isGithubConfigured()
@@ -62,8 +61,10 @@ export function createAuth(db: Database) {
       : {},
     advanced: {
       database: {
+        // better-auth model names (user/session/account/verification) match the
+        // keys in db's idPrefixes, so the prefix map isn't duplicated here.
         generateId: ({ model }) => {
-          const prefix = modelPrefixes[model as keyof typeof modelPrefixes]
+          const prefix = idPrefixes[model as keyof typeof idPrefixes]
           return prefix ? createId(prefix) : false
         }
       }

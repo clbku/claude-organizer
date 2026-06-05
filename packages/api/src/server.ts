@@ -33,6 +33,17 @@ const auth = createAuth(db)
 
 const app = Fastify({ logger: true })
 
+// Without a secret better-auth signs sessions with a predictable derived key —
+// forgeable tokens. Refuse to boot in production; warn loudly otherwise.
+if (!process.env.BETTER_AUTH_SECRET) {
+  const msg = 'BETTER_AUTH_SECRET is not set — sessions would be signed with an insecure default.'
+  if (process.env.NODE_ENV === 'production') {
+    console.error(`${msg} Refusing to start in production.`)
+    process.exit(1)
+  }
+  app.log.warn(msg)
+}
+
 const corsOrigins = getTrustedOrigins()
 if (!process.env.AUTH_TRUSTED_ORIGINS) {
   app.log.warn(
