@@ -32,3 +32,7 @@ export const intakeStatusEnum = pgEnum('intake_status', [
   'planned',
   'archived'
 ])
+
+export const userRoleEnum = pgEnum('user_role', ['admin', 'user'])
+
+export const userStatusEnum = pgEnum('user_status', ['pending', 'approved'])

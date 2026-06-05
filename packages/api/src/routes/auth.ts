@@ -11,6 +11,7 @@ import {
   isEmailPasswordEnabled,
   isGithubConfigured
 } from '@claude-organizer/auth'
+import { getUserAuthz } from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
 import type { AuthCapabilities, SessionUser } from '@claude-organizer/shared'
 
@@ -72,11 +73,14 @@ export function registerAuthRoutes(
     })
     if (!session) return null
     const { user } = session
+    const authz = await getUserAuthz(db, user.id)
     return {
       id: user.id,
       name: user.name,
       email: user.email,
-      image: user.image ?? null
+      image: user.image ?? null,
+      role: authz?.role ?? 'user',
+      status: authz?.status ?? 'pending'
     }
   })
 }

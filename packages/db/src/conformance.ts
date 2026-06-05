@@ -21,7 +21,12 @@ import type {
   RoadmapRow,
   SprintRow,
   SprintStatus,
-  TagRow
+  SystemSettingsRow,
+  TagRow,
+  UserAuthzRow,
+  UserProjectAccessRow,
+  UserRole,
+  UserStatus
 } from '@claude-organizer/shared'
 
 import {
@@ -39,7 +44,12 @@ import {
   roadmaps,
   sprints,
   sprintStatusEnum,
-  tags
+  systemSettings,
+  tags,
+  userAuthz,
+  userProjectAccess,
+  userRoleEnum,
+  userStatusEnum
 } from './schema/index'
 
 /** Drizzle row (Date columns) → its JSON wire form (ISO strings). */
@@ -73,10 +83,17 @@ export type SchemaConformance = [
   Assert<Equal<TagRow, Wire<InferSelectModel<typeof tags>>>>,
   Assert<Equal<RoadmapRow, Wire<InferSelectModel<typeof roadmaps>>>>,
   Assert<Equal<IntakeItemRow, Wire<InferSelectModel<typeof intakeItems>>>>,
+  Assert<Equal<UserAuthzRow, Wire<InferSelectModel<typeof userAuthz>>>>,
+  Assert<
+    Equal<UserProjectAccessRow, Wire<InferSelectModel<typeof userProjectAccess>>>
+  >,
+  Assert<Equal<SystemSettingsRow, Wire<InferSelectModel<typeof systemSettings>>>>,
   Assert<Equal<CardStatus, (typeof cardStatusEnum.enumValues)[number]>>,
   Assert<Equal<SprintStatus, (typeof sprintStatusEnum.enumValues)[number]>>,
   Assert<Equal<CommentAuthor, (typeof commentAuthorEnum.enumValues)[number]>>,
   Assert<Equal<DocKind, (typeof docKindEnum.enumValues)[number]>>,
   Assert<Equal<RepoProvider, (typeof repoProviderEnum.enumValues)[number]>>,
-  Assert<Equal<IntakeStatus, (typeof intakeStatusEnum.enumValues)[number]>>
+  Assert<Equal<IntakeStatus, (typeof intakeStatusEnum.enumValues)[number]>>,
+  Assert<Equal<UserRole, (typeof userRoleEnum.enumValues)[number]>>,
+  Assert<Equal<UserStatus, (typeof userStatusEnum.enumValues)[number]>>
 ]

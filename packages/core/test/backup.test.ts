@@ -20,6 +20,7 @@ import {
   createTag,
   exportAll,
   exportProject,
+  NON_BACKUP_TABLE_NAMES,
   serializeBackup
 } from '../src/index'
 import { freshProject, useTestDb } from './helpers'
@@ -32,8 +33,15 @@ const schemaTableNames = () =>
     .map(t => getTableName(t))
 
 describe('backup coverage', () => {
-  it('the exporter covers exactly every schema table', () => {
-    expect([...BACKUP_TABLE_NAMES].sort()).toEqual(schemaTableNames().sort())
+  it('every schema table is either exported or explicitly excluded', () => {
+    expect([...BACKUP_TABLE_NAMES, ...NON_BACKUP_TABLE_NAMES].sort()).toEqual(
+      schemaTableNames().sort()
+    )
+  })
+
+  it('the exported and excluded sets are disjoint', () => {
+    const exported = new Set<string>(BACKUP_TABLE_NAMES)
+    expect(NON_BACKUP_TABLE_NAMES.some(t => exported.has(t))).toBe(false)
   })
 })
 

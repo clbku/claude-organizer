@@ -4,7 +4,9 @@ import type {
   DocKind,
   IntakeStatus,
   RepoProvider,
-  SprintStatus
+  SprintStatus,
+  UserRole,
+  UserStatus
 } from './enums'
 
 /*
@@ -124,6 +126,28 @@ export interface IntakeItemRow {
   createdAt: string
   updatedAt: string
   archivedAt: string | null
+}
+
+export interface UserAuthzRow {
+  userId: string
+  role: UserRole
+  status: UserStatus
+  allProjects: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface UserProjectAccessRow {
+  userId: string
+  projectId: string
+  createdAt: string
+}
+
+export interface SystemSettingsRow {
+  id: string
+  authEnabled: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 /* ---- API DTOs: what the REST endpoints return and the UI consumes ---- */
