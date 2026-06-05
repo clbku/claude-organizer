@@ -19,12 +19,21 @@ async function loadSprints() {
     archivedSprints.value = []
     return
   }
-  [sprints.value, archivedSprints.value] = await Promise.all([
+  const [active, archived] = await Promise.all([
     api<Sprint[]>('/sprints', { query: { projectId: currentProjectId.value } }),
     api<Sprint[]>('/sprints', {
       query: { projectId: currentProjectId.value, archivedOnly: 'true' }
     })
   ])
+  sprints.value = active
+  archivedSprints.value = [...archived].sort(byRecencyDesc)
+}
+
+function sprintRecency(s: Sprint): string {
+  return s.endsAt ?? s.archivedAt ?? s.createdAt
+}
+function byRecencyDesc(a: Sprint, b: Sprint): number {
+  return sprintRecency(b).localeCompare(sprintRecency(a))
 }
 
 async function loadCards() {
@@ -62,7 +71,7 @@ const sections = computed(() => {
   return [
     { key: 'active', label: 'Active', items: groups.active },
     { key: 'planned', label: 'Planned', items: groups.planned },
-    { key: 'completed', label: 'Completed', items: groups.completed }
+    { key: 'completed', label: 'Completed', items: [...groups.completed].sort(byRecencyDesc) }
   ]
 })
 
