@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import {
   archiveIntakeItem,
+  createIntakeItem,
   destroyIntakeItem,
   intakeStatus,
   listIntakeItems,
@@ -13,6 +14,20 @@ import type { Database } from '@claude-organizer/db'
 import { asJson } from './index'
 
 export function registerIntakeTools(server: McpServer, db: Database) {
+  server.registerTool(
+    'create_inbox',
+    {
+      description:
+        'Capture a raw demand into the Inbox (a pending intake item) without planning it into cards yet. Use to save a follow-up or idea for the `plan` skill to triage later. `bodyMd` is the demand text (markdown).',
+      inputSchema: {
+        projectId: z.string(),
+        bodyMd: z.string().min(1)
+      }
+    },
+    async ({ projectId, bodyMd }) =>
+      asJson(await createIntakeItem(db, { projectId, bodyMd }))
+  )
+
   server.registerTool(
     'list_inbox',
     {
