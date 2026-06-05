@@ -30,3 +30,9 @@ export type RepoProvider = (typeof REPO_PROVIDERS)[number]
 
 export const INTAKE_STATUSES = ['pending', 'planned', 'archived'] as const
 export type IntakeStatus = (typeof INTAKE_STATUSES)[number]
+
+export const USER_ROLES = ['admin', 'user'] as const
+export type UserRole = (typeof USER_ROLES)[number]
+
+export const USER_STATUSES = ['pending', 'approved'] as const
+export type UserStatus = (typeof USER_STATUSES)[number]

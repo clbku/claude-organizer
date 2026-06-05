@@ -22,8 +22,14 @@ export const useProjectStore = defineStore('project', () => {
 
   async function loadProjects() {
     const api = useApi()
+    loading.value = true
     try {
       projects.value = await api<Project[]>('/projects')
+    } catch {
+      // Not authenticated yet (401 before login) or the API is unreachable:
+      // leave the list empty instead of throwing, so app boot / the login
+      // screen isn't broken. The layout reloads projects once the user is in.
+      projects.value = []
     } finally {
       loading.value = false
     }

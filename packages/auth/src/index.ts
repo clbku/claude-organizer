@@ -1,6 +1,7 @@
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 
+import { claimOrCreateUserAuthz } from '@claude-organizer/core'
 import { createId, type Database, idPrefixes } from '@claude-organizer/db'
 import {
   accounts,
@@ -59,6 +60,18 @@ export function createAuth(db: Database) {
           }
         }
       : {},
+    databaseHooks: {
+      user: {
+        create: {
+          // Fires after the user row commits (better-auth drains create.after
+          // post-transaction with adapter transactions off), so the user_authz
+          // FK to users.id inside claimOrCreateUserAuthz is satisfied.
+          after: async (user) => {
+            await claimOrCreateUserAuthz(db, user.id)
+          }
+        }
+      }
+    },
     advanced: {
       database: {
         // better-auth model names (user/session/account/verification) match the

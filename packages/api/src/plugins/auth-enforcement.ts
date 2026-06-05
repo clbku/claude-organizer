@@ -1,0 +1,202 @@
+import { fromNodeHeaders } from 'better-auth/node'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
+
+import type { Auth } from '@claude-organizer/auth'
+import {
+  getProjectBySlug,
+  getSystemSettings,
+  getUserAuthz,
+  hasProjectGrant,
+  resolveCardsProjectIds,
+  resolveCommentsProjectIds,
+  resolveEntityProjectId
+} from '@claude-organizer/core'
+import type { Database } from '@claude-organizer/db'
+import type { UserRole, UserStatus } from '@claude-organizer/shared'
+
+export interface AuthUser {
+  userId: string
+  role: UserRole
+  status: UserStatus
+  allProjects: boolean
+}
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    // null while sem-auth is on (no session concept) — handlers that scope by
+    // user must treat null as "unrestricted", mirroring pre-auth behavior.
+    authUser: AuthUser | null
+  }
+}
+
+const PUBLIC_EXACT = new Set([
+  '/health',
+  '/auth/capabilities',
+  '/auth/me',
+  // Self-guards on hasAnyUser (first boot only); see routes/auth.ts.
+  '/setup/disable-auth'
+])
+
+function isPublic(url: string | undefined): boolean {
+  if (!url) return false
+  return url.startsWith('/api/auth') || PUBLIC_EXACT.has(url)
+}
+
+// Admin-only = system surface: project lifecycle, whole-system/per-project
+// backup, user approval, and (added by CO-169) system settings.
+const ADMIN_ONLY: Array<{ method: string, url: string }> = [
+  { method: 'POST', url: '/projects' },
+  { method: 'DELETE', url: '/projects/:id' },
+  { method: 'POST', url: '/projects/:id/archive' },
+  { method: 'POST', url: '/projects/:id/restore' },
+  { method: 'GET', url: '/export' },
+  { method: 'POST', url: '/import' },
+  { method: 'GET', url: '/projects/:projectId/export' },
+  { method: 'GET', url: '/admin/users/pending' },
+  { method: 'POST', url: '/admin/users/:id/approve' },
+  { method: 'POST', url: '/admin/users/:id/reject' },
+  // Reachable in sem-auth mode (the gate bypasses before this list), so an open
+  // board can re-enable auth; admin-only once auth is on with users.
+  { method: 'POST', url: '/admin/settings' }
+]
+
+function isAdminOnly(method: string, url: string | undefined): boolean {
+  return ADMIN_ONLY.some(r => r.method === method && r.url === url)
+}
+
+// Resolves the project(s) a request touches, so access can be checked before the
+// handler runs. Returns null when no project can be resolved (treated as deny).
+// Multiple ids only for /comments/read, whose payload may span projects.
+async function resolveProjectIds(
+  db: Database,
+  req: FastifyRequest
+): Promise<string[] | null> {
+  const url = req.routeOptions?.url
+  const params = req.params as Record<string, string>
+  const query = req.query as Record<string, string | undefined>
+  const body = (req.body ?? {}) as Record<string, unknown>
+  const one = (id: string | null) => (id ? [id] : null)
+  const entity = (kind: Parameters<typeof resolveEntityProjectId>[1], id: string) =>
+    resolveEntityProjectId(db, kind, id).then(one)
+
+  switch (url) {
+    case '/cards':
+    case '/sprints':
+    case '/sprints/active':
+    case '/docs':
+    case '/tags':
+      return req.method === 'POST'
+        ? one((body.projectId as string) ?? null)
+        : one(query.projectId ?? null)
+    case '/comments/unread':
+      return one(query.projectId ?? null)
+    case '/projects/:projectId/intake':
+    case '/ws/projects/:projectId':
+      return one(params.projectId ?? null)
+    case '/projects/:slug': {
+      const project = await getProjectBySlug(db, params.slug!)
+      return one(project?.id ?? null)
+    }
+    case '/cards/:id':
+    case '/cards/:id/archive':
+    case '/cards/:id/restore':
+      return entity('card', params.id!)
+    case '/cards/by-key/:key':
+    case '/cards/:key/commits':
+    case '/cards/:key/commits/working':
+      return entity('cardKey', params.key!)
+    case '/cards/:cardId/comments':
+    case '/cards/:cardId/commits':
+    case '/cards/:cardId/tags/:tagId':
+    case '/cards/:cardId/blockers/:blockerId':
+      return entity('card', params.cardId!)
+    case '/cards/reorder': {
+      // Reorder mutates every id in the payload, so access must cover them all.
+      const ordered = (body.orderedIds as string[] | undefined) ?? []
+      const moved = body.moved as { id?: string } | undefined
+      const ids = moved?.id ? [...ordered, moved.id] : ordered
+      return ids.length > 0 ? resolveCardsProjectIds(db, ids) : null
+    }
+    case '/sprints/:id':
+    case '/sprints/:id/archive':
+    case '/sprints/:id/restore':
+    case '/sprints/:id/start':
+    case '/sprints/:id/complete':
+    case '/sprints/:id/reopen':
+      return entity('sprint', params.id!)
+    case '/docs/:id':
+    case '/docs/:id/archive':
+    case '/docs/:id/restore':
+      return entity('doc', params.id!)
+    case '/tags/:tagId':
+      return entity('tag', params.tagId!)
+    case '/intake/:id':
+      return entity('intakeItem', params.id!)
+    case '/comments/:id':
+      return entity('comment', params.id!)
+    case '/comments/read':
+      return resolveCommentsProjectIds(db, (body.commentIds as string[]) ?? [])
+    default:
+      return null
+  }
+}
+
+// Single global gate. Order: public allowlist → sem-auth bypass → session →
+// approval → admin-only → unrestricted (admin/allProjects) → per-project access.
+// The GET /projects list is allowed through and filtered in its handler.
+export function registerAuthEnforcement(
+  app: FastifyInstance,
+  auth: Auth,
+  db: Database
+) {
+  app.addHook('preHandler', async (req, reply) => {
+    req.authUser = null
+    if (req.method === 'OPTIONS') return
+
+    const url = req.routeOptions?.url
+    if (isPublic(url)) return
+
+    const { authEnabled } = await getSystemSettings(db)
+    if (!authEnabled) return
+
+    const session = await auth.api.getSession({
+      headers: fromNodeHeaders(req.raw.headers)
+    })
+    if (!session) return reply.code(401).send({ error: 'unauthorized' })
+
+    const authz = await getUserAuthz(db, session.user.id)
+    if (!authz || authz.status !== 'approved') {
+      return reply.code(403).send({ error: 'forbidden', reason: 'not_approved' })
+    }
+    req.authUser = {
+      userId: session.user.id,
+      role: authz.role,
+      status: authz.status,
+      allProjects: authz.allProjects
+    }
+
+    if (isAdminOnly(req.method, url)) {
+      if (authz.role !== 'admin') {
+        return reply.code(403).send({ error: 'forbidden', reason: 'admin_only' })
+      }
+      return
+    }
+
+    if (authz.role === 'admin' || authz.allProjects) return
+    if (url === '/projects' && req.method === 'GET') return
+
+    // Reaching here means approved + role 'user' + not allProjects, so the only
+    // remaining check is the explicit grant — no need to re-read user_authz.
+    const projectIds = await resolveProjectIds(db, req)
+    if (projectIds === null) {
+      return reply.code(403).send({ error: 'forbidden', reason: 'no_project' })
+    }
+    for (const projectId of projectIds) {
+      if (!(await hasProjectGrant(db, session.user.id, projectId))) {
+        return reply
+          .code(403)
+          .send({ error: 'forbidden', reason: 'project_access' })
+      }
+    }
+  })
+}

@@ -3,15 +3,30 @@
 // that shape. These are only the slices the web consumes. See ADR "Auth:
 // e-mail+senha base + GitHub opcional".
 
+import type { UserRole, UserStatus } from './enums'
+
 export interface SessionUser {
   id: string
   name: string
   email: string
   image: string | null
+  role: UserRole
+  status: UserStatus
 }
 
 export interface AuthCapabilities {
   emailPassword: boolean
   github: boolean
   hasUsers: boolean
+  // false = sem-auth mode: the web runs without sessions/gating, as before auth.
+  authEnabled: boolean
+}
+
+// A user awaiting admin approval, as listed on the admin queue.
+export interface PendingUser {
+  id: string
+  name: string
+  email: string
+  image: string | null
+  createdAt: string
 }

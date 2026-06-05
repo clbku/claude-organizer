@@ -11,6 +11,11 @@ import {
   isEmailPasswordEnabled,
   isGithubConfigured
 } from '@claude-organizer/auth'
+import {
+  getSystemSettings,
+  getUserAuthz,
+  setAuthEnabled
+} from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
 import type { AuthCapabilities, SessionUser } from '@claude-organizer/shared'
 
@@ -63,8 +68,19 @@ export function registerAuthRoutes(
   app.get('/auth/capabilities', async (): Promise<AuthCapabilities> => ({
     emailPassword: isEmailPasswordEnabled(),
     github: isGithubConfigured(),
-    hasUsers: await hasAnyUser(db)
+    hasUsers: await hasAnyUser(db),
+    authEnabled: (await getSystemSettings(db)).authEnabled
   }))
+
+  // First-boot only: with no user yet there is no admin to authorize this, so it
+  // self-guards on hasAnyUser. Disabling auth here is the "run without login"
+  // setup choice; once a user exists, toggling lives behind the admin settings.
+  app.post('/setup/disable-auth', async (_request, reply) => {
+    if (await hasAnyUser(db)) {
+      return reply.code(409).send({ error: 'already_setup' })
+    }
+    return setAuthEnabled(db, false)
+  })
 
   app.get('/auth/me', async (request): Promise<SessionUser | null> => {
     const session = await auth.api.getSession({
@@ -72,11 +88,14 @@ export function registerAuthRoutes(
     })
     if (!session) return null
     const { user } = session
+    const authz = await getUserAuthz(db, user.id)
     return {
       id: user.id,
       name: user.name,
       email: user.email,
-      image: user.image ?? null
+      image: user.image ?? null,
+      role: authz?.role ?? 'user',
+      status: authz?.status ?? 'pending'
     }
   })
 }

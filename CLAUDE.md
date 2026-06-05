@@ -81,10 +81,16 @@ docker compose up -d --build   # rebuild + restart api(4400) web(4401) mcp(4402)
 pnpm db:up        # Postgres (after reboot)
 pnpm dev:api      # http://127.0.0.1:4400
 pnpm dev:web      # http://127.0.0.1:4401
-pnpm typecheck    # backend + web
+pnpm typecheck    # all packages (root -r)
+pnpm lint         # all packages (root -r)
 pnpm db:generate  # after schema changes
 pnpm db:migrate   # apply
 ```
+
+Always run `pnpm typecheck` **and** `pnpm lint` from the **repo root** (the `-r`
+scripts hit every package) before closing a card — never scope them to a single
+package. A story routinely edits more than one package, and a per-package check
+silently goes stale the moment another package is touched.
 
 ## After restarting Claude Code
 

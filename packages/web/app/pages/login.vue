@@ -7,6 +7,7 @@ definePageMeta({ layout: false })
 useHead({ title: 'Entrar' })
 
 const { fetchCapabilities, signUpEmail, signInEmail, signInGithub } = useAuth()
+const api = useApi()
 
 const caps = ref<AuthCapabilities | null>(null)
 const loading = ref(false)
@@ -58,6 +59,20 @@ async function onSubmit(_event: FormSubmitEvent<typeof state>) {
   } catch (e) {
     error.value = resolveError(e)
   } finally {
+    loading.value = false
+  }
+}
+
+// Setup-only "run without login" choice. A full reload re-resolves capabilities
+// and the auth middleware, which then sees sem-auth and stops gating.
+async function onDisableAuth() {
+  loading.value = true
+  error.value = null
+  try {
+    await api('/setup/disable-auth', { method: 'POST' })
+    window.location.href = '/'
+  } catch (e) {
+    error.value = resolveError(e)
     loading.value = false
   }
 }
@@ -129,6 +144,23 @@ function resolveError(e: unknown): string {
           {{ setupMode ? 'Criar e entrar' : 'Entrar' }}
         </UButton>
       </UForm>
+
+      <div v-if="setupMode" class="mt-4 pt-4 border-t border-default">
+        <p class="text-xs text-muted mb-2">
+          Ou rode sem autenticação: qualquer pessoa com acesso à rede usa o
+          board sem login. Dá para reativar depois nas configurações.
+        </p>
+        <UButton
+          block
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide-unlock"
+          :loading="loading"
+          @click="onDisableAuth"
+        >
+          Desabilitar autenticação
+        </UButton>
+      </div>
 
       <template v-if="githubEnabled" #footer>
         <UButton

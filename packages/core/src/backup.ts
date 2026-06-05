@@ -21,9 +21,10 @@ import {
 
 import { InputError } from './errors'
 
-// Every schema table appears here, parents before children (FK-safe order for
-// the importer, CO-142). The coverage test fails if this set ever diverges from
-// the schema's tables — that's the "nothing left behind" guarantee.
+// Project-domain tables, parents before children (FK-safe order for the
+// importer, CO-142). The coverage test asserts every schema table sits in
+// exactly one of BACKUP_TABLE_NAMES or NON_BACKUP_TABLE_NAMES — the "nothing
+// left behind" guarantee.
 export const BACKUP_TABLE_NAMES = [
   'projects',
   'roadmaps',
@@ -36,6 +37,20 @@ export const BACKUP_TABLE_NAMES = [
   'card_blockers',
   'card_commits',
   'intake_items'
+] as const
+
+// Identity/system tables deliberately kept OUT of project backups: a backup
+// imports as a brand-new copy, so duplicating users/sessions or system config
+// would be wrong. Listed (not just omitted) so the coverage test forces a
+// conscious choice for every future table.
+export const NON_BACKUP_TABLE_NAMES = [
+  'users',
+  'sessions',
+  'accounts',
+  'verifications',
+  'user_authz',
+  'user_project_access',
+  'system_settings'
 ] as const
 
 function envelope(

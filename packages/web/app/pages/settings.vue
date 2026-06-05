@@ -10,6 +10,31 @@ const apiUrl = (useRuntimeConfig().public.apiUrl as string).replace(/\/$/, '')
 
 useHead({ title: 'Settings' })
 
+const { isAdmin, capabilities, ensureCapabilities, ensureSession } = useAuth()
+// Resolve both explicitly rather than leaning on the global middleware's order,
+// so `isAdmin` (from the session) is populated when adminOrOpenMode is computed.
+onMounted(async () => {
+  await Promise.all([ensureCapabilities(), ensureSession()])
+})
+const authEnabled = computed(() => capabilities.value?.authEnabled ?? true)
+// Admin-only system actions (backup, the auth toggle) are shown to an admin, or
+// to anyone while auth is off — an open board has no admin to gate them, and the
+// API mirrors this (the gate bypasses in sem-auth mode).
+const adminOrOpenMode = computed(() => !authEnabled.value || isAdmin.value)
+const togglingAuth = ref(false)
+async function toggleAuth() {
+  togglingAuth.value = true
+  try {
+    await api('/admin/settings', {
+      method: 'POST',
+      body: { authEnabled: !authEnabled.value }
+    })
+    window.location.reload()
+  } finally {
+    togglingAuth.value = false
+  }
+}
+
 function download(path: string) {
   const a = document.createElement('a')
   a.href = `${apiUrl}${path}`
@@ -66,7 +91,7 @@ function openProject(slug: string) {
 
     <template #body>
       <div class="max-w-2xl mx-auto w-full space-y-8">
-        <section class="space-y-3">
+        <section v-if="adminOrOpenMode" class="space-y-3">
           <div>
             <h2 class="text-sm font-semibold">
               Backup
@@ -171,6 +196,41 @@ function openProject(slug: string) {
             >
               <UIcon name="i-lucide-alert-triangle" />
               <span>{{ importError }}</span>
+            </div>
+          </div>
+        </section>
+
+        <section v-if="adminOrOpenMode" class="space-y-3">
+          <div>
+            <h2 class="text-sm font-semibold">
+              Autenticação
+            </h2>
+            <p class="text-sm text-muted">
+              Com auth desativada o board funciona sem login (modo aberto):
+              qualquer um com acesso à rede usa o board. Ative para exigir login
+              e liberar usuários por papel/projeto.
+            </p>
+          </div>
+
+          <div class="space-y-3 border border-default rounded-lg p-4">
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm font-medium">
+                  {{ authEnabled ? "Ativada" : "Desativada (modo aberto)" }}
+                </p>
+                <p class="text-xs text-muted">
+                  {{ authEnabled
+                    ? "Login obrigatório; o admin libera novos usuários."
+                    : "Qualquer um com acesso à rede usa o board sem login." }}
+                </p>
+              </div>
+              <UButton
+                :color="authEnabled ? 'error' : 'primary'"
+                variant="subtle"
+                :loading="togglingAuth"
+                :label="authEnabled ? 'Desativar' : 'Ativar'"
+                @click="toggleAuth"
+              />
             </div>
           </div>
         </section>
