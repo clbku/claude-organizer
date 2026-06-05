@@ -5,6 +5,7 @@ import Fastify from 'fastify'
 import { createAuth, getTrustedOrigins } from '@claude-organizer/auth'
 import { createDb } from '@claude-organizer/db'
 
+import { registerAuthEnforcement } from './plugins/auth-enforcement'
 import errorHandlerPlugin from './plugins/error-handler'
 import eventsPlugin from './plugins/events'
 import { registerAuthRoutes } from './routes/auth'
@@ -70,6 +71,7 @@ app.get('/health', async () => ({ status: 'ok' }))
 
 app.decorate('db', db)
 registerAuthRoutes(app, auth, db)
+registerAuthEnforcement(app, auth, db)
 registerProjectRoutes(app, db)
 registerSprintRoutes(app, db)
 registerCardRoutes(app, db)

@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { type Database, schema } from '@claude-organizer/db'
 import { SYSTEM_SETTINGS_ID } from '@claude-organizer/db/schema'
@@ -24,6 +24,27 @@ export async function canAccessProject(
   const authz = await getUserAuthz(db, userId)
   if (!authz || authz.status !== 'approved') return false
   if (authz.role === 'admin' || authz.allProjects) return true
+  const [row] = await db
+    .select({ projectId: schema.userProjectAccess.projectId })
+    .from(schema.userProjectAccess)
+    .where(
+      and(
+        eq(schema.userProjectAccess.userId, userId),
+        eq(schema.userProjectAccess.projectId, projectId)
+      )
+    )
+    .limit(1)
+  return Boolean(row)
+}
+
+// Whether an explicit per-project grant row exists. The caller must have already
+// confirmed the user is approved and not admin/allProjects (the guard does), so
+// this is just the grant lookup — no redundant user_authz read.
+export async function hasProjectGrant(
+  db: Database,
+  userId: string,
+  projectId: string
+): Promise<boolean> {
   const [row] = await db
     .select({ projectId: schema.userProjectAccess.projectId })
     .from(schema.userProjectAccess)
@@ -162,4 +183,116 @@ export async function claimOrCreateUserAuthz(
       .onConflictDoNothing()
     return isFirst
   })
+}
+
+// Entity → owning projectId, for the API's access guard to check a route's
+// target before the handler runs. Lightweight single-column lookups (no joins
+// beyond comment→card). Returns null when the id doesn't exist.
+export type ProjectScopedEntity
+  = | 'card'
+    | 'cardKey'
+    | 'sprint'
+    | 'doc'
+    | 'tag'
+    | 'intakeItem'
+    | 'comment'
+
+export async function resolveEntityProjectId(
+  db: Database,
+  kind: ProjectScopedEntity,
+  id: string
+): Promise<string | null> {
+  switch (kind) {
+    case 'card': {
+      const [row] = await db
+        .select({ projectId: schema.cards.projectId })
+        .from(schema.cards)
+        .where(eq(schema.cards.id, id))
+        .limit(1)
+      return row?.projectId ?? null
+    }
+    case 'cardKey': {
+      // Keys are unique only per project; the guard matches getCardByKey's same
+      // unscoped lookup, so guard and handler agree on the row (no cross-project
+      // leak) — at worst a duplicate prefix causes a false denial. Distinct
+      // prefixes (enforced on import) keep this from happening in practice.
+      const [row] = await db
+        .select({ projectId: schema.cards.projectId })
+        .from(schema.cards)
+        .where(eq(schema.cards.key, id))
+        .limit(1)
+      return row?.projectId ?? null
+    }
+    case 'sprint': {
+      const [row] = await db
+        .select({ projectId: schema.sprints.projectId })
+        .from(schema.sprints)
+        .where(eq(schema.sprints.id, id))
+        .limit(1)
+      return row?.projectId ?? null
+    }
+    case 'doc': {
+      const [row] = await db
+        .select({ projectId: schema.docs.projectId })
+        .from(schema.docs)
+        .where(eq(schema.docs.id, id))
+        .limit(1)
+      return row?.projectId ?? null
+    }
+    case 'tag': {
+      const [row] = await db
+        .select({ projectId: schema.tags.projectId })
+        .from(schema.tags)
+        .where(eq(schema.tags.id, id))
+        .limit(1)
+      return row?.projectId ?? null
+    }
+    case 'intakeItem': {
+      const [row] = await db
+        .select({ projectId: schema.intakeItems.projectId })
+        .from(schema.intakeItems)
+        .where(eq(schema.intakeItems.id, id))
+        .limit(1)
+      return row?.projectId ?? null
+    }
+    case 'comment': {
+      const [row] = await db
+        .select({ projectId: schema.cards.projectId })
+        .from(schema.comments)
+        .innerJoin(schema.cards, eq(schema.comments.cardId, schema.cards.id))
+        .where(eq(schema.comments.id, id))
+        .limit(1)
+      return row?.projectId ?? null
+    }
+  }
+}
+
+// Distinct owning projects for a set of comments (the only route whose payload
+// can span projects). Empty input → empty set (caller treats as no-op).
+export async function resolveCommentsProjectIds(
+  db: Database,
+  commentIds: string[]
+): Promise<string[]> {
+  if (commentIds.length === 0) return []
+  const rows = await db
+    .selectDistinct({ projectId: schema.cards.projectId })
+    .from(schema.comments)
+    .innerJoin(schema.cards, eq(schema.comments.cardId, schema.cards.id))
+    .where(inArray(schema.comments.id, commentIds))
+  return rows.map(r => r.projectId)
+}
+
+// Distinct owning projects for a set of cards. Used to access-check a reorder,
+// which mutates every card id in its payload — checking only one would let a
+// user move cards in projects they can't access.
+export async function resolveCardsProjectIds(
+  db: Database,
+  cardIds: string[]
+): Promise<string[]> {
+  if (cardIds.length === 0) return []
+  const rows = await db
+    .selectDistinct({ projectId: schema.cards.projectId })
+    .from(schema.cards)
+    .where(inArray(schema.cards.id, cardIds))
+  return rows.map(r => r.projectId)
 }

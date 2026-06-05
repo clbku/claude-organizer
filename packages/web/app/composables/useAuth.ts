@@ -4,6 +4,10 @@ export function useAuth() {
   const api = useApi()
   const user = useState<SessionUser | null>('auth.user', () => null)
   const loaded = useState('auth.loaded', () => false)
+  const capabilities = useState<AuthCapabilities | null>(
+    'auth.capabilities',
+    () => null
+  )
 
   async function fetchSession() {
     user.value = await api<SessionUser | null>('/auth/me')
@@ -20,6 +24,14 @@ export function useAuth() {
   function fetchCapabilities() {
     return api<AuthCapabilities>('/auth/capabilities')
   }
+
+  async function ensureCapabilities() {
+    if (!capabilities.value) capabilities.value = await fetchCapabilities()
+    return capabilities.value
+  }
+
+  const isApproved = computed(() => user.value?.status === 'approved')
+  const isAdmin = computed(() => user.value?.role === 'admin')
 
   async function signUpEmail(input: {
     name: string
@@ -51,9 +63,13 @@ export function useAuth() {
 
   return {
     user,
+    capabilities,
+    isApproved,
+    isAdmin,
     ensureSession,
     fetchSession,
     fetchCapabilities,
+    ensureCapabilities,
     signUpEmail,
     signInEmail,
     signInGithub,

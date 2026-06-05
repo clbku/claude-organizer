@@ -18,4 +18,6 @@ export interface AuthCapabilities {
   emailPassword: boolean
   github: boolean
   hasUsers: boolean
+  // false = sem-auth mode: the web runs without sessions/gating, as before auth.
+  authEnabled: boolean
 }

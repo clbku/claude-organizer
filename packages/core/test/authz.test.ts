@@ -5,8 +5,18 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { schema } from '@claude-organizer/db'
 
-import { claimOrCreateUserAuthz, getUserAuthz } from '../src/index'
-import { useTestDb } from './helpers'
+import {
+  addComment,
+  canAccessProject,
+  claimOrCreateUserAuthz,
+  createCard,
+  getUserAuthz,
+  listAccessibleProjectIds,
+  resolveCommentsProjectIds,
+  resolveEntityProjectId,
+  setUserAuthz
+} from '../src/index'
+import { freshProject, uniqueKeyPrefix, useTestDb } from './helpers'
 
 const ctx = useTestDb()
 
@@ -62,5 +72,81 @@ describe('claimOrCreateUserAuthz', () => {
       .from(schema.userAuthz)
       .where(eq(schema.userAuthz.role, 'admin'))
     expect(admins).toHaveLength(1)
+  })
+})
+
+async function approveUser(userId: string) {
+  await ctx.db
+    .update(schema.userAuthz)
+    .set({ status: 'approved' })
+    .where(eq(schema.userAuthz.userId, userId))
+}
+
+describe('project access', () => {
+  it('admin reaches every project; a pending user reaches none', async () => {
+    const p = await freshProject(ctx.db)
+    const admin = await makeUser(ctx.db)
+    await claimOrCreateUserAuthz(ctx.db, admin)
+    expect(await canAccessProject(ctx.db, admin, p.id)).toBe(true)
+    expect(await listAccessibleProjectIds(ctx.db, admin)).toBe('all')
+
+    const pending = await makeUser(ctx.db)
+    await claimOrCreateUserAuthz(ctx.db, pending)
+    expect(await canAccessProject(ctx.db, pending, p.id)).toBe(false)
+    expect(await listAccessibleProjectIds(ctx.db, pending)).toEqual([])
+  })
+
+  it('a subset user is limited to granted projects; allProjects covers later ones', async () => {
+    const p1 = await freshProject(ctx.db)
+    const p2 = await freshProject(ctx.db)
+    const admin = await makeUser(ctx.db)
+    await claimOrCreateUserAuthz(ctx.db, admin)
+
+    const u = await makeUser(ctx.db)
+    await claimOrCreateUserAuthz(ctx.db, u)
+    await approveUser(u)
+    await setUserAuthz(ctx.db, u, {
+      role: 'user',
+      allProjects: false,
+      projectIds: [p1.id]
+    })
+    expect(await canAccessProject(ctx.db, u, p1.id)).toBe(true)
+    expect(await canAccessProject(ctx.db, u, p2.id)).toBe(false)
+    expect(await listAccessibleProjectIds(ctx.db, u)).toEqual([p1.id])
+
+    await setUserAuthz(ctx.db, u, { role: 'user', allProjects: true })
+    const p3 = await freshProject(ctx.db)
+    expect(await canAccessProject(ctx.db, u, p3.id)).toBe(true)
+    expect(await listAccessibleProjectIds(ctx.db, u)).toBe('all')
+  })
+
+  it('resolves an entity to its owning project (null when missing)', async () => {
+    // Unique key prefix: card keys repeat across the default-'CO' projects other
+    // test files create, so a by-key lookup must not collide (helper caveat).
+    const p = await freshProject(ctx.db, uniqueKeyPrefix())
+    const card = await createCard(ctx.db, { projectId: p.id, title: 'X' })
+    expect(await resolveEntityProjectId(ctx.db, 'card', card.id)).toBe(p.id)
+    expect(await resolveEntityProjectId(ctx.db, 'cardKey', card.key)).toBe(p.id)
+    expect(await resolveEntityProjectId(ctx.db, 'card', 'missing')).toBeNull()
+  })
+
+  it('resolveCommentsProjectIds spans projects and is empty for no input', async () => {
+    const p1 = await freshProject(ctx.db, uniqueKeyPrefix())
+    const p2 = await freshProject(ctx.db, uniqueKeyPrefix())
+    const c1 = await createCard(ctx.db, { projectId: p1.id, title: 'A' })
+    const c2 = await createCard(ctx.db, { projectId: p2.id, title: 'B' })
+    const cm1 = await addComment(ctx.db, {
+      cardId: c1.id,
+      author: 'user',
+      bodyMd: 'x'
+    })
+    const cm2 = await addComment(ctx.db, {
+      cardId: c2.id,
+      author: 'user',
+      bodyMd: 'y'
+    })
+    const ids = await resolveCommentsProjectIds(ctx.db, [cm1.id, cm2.id])
+    expect([...ids].sort()).toEqual([p1.id, p2.id].sort())
+    expect(await resolveCommentsProjectIds(ctx.db, [])).toEqual([])
   })
 })

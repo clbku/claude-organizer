@@ -11,7 +11,7 @@ import {
   isEmailPasswordEnabled,
   isGithubConfigured
 } from '@claude-organizer/auth'
-import { getUserAuthz } from '@claude-organizer/core'
+import { getSystemSettings, getUserAuthz } from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
 import type { AuthCapabilities, SessionUser } from '@claude-organizer/shared'
 
@@ -64,7 +64,8 @@ export function registerAuthRoutes(
   app.get('/auth/capabilities', async (): Promise<AuthCapabilities> => ({
     emailPassword: isEmailPasswordEnabled(),
     github: isGithubConfigured(),
-    hasUsers: await hasAnyUser(db)
+    hasUsers: await hasAnyUser(db),
+    authEnabled: (await getSystemSettings(db)).authEnabled
   }))
 
   app.get('/auth/me', async (request): Promise<SessionUser | null> => {
