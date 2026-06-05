@@ -5,20 +5,32 @@ import { useProjectStore } from '~/stores/project'
 
 const store = useProjectStore()
 const { projects } = storeToRefs(store)
-const { isAdmin } = useAuth()
+const { isAdmin, capabilities } = useAuth()
 
 const version = useRuntimeConfig().public.appVersion
 
-// First-run onboarding: with no project there's nothing to do in the app, so we
-// force the create-project modal open (non-dismissable) until one exists. The
-// modal already selects the new project; here we just send the user home after.
+// Creating a project is admin-only (open in sem-auth mode). A scoped `user`
+// can't, so onboarding/empty-state must branch on this — forcing the create
+// modal on a non-creator would trap them (POST /projects 403s, no escape).
+const canCreateProject = computed(
+  () => isAdmin.value || !(capabilities.value?.authEnabled ?? true)
+)
+
+// First-run onboarding: with no project there's nothing to do, so we force the
+// create-project modal (non-dismissable) — but only for someone who can create.
 const onboardingOpen = ref(false)
 watch(
-  projects,
-  (list) => {
-    onboardingOpen.value = list.length === 0
+  [projects, canCreateProject],
+  ([list, canCreate]) => {
+    onboardingOpen.value = list.length === 0 && canCreate
   },
   { immediate: true }
+)
+
+// A scoped user with no accessible projects: nothing to show and nothing to
+// create — point them at their admin instead of an empty app.
+const noProjectsForUser = computed(
+  () => projects.value.length === 0 && !canCreateProject.value
 )
 
 function onProjectCreated() {
@@ -61,7 +73,22 @@ const links = computed<NavigationMenuItem[][]>(() => [
       </template>
     </UDashboardSidebar>
 
-    <slot />
+    <div
+      v-if="noProjectsForUser"
+      class="flex-1 flex items-center justify-center p-8"
+    >
+      <div class="text-center max-w-sm">
+        <UIcon name="i-lucide-folder-lock" class="size-8 text-muted mx-auto" />
+        <p class="text-sm font-medium mt-2">
+          Nenhum projeto liberado
+        </p>
+        <p class="text-sm text-muted mt-1">
+          Você ainda não tem acesso a nenhum projeto. Peça a um administrador
+          para liberar um para você.
+        </p>
+      </div>
+    </div>
+    <slot v-else />
 
     <AppCreateProjectModal
       v-model:open="onboardingOpen"

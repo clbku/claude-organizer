@@ -12,14 +12,15 @@ useHead({ title: 'Settings' })
 
 const { isAdmin, capabilities, ensureCapabilities, ensureSession } = useAuth()
 // Resolve both explicitly rather than leaning on the global middleware's order,
-// so `isAdmin` (from the session) is populated when canToggleAuth is computed.
+// so `isAdmin` (from the session) is populated when adminOrOpenMode is computed.
 onMounted(async () => {
   await Promise.all([ensureCapabilities(), ensureSession()])
 })
 const authEnabled = computed(() => capabilities.value?.authEnabled ?? true)
-// Visible to an admin, or to anyone while auth is off (so an open board can be
-// closed again — there is no admin to gate it in that mode).
-const canToggleAuth = computed(() => !authEnabled.value || isAdmin.value)
+// Admin-only system actions (backup, the auth toggle) are shown to an admin, or
+// to anyone while auth is off — an open board has no admin to gate them, and the
+// API mirrors this (the gate bypasses in sem-auth mode).
+const adminOrOpenMode = computed(() => !authEnabled.value || isAdmin.value)
 const togglingAuth = ref(false)
 async function toggleAuth() {
   togglingAuth.value = true
@@ -90,7 +91,7 @@ function openProject(slug: string) {
 
     <template #body>
       <div class="max-w-2xl mx-auto w-full space-y-8">
-        <section class="space-y-3">
+        <section v-if="adminOrOpenMode" class="space-y-3">
           <div>
             <h2 class="text-sm font-semibold">
               Backup
@@ -199,7 +200,7 @@ function openProject(slug: string) {
           </div>
         </section>
 
-        <section v-if="canToggleAuth" class="space-y-3">
+        <section v-if="adminOrOpenMode" class="space-y-3">
           <div>
             <h2 class="text-sm font-semibold">
               Autenticação
