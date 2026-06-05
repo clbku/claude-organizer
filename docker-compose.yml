@@ -54,6 +54,9 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://127.0.0.1:4400}
       AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-http://127.0.0.1:4401}
+      # The AS binds the OAuth token's resource/audience to the MCP's public URL,
+      # so api and mcp must resolve the same value (matters once H5 overrides it).
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-http://127.0.0.1:4402}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
     ports:
@@ -70,7 +73,11 @@ services:
     environment:
       <<: *db-env
       MCP_HTTP_PORT: 4402
-      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
+      # Resource server: validates OAuth bearers against the same better-auth
+      # store as the API, so it needs the matching secret + the authz-server URL.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://127.0.0.1:4400}
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-http://127.0.0.1:4402}
     ports:
       - "4402:4402"
     depends_on:

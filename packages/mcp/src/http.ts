@@ -1,4 +1,4 @@
-import { randomUUID, timingSafeEqual } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import {
   createServer,
   type IncomingMessage,
@@ -8,19 +8,26 @@ import {
 
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
+import { fromNodeHeaders } from 'better-auth/node'
 
+import {
+  createAuth,
+  getMcpResourceUrl,
+  oAuthProtectedResourceMetadata
+} from '@claude-organizer/auth'
+import { getSystemSettings } from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
 
 import { createMcpServer } from './create-server'
+import { type McpScope, resolveMcpScope } from './scope'
 
 interface HttpServerOptions {
   db: Database
   port: number
-  // When set, every request must carry `Authorization: Bearer <authToken>`.
-  authToken?: string
 }
 
 const MCP_PATH = '/mcp'
+const PROTECTED_RESOURCE_PATH = '/.well-known/oauth-protected-resource'
 
 function jsonRpcError(code: number, message: string) {
   return JSON.stringify({ jsonrpc: '2.0', error: { code, message }, id: null })
@@ -29,15 +36,6 @@ function jsonRpcError(code: number, message: string) {
 function sendError(res: ServerResponse, status: number, code: number, message: string) {
   res.writeHead(status, { 'content-type': 'application/json' })
   res.end(jsonRpcError(code, message))
-}
-
-// Constant-time bearer check; returns false on any shape/length mismatch.
-function isAuthorized(req: IncomingMessage, authToken: string) {
-  const header = req.headers.authorization
-  if (!header || !header.startsWith('Bearer ')) return false
-  const provided = Buffer.from(header.slice('Bearer '.length))
-  const expected = Buffer.from(authToken)
-  return provided.length === expected.length && timingSafeEqual(provided, expected)
 }
 
 function readJsonBody(req: IncomingMessage): Promise<unknown> {
@@ -62,18 +60,70 @@ function readJsonBody(req: IncomingMessage): Promise<unknown> {
 // Streamable HTTP transport (stateful): one session per `Mcp-Session-Id`,
 // created on the initialize request and torn down on close. Mirrors the stdio
 // behaviour — same tools, same handshake.
-export function startHttpServer({ db, port, authToken }: HttpServerOptions): Server {
+//
+// Auth: this server is the OAuth *resource server*. When auth is enabled, every
+// `/mcp` request must carry a valid `Authorization: Bearer` (validated against
+// the shared better-auth store via getMcpSession); when disabled it stays open,
+// mirroring the local stdio path (sem-auth, T3.4). The static MCP_AUTH_TOKEN was
+// dropped in favour of OAuth.
+export function startHttpServer({ db, port }: HttpServerOptions): Server {
   const transports = new Map<string, StreamableHTTPServerTransport>()
+  const auth = createAuth(db)
+  const protectedResourceMetadata = oAuthProtectedResourceMetadata(auth)
+  // Per RFC 9728: a 401 points the client at the resource metadata so it can
+  // discover the authorization server and start the OAuth flow.
+  const wwwAuthenticate = `Bearer resource_metadata="${getMcpResourceUrl()}${PROTECTED_RESOURCE_PATH}"`
+
+  // Resolves the request's identity. `ok` gates access; `userId` (null in sem-auth
+  // mode) drives the project scope built when a session's server is created.
+  async function authenticate(
+    req: IncomingMessage
+  ): Promise<{ ok: boolean, userId: string | null }> {
+    const { authEnabled } = await getSystemSettings(db)
+    if (!authEnabled) return { ok: true, userId: null }
+    const session = await auth.api.getMcpSession({
+      headers: fromNodeHeaders(req.headers)
+    })
+    // getMcpSession looks the token up but doesn't enforce expiry — guard here.
+    if (!session || session.accessTokenExpiresAt.getTime() <= Date.now()) {
+      return { ok: false, userId: null }
+    }
+    return { ok: true, userId: session.userId }
+  }
 
   async function handle(req: IncomingMessage, res: ServerResponse) {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`)
+
+    // Public discovery: the resource metadata the 401's WWW-Authenticate points
+    // to (never gated — it's how an unauthenticated client bootstraps).
+    if (url.pathname === PROTECTED_RESOURCE_PATH) {
+      if (req.method !== 'GET') {
+        res.writeHead(405).end()
+        return
+      }
+      const webRes = await protectedResourceMetadata(
+        new Request(url, { method: 'GET', headers: fromNodeHeaders(req.headers) })
+      )
+      // Plain JSON metadata, no Set-Cookie — so Object.fromEntries (which would
+      // collapse multi-value headers) is safe here.
+      res.writeHead(webRes.status, Object.fromEntries(webRes.headers))
+      res.end(await webRes.text())
+      return
+    }
+
     if (url.pathname !== MCP_PATH) {
       res.writeHead(404).end()
       return
     }
 
-    if (authToken && !isAuthorized(req, authToken)) {
-      sendError(res, 401, -32001, 'Unauthorized')
+    const authn = await authenticate(req)
+    if (!authn.ok) {
+      res.writeHead(401, {
+        'content-type': 'application/json',
+        'WWW-Authenticate': wwwAuthenticate,
+        'Access-Control-Expose-Headers': 'WWW-Authenticate'
+      })
+      res.end(jsonRpcError(-32001, 'Unauthorized'))
       return
     }
 
@@ -111,7 +161,13 @@ export function startHttpServer({ db, port, authToken }: HttpServerOptions): Ser
         transport.onclose = () => {
           if (transport!.sessionId) transports.delete(transport!.sessionId)
         }
-        await createMcpServer(db).connect(transport)
+        // Scope is fixed for the session at initialize, from the bearer's user
+        // (null in sem-auth → unrestricted). Subsequent requests on the session
+        // are still bearer-checked above; the scope doesn't change mid-session.
+        const scope: McpScope | null = authn.userId
+          ? await resolveMcpScope(db, authn.userId)
+          : null
+        await createMcpServer(db, scope).connect(transport)
       }
 
       await transport.handleRequest(req, res, body)
@@ -143,9 +199,8 @@ export function startHttpServer({ db, port, authToken }: HttpServerOptions): Ser
   })
 
   httpServer.listen(port, () => {
-    const auth = authToken ? ' (bearer auth required)' : ''
     console.error(
-      `[claude-organizer-mcp] Streamable HTTP transport on http://127.0.0.1:${port}${MCP_PATH}${auth}`
+      `[claude-organizer-mcp] Streamable HTTP transport on http://127.0.0.1:${port}${MCP_PATH} (OAuth when auth is enabled)`
     )
   })
 
