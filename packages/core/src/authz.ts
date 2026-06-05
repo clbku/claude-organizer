@@ -2,7 +2,11 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { type Database, schema } from '@claude-organizer/db'
 import { SYSTEM_SETTINGS_ID } from '@claude-organizer/db/schema'
-import type { SystemSettingsRow, UserRole } from '@claude-organizer/shared'
+import type {
+  SystemSettingsRow,
+  UserRole,
+  UserStatus
+} from '@claude-organizer/shared'
 
 export async function getUserAuthz(db: Database, userId: string) {
   const [row] = await db
@@ -78,13 +82,14 @@ export interface SetUserAuthzInput {
   role: UserRole
   allProjects: boolean
   projectIds?: string[]
+  // Only the approval flow (CO-167) passes this; left out, status keeps its row
+  // value (or the 'pending' default on insert).
+  status?: UserStatus
 }
 
 // Assigns role + project scope in one transaction and replaces the explicit
 // grants wholesale. Upsert (not update) so it is self-sufficient — it must not
-// depend on the create hook (CO-165) having inserted the row first; on insert
-// `status` falls to its 'pending' default and is never touched on conflict, so
-// the approval flow (CO-167) keeps ownership of pending→approved.
+// depend on the create hook (CO-165) having inserted the row first.
 // `allProjects=true` clears the per-project rows so they never drift; admins are
 // unrestricted regardless of what is stored here.
 export async function setUserAuthz(
@@ -94,20 +99,23 @@ export async function setUserAuthz(
 ) {
   const projectIds
     = input.role === 'admin' || input.allProjects ? [] : (input.projectIds ?? [])
+  const statusField = input.status ? { status: input.status } : {}
   return db.transaction(async (tx) => {
     const [row] = await tx
       .insert(schema.userAuthz)
       .values({
         userId,
         role: input.role,
-        allProjects: input.allProjects
+        allProjects: input.allProjects,
+        ...statusField
       })
       .onConflictDoUpdate({
         target: schema.userAuthz.userId,
         set: {
           role: input.role,
           allProjects: input.allProjects,
-          updatedAt: sql`now()`
+          updatedAt: sql`now()`,
+          ...statusField
         }
       })
       .returning()
@@ -121,6 +129,50 @@ export async function setUserAuthz(
     }
     return row!
   })
+}
+
+export interface ApproveUserInput {
+  role: UserRole
+  allProjects: boolean
+  projectIds?: string[]
+}
+
+// Approval = set status 'approved' alongside role/scope, reusing setUserAuthz.
+export async function approveUser(
+  db: Database,
+  userId: string,
+  input: ApproveUserInput
+) {
+  return setUserAuthz(db, userId, { ...input, status: 'approved' })
+}
+
+// Reject = remove the account (sessions/accounts/authz cascade). Only a *pending*
+// user can be rejected, so this endpoint can't delete an approved user or an
+// admin. They can sign in again as a fresh pending user (this clears the queue,
+// it is not a ban). Returns null when the user isn't pending (or doesn't exist).
+export async function rejectUser(db: Database, userId: string) {
+  const authz = await getUserAuthz(db, userId)
+  if (!authz || authz.status !== 'pending') return null
+  const [row] = await db
+    .delete(schema.users)
+    .where(eq(schema.users.id, userId))
+    .returning({ id: schema.users.id })
+  return row ?? null
+}
+
+export async function listPendingUsers(db: Database) {
+  return db
+    .select({
+      id: schema.users.id,
+      name: schema.users.name,
+      email: schema.users.email,
+      image: schema.users.image,
+      createdAt: schema.users.createdAt
+    })
+    .from(schema.userAuthz)
+    .innerJoin(schema.users, eq(schema.userAuthz.userId, schema.users.id))
+    .where(eq(schema.userAuthz.status, 'pending'))
+    .orderBy(schema.users.createdAt)
 }
 
 const DEFAULT_SYSTEM_SETTINGS = { authEnabled: true } as const

@@ -37,7 +37,7 @@ function isPublic(url: string | undefined): boolean {
 }
 
 // Admin-only = system surface: project lifecycle, whole-system/per-project
-// backup, and (added by CO-167/CO-169) user approval + system settings.
+// backup, user approval, and (added by CO-169) system settings.
 const ADMIN_ONLY: Array<{ method: string, url: string }> = [
   { method: 'POST', url: '/projects' },
   { method: 'DELETE', url: '/projects/:id' },
@@ -45,7 +45,10 @@ const ADMIN_ONLY: Array<{ method: string, url: string }> = [
   { method: 'POST', url: '/projects/:id/restore' },
   { method: 'GET', url: '/export' },
   { method: 'POST', url: '/import' },
-  { method: 'GET', url: '/projects/:projectId/export' }
+  { method: 'GET', url: '/projects/:projectId/export' },
+  { method: 'GET', url: '/admin/users/pending' },
+  { method: 'POST', url: '/admin/users/:id/approve' },
+  { method: 'POST', url: '/admin/users/:id/reject' }
 ]
 
 function isAdminOnly(method: string, url: string | undefined): boolean {

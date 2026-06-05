@@ -7,11 +7,14 @@ import { schema } from '@claude-organizer/db'
 
 import {
   addComment,
+  approveUser,
   canAccessProject,
   claimOrCreateUserAuthz,
   createCard,
   getUserAuthz,
   listAccessibleProjectIds,
+  listPendingUsers,
+  rejectUser,
   resolveCommentsProjectIds,
   resolveEntityProjectId,
   setUserAuthz
@@ -75,13 +78,6 @@ describe('claimOrCreateUserAuthz', () => {
   })
 })
 
-async function approveUser(userId: string) {
-  await ctx.db
-    .update(schema.userAuthz)
-    .set({ status: 'approved' })
-    .where(eq(schema.userAuthz.userId, userId))
-}
-
 describe('project access', () => {
   it('admin reaches every project; a pending user reaches none', async () => {
     const p = await freshProject(ctx.db)
@@ -104,8 +100,7 @@ describe('project access', () => {
 
     const u = await makeUser(ctx.db)
     await claimOrCreateUserAuthz(ctx.db, u)
-    await approveUser(u)
-    await setUserAuthz(ctx.db, u, {
+    await approveUser(ctx.db, u, {
       role: 'user',
       allProjects: false,
       projectIds: [p1.id]
@@ -148,5 +143,43 @@ describe('project access', () => {
     const ids = await resolveCommentsProjectIds(ctx.db, [cm1.id, cm2.id])
     expect([...ids].sort()).toEqual([p1.id, p2.id].sort())
     expect(await resolveCommentsProjectIds(ctx.db, [])).toEqual([])
+  })
+})
+
+describe('approval queue', () => {
+  it('lists pending users (not the admin) and approves with role+scope', async () => {
+    const p = await freshProject(ctx.db)
+    const admin = await makeUser(ctx.db)
+    await claimOrCreateUserAuthz(ctx.db, admin)
+    const u = await makeUser(ctx.db)
+    await claimOrCreateUserAuthz(ctx.db, u)
+
+    const ids = (await listPendingUsers(ctx.db)).map(x => x.id)
+    expect(ids).toContain(u)
+    expect(ids).not.toContain(admin)
+
+    await approveUser(ctx.db, u, {
+      role: 'user',
+      allProjects: false,
+      projectIds: [p.id]
+    })
+    expect(await getUserAuthz(ctx.db, u)).toMatchObject({
+      status: 'approved',
+      role: 'user',
+      allProjects: false
+    })
+    expect(await canAccessProject(ctx.db, u, p.id)).toBe(true)
+    expect((await listPendingUsers(ctx.db)).map(x => x.id)).not.toContain(u)
+  })
+
+  it('rejects a pending user by removing the account', async () => {
+    const admin = await makeUser(ctx.db)
+    await claimOrCreateUserAuthz(ctx.db, admin)
+    const u = await makeUser(ctx.db)
+    await claimOrCreateUserAuthz(ctx.db, u)
+
+    expect(await rejectUser(ctx.db, u)).toMatchObject({ id: u })
+    expect(await getUserAuthz(ctx.db, u)).toBeNull()
+    expect((await listPendingUsers(ctx.db)).map(x => x.id)).not.toContain(u)
   })
 })

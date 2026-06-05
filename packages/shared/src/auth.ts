@@ -21,3 +21,12 @@ export interface AuthCapabilities {
   // false = sem-auth mode: the web runs without sessions/gating, as before auth.
   authEnabled: boolean
 }
+
+// A user awaiting admin approval, as listed on the admin queue.
+export interface PendingUser {
+  id: string
+  name: string
+  email: string
+  image: string | null
+  createdAt: string
+}

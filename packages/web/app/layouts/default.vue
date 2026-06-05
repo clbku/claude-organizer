@@ -5,6 +5,7 @@ import { useProjectStore } from '~/stores/project'
 
 const store = useProjectStore()
 const { projects } = storeToRefs(store)
+const { isAdmin } = useAuth()
 
 const version = useRuntimeConfig().public.appVersion
 
@@ -34,6 +35,9 @@ const links = computed<NavigationMenuItem[][]>(() => [
     { label: 'Docs', icon: 'i-lucide-book', to: '/docs' }
   ],
   [
+    ...(isAdmin.value
+      ? [{ label: 'Usuários', icon: 'i-lucide-users', to: '/admin/users' }]
+      : []),
     { label: 'Settings', icon: 'i-lucide-settings', to: '/settings' }
   ]
 ])
