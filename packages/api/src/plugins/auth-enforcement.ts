@@ -29,7 +29,13 @@ declare module 'fastify' {
   }
 }
 
-const PUBLIC_EXACT = new Set(['/health', '/auth/capabilities', '/auth/me'])
+const PUBLIC_EXACT = new Set([
+  '/health',
+  '/auth/capabilities',
+  '/auth/me',
+  // Self-guards on hasAnyUser (first boot only); see routes/auth.ts.
+  '/setup/disable-auth'
+])
 
 function isPublic(url: string | undefined): boolean {
   if (!url) return false
@@ -48,7 +54,10 @@ const ADMIN_ONLY: Array<{ method: string, url: string }> = [
   { method: 'GET', url: '/projects/:projectId/export' },
   { method: 'GET', url: '/admin/users/pending' },
   { method: 'POST', url: '/admin/users/:id/approve' },
-  { method: 'POST', url: '/admin/users/:id/reject' }
+  { method: 'POST', url: '/admin/users/:id/reject' },
+  // Reachable in sem-auth mode (the gate bypasses before this list), so an open
+  // board can re-enable auth; admin-only once auth is on with users.
+  { method: 'POST', url: '/admin/settings' }
 ]
 
 function isAdminOnly(method: string, url: string | undefined): boolean {

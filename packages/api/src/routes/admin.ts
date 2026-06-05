@@ -1,7 +1,12 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 
-import { approveUser, listPendingUsers, rejectUser } from '@claude-organizer/core'
+import {
+  approveUser,
+  listPendingUsers,
+  rejectUser,
+  setAuthEnabled
+} from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
 import { USER_ROLES } from '@claude-organizer/shared'
 
@@ -12,6 +17,7 @@ const approveBody = z.object({
   allProjects: z.boolean(),
   projectIds: z.array(z.string()).optional()
 })
+const settingsBody = z.object({ authEnabled: z.boolean() })
 
 export function registerAdminRoutes(app: FastifyInstance, db: Database) {
   app.get('/admin/users/pending', async () => listPendingUsers(db))
@@ -32,4 +38,9 @@ export function registerAdminRoutes(app: FastifyInstance, db: Database) {
       return { deleted: true }
     }
   )
+
+  app.post('/admin/settings', async (req) => {
+    const { authEnabled } = settingsBody.parse(req.body)
+    return setAuthEnabled(db, authEnabled)
+  })
 }

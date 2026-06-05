@@ -11,12 +11,14 @@ import {
   canAccessProject,
   claimOrCreateUserAuthz,
   createCard,
+  getSystemSettings,
   getUserAuthz,
   listAccessibleProjectIds,
   listPendingUsers,
   rejectUser,
   resolveCommentsProjectIds,
   resolveEntityProjectId,
+  setAuthEnabled,
   setUserAuthz
 } from '../src/index'
 import { freshProject, uniqueKeyPrefix, useTestDb } from './helpers'
@@ -181,5 +183,14 @@ describe('approval queue', () => {
     expect(await rejectUser(ctx.db, u)).toMatchObject({ id: u })
     expect(await getUserAuthz(ctx.db, u)).toBeNull()
     expect((await listPendingUsers(ctx.db)).map(x => x.id)).not.toContain(u)
+  })
+})
+
+describe('system settings (sem-auth flag)', () => {
+  it('persists and toggles authEnabled', async () => {
+    expect(await setAuthEnabled(ctx.db, false)).toEqual({ authEnabled: false })
+    expect(await getSystemSettings(ctx.db)).toEqual({ authEnabled: false })
+    expect(await setAuthEnabled(ctx.db, true)).toEqual({ authEnabled: true })
+    expect(await getSystemSettings(ctx.db)).toEqual({ authEnabled: true })
   })
 })
