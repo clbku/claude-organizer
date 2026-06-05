@@ -126,3 +126,40 @@ export async function setAuthEnabled(db: Database, authEnabled: boolean) {
     .returning({ authEnabled: schema.systemSettings.authEnabled })
   return row!
 }
+
+// Arbitrary fixed key serializing the first-boot admin claim via a transaction-
+// scoped advisory lock — only its uniqueness within this app's advisory-lock
+// space matters.
+const ADMIN_CLAIM_LOCK = 4242100165
+
+// Creates the user_authz row for a just-created better-auth user. The claim
+// keys on "no admin exists yet" (not "no users"), so the first user ever is
+// claimed as admin/approved/all-projects and the rest are pending users — and
+// the claim re-opens if every admin is later removed (a recovery path). The
+// advisory lock serializes near-simultaneous first logins so they can't both
+// claim admin; onConflictDoNothing makes a repeated hook run idempotent (never
+// downgrades an existing admin). Returns true when this user became the admin.
+export async function claimOrCreateUserAuthz(
+  db: Database,
+  userId: string
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${ADMIN_CLAIM_LOCK})`)
+    const [admin] = await tx
+      .select({ userId: schema.userAuthz.userId })
+      .from(schema.userAuthz)
+      .where(eq(schema.userAuthz.role, 'admin'))
+      .limit(1)
+    const isFirst = !admin
+    await tx
+      .insert(schema.userAuthz)
+      .values({
+        userId,
+        role: isFirst ? 'admin' : 'user',
+        status: isFirst ? 'approved' : 'pending',
+        allProjects: isFirst
+      })
+      .onConflictDoNothing()
+    return isFirst
+  })
+}

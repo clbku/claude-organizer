@@ -81,6 +81,9 @@ importers:
 
   packages/auth:
     dependencies:
+      '@claude-organizer/core':
+        specifier: workspace:*
+        version: link:../core
       '@claude-organizer/db':
         specifier: workspace:*
         version: link:../db
