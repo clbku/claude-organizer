@@ -12,7 +12,11 @@ export const idPrefixes = {
   commit: 'ccm',
   tag: 'tag',
   doc: 'doc',
-  intake: 'itk'
+  intake: 'itk',
+  user: 'usr',
+  session: 'ses',
+  account: 'acc',
+  verification: 'ver'
 } as const
 
 export type IdPrefix = (typeof idPrefixes)[keyof typeof idPrefixes]

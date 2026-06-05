@@ -2,10 +2,12 @@ import cors from '@fastify/cors'
 import websocket from '@fastify/websocket'
 import Fastify from 'fastify'
 
+import { createAuth, getTrustedOrigins } from '@claude-organizer/auth'
 import { createDb } from '@claude-organizer/db'
 
 import errorHandlerPlugin from './plugins/error-handler'
 import eventsPlugin from './plugins/events'
+import { registerAuthRoutes } from './routes/auth'
 import { registerBackupRoutes } from './routes/backup'
 import { registerBlockerRoutes } from './routes/blockers'
 import { registerCardCommitRoutes } from './routes/cardCommits'
@@ -27,14 +29,37 @@ if (!databaseUrl) {
 }
 
 const { db, close } = createDb({ url: databaseUrl })
+const auth = createAuth(db)
 
 const app = Fastify({ logger: true })
+
+// Without a secret better-auth signs sessions with a predictable derived key —
+// forgeable tokens. Refuse to boot in production; warn loudly otherwise.
+if (!process.env.BETTER_AUTH_SECRET) {
+  const msg = 'BETTER_AUTH_SECRET is not set — sessions would be signed with an insecure default.'
+  if (process.env.NODE_ENV === 'production') {
+    console.error(`${msg} Refusing to start in production.`)
+    process.exit(1)
+  }
+  app.log.warn(msg)
+}
+
+const corsOrigins = getTrustedOrigins()
+if (!process.env.AUTH_TRUSTED_ORIGINS) {
+  app.log.warn(
+    'AUTH_TRUSTED_ORIGINS not set — defaulting to the dev web origin (http://127.0.0.1:4401). Set it in production or browser login/API calls are blocked.'
+  )
+}
 
 // @fastify/cors v11 narrowed the default `methods` to the CORS-safelist
 // (GET,HEAD,POST), which drops PATCH/PUT/DELETE and breaks every update/delete
 // from the browser (cross-origin preflight). Spell out the full set.
+// `credentials: true` demands an explicit origin allow-list (never `*`/reflect-
+// all), so only the trusted web origins can send the session cookie — reuses
+// better-auth's trusted-origins list.
 await app.register(cors, {
-  origin: true,
+  origin: corsOrigins,
+  credentials: true,
   methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']
 })
 await app.register(websocket)
@@ -44,6 +69,7 @@ await app.register(eventsPlugin)
 app.get('/health', async () => ({ status: 'ok' }))
 
 app.decorate('db', db)
+registerAuthRoutes(app, auth, db)
 registerProjectRoutes(app, db)
 registerSprintRoutes(app, db)
 registerCardRoutes(app, db)
