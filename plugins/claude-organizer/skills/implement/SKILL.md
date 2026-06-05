@@ -93,7 +93,7 @@ Before committing, ask once: **did a decision, a standardization, or long-lived 
 
 **`set_card_status(id, "done")`** once the user has confirmed it works. Don't leave a validated card sitting in `review`, and never mark `done` before validation.
 
-If this is the **last child of a story**, the **story-level review gate** fires **before** the story closes (see _Review gate_); only then move the history to `done` too (see _History status_).
+If this is the **last child of a story**, the **story-level review gate** fires **before** the story closes (see _Review gate_); only then move the history to `done` too (see _History status_). At this story boundary — and before advancing to the next card/story or ending the session — re-check the inbox **fresh** (see _Inbox re-check at work boundaries_).
 
 ## Review gate — mandatory, before a task or story closes
 
@@ -103,6 +103,10 @@ Work gets an independent review so acceptance criteria are actually met and the 
 - **Per story — when the last child is done, before the story closes (step 11).** An additional pass over the **whole story** (≈ one PR), from the story's **commits / branch diff** (`git diff <base>...HEAD`), scoped to what a single task can't see: **the story's acceptance criteria**, **duplication across tasks**, **coherence of the PR**. It does **not** re-review each task line-by-line — the per-task gates already did. A **standalone task** (no parent) has no story layer: its per-task review *is* the whole review.
 
 Skipping a gate (beyond the trivial-task exception) is a defect.
+
+## Inbox re-check at work boundaries
+
+The inbox snapshot from orientation goes stale — the user may drop demands **while** you work a card or story. So at the **end of a story** (its last child done), **before advancing to the next card/story/sprint**, and **before ending the session**, re-call **`list_inbox` (pending) fresh** — don't trust the orientation snapshot. If it surfaces pending demands not covered by the work just done, **stop and ask** the user whether to review/plan them now (a decision gate), noting they may **reshape the upcoming stories**. The criterion and wording live in the **`claude-organizer`** skill (_Inbox — suggest planning, don't nag_); this is the execution-side enforcement of it.
 
 ## Git flow — agree before you start
 
@@ -131,4 +135,4 @@ For each card, in order — no step skipped. **Standing rule: never assume — a
 8. Let the user review the diff before committing.
 9. Capture durable knowledge in the docs (decision/convention/gotcha → write or update the doc; skip the ephemeral).
 10. Commit (one per card, key in message) → attach the diff to the card.
-11. `done` after the user confirms — and if this is a story's last child, the **story-level review gate** first, then close the story.
+11. `done` after the user confirms — and if this is a story's last child, the **story-level review gate** first, then close the story. At the story/batch boundary, before advancing or ending the session, re-check the inbox **fresh** (`list_inbox`, pending) and gate with the user (see _Inbox re-check at work boundaries_).

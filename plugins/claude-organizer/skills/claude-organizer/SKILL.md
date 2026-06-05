@@ -43,10 +43,12 @@ If no project matches the current repo, ask the user before creating one.
 
 The inbox (`list_inbox`, pending) holds **raw demands** the user dropped without planning them — not cards yet. You **always do what the user asked first**; then, with judgment, suggest turning pending demands into cards via the **`plan`** skill:
 
-- User asked to **implement / build / fix** something → do it; **at the end**, if demands are pending, offer once: _"want to plan the N pending inbox demand(s)?"_
+- User asked to **implement / build / fix** something → do it; **at the end**, re-check the inbox **fresh** (see below) and, if demands are pending, offer once: _"want to plan the N pending inbox demand(s)?"_
 - User is **planning** something → plan what they asked; at the end, offer to plan the rest.
 - User is **lost / asks what to do / what's next / asks for board status / is idle** → suggest planning the pending demands **right away** (plan first — it's the most useful next move).
 - **No pending demands → say nothing.** And don't re-offer every turn — suggest sparingly, not on a loop.
+
+**Re-check fresh at the end of work — never the orientation snapshot.** The inbox you read while orienting (step 7) goes stale: the user routinely drops demands **during** a long piece of work. So at every natural **end-of-work boundary** — finishing a story, **before advancing to the next story/sprint**, and **before ending the session** — call **`list_inbox` (pending) again, fresh**, and judge against *that*, not the snapshot. When the fresh check surfaces pending demands not covered by what you just did, treat it as a **decision gate**: **ask** the user whether to review/plan them now, noting that pending demands may **reshape the upcoming stories** — don't only mention them in passing or skip ahead. (The soft "offer once, sparingly" above is the normal-turn register; at a real end-of-work boundary it firms into this gate.) (The `implement` and `autopilot` skills enforce this same fresh re-check at their story/round boundaries.)
 
 Converting a demand into cards is the **`plan`** skill's job (it reads the inbox and marks each planned); here you only orient and suggest.
 

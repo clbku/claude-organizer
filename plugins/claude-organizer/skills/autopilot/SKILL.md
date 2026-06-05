@@ -63,6 +63,8 @@ Each card is a **fresh branch off the up-to-date `main`** (`git fetch origin && 
 
 ### Phase 4 — Report, then stop or loop
 
+Before stopping or looping, re-check the inbox **fresh** (`list_inbox`, pending) — demands dropped mid-round won't be in the orientation snapshot this round started from. If pending demands not covered by this round remain, surface them to the user as a decision gate (they may **reshape the next round's ready set** or need planning via `plan`), instead of silently looping past them.
+
 **Stop** when the ready set is empty — only PR-dependent or blocked work remains — **or** when a card carries a decision the user must settle that wasn't cleared in Phase 2. Then **report**, concisely:
 
 - **PRs opened** this round (card key → PR link/branch).
@@ -123,4 +125,4 @@ The project rule "commit only after the user confirms" **adapts** here, it isn't
 3. **Decide** the ready set up front with the user (shared doctrine, batch, current ready set only) → **record answers into the cards**.
 4. **Execute** each decided card on a **fresh branch off `main`** → `implement` lifecycle → `review` gate → commit on branch → open PR → `attach-commit` → card to `review`. Parallel: one subagent per card in a worktree, skills **inline**, conflict guard on, **subagent never asks**.
 5. **Never** stack, **never** merge to `main` yourself.
-6. **Report** (PRs opened / waiting on your merge / blocked) and **stop** when only PR-dependent or blocked work remains. **Resume** after the user merges.
+6. **Report** (PRs opened / waiting on your merge / blocked) and **stop** when only PR-dependent or blocked work remains. Re-check the inbox **fresh** before stopping/looping and gate pending demands with the user. **Resume** after the user merges.
