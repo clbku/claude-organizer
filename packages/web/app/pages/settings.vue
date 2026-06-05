@@ -156,7 +156,13 @@ function openProject(slug: string) {
                 class="flex items-center gap-2 text-sm pl-6"
               >
                 <span class="flex-1 truncate text-muted">{{ p.name }} ({{ p.slug }})</span>
-                <UButton size="xs" color="primary" variant="subtle" label="Open" @click="openProject(p.slug)" />
+                <UButton
+                  size="xs"
+                  color="primary"
+                  variant="subtle"
+                  label="Open"
+                  @click="openProject(p.slug)"
+                />
               </div>
             </div>
             <div

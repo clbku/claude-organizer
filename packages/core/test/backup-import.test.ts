@@ -88,7 +88,7 @@ describe('importBackup — restore as new', () => {
     const blocker = await freshProject(ctx.db, 'ZZ')
 
     const slugClash = await exportProject(ctx.db, project.id)
-    const a = slugClash.data.projects![0] as { slug: string; keyPrefix: string }
+    const a = slugClash.data.projects![0] as { slug: string, keyPrefix: string }
     a.slug = blocker.slug
     a.keyPrefix = 'QQ'
     const r1 = await importBackup(ctx.db, serializeBackup(slugClash))
@@ -100,7 +100,7 @@ describe('importBackup — restore as new', () => {
     expect(imp1!.keyPrefix).toBe('QQ')
 
     const prefixClash = await exportProject(ctx.db, project.id)
-    const b = prefixClash.data.projects![0] as { slug: string; keyPrefix: string }
+    const b = prefixClash.data.projects![0] as { slug: string, keyPrefix: string }
     b.slug = 'a-free-and-unused-slug'
     b.keyPrefix = blocker.keyPrefix
     const r2 = await importBackup(ctx.db, serializeBackup(prefixClash))
@@ -121,7 +121,7 @@ describe('importBackup — restore as new', () => {
     })
     const { project } = await seedProject()
     const env = await exportProject(ctx.db, project.id)
-    const p = env.data.projects![0] as { slug: string; keyPrefix: string }
+    const p = env.data.projects![0] as { slug: string, keyPrefix: string }
     p.slug = longSlug
     p.keyPrefix = 'XY'
     const { projectIds } = await importBackup(ctx.db, serializeBackup(env))
@@ -136,7 +136,7 @@ describe('importBackup — restore as new', () => {
   it('clamps an over-long slug/keyPrefix even without a collision', async () => {
     const { project } = await seedProject()
     const env = await exportProject(ctx.db, project.id)
-    const p = env.data.projects![0] as { slug: string; keyPrefix: string }
+    const p = env.data.projects![0] as { slug: string, keyPrefix: string }
     p.slug = 'b'.repeat(80)
     p.keyPrefix = 'C'.repeat(15)
     const { projectIds } = await importBackup(ctx.db, serializeBackup(env))

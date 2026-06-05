@@ -31,8 +31,7 @@ const model = defineModel<string>({ default: '' })
 // Optional lifecycle for consumers that drive shared state off the toggle (e.g.
 // the inbox list points its single auto-save buffer at whichever item is open).
 const emit = defineEmits<{
-  (e: 'edit-start'): void
-  (e: 'edit-stop'): void
+  (e: 'edit-start' | 'edit-stop'): void
 }>()
 const editing = ref(false)
 const root = ref<HTMLElement | null>(null)

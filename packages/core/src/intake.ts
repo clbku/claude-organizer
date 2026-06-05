@@ -208,7 +208,7 @@ export async function syncIntakeForCard(
   for (const item of items) {
     const itemKeys = parseCardKeys(item.plannedCardKeys)
     const states = await cardStatesByKeys(db, projectId, itemKeys)
-    const hasActive = itemKeys.some(k => {
+    const hasActive = itemKeys.some((k) => {
       const s = states.get(k)
       return s !== undefined && !s.archived
     })
@@ -241,7 +241,7 @@ export async function pruneIntakeForDestroyedCards(
       continue
     }
     const states = await cardStatesByKeys(db, projectId, remaining)
-    const hasActive = remaining.some(k => {
+    const hasActive = remaining.some((k) => {
       const s = states.get(k)
       return s !== undefined && !s.archived
     })
