@@ -6,12 +6,18 @@ import type { Card } from '~/types/card'
 // renders it inside a story envelope (so it hides the parent key); standalone
 // lists pass `showParentKey` to surface the `↳ PARENT` link instead. The
 // `actions` slot adds per-card controls inside the card (Tasks screen).
-withDefaults(
+const props = withDefaults(
   defineProps<{
     card: Card
     showParentKey?: boolean
   }>(),
   { showParentKey: false }
+)
+
+// Advisory claim: an hourglass marks a reserved card; the owner + since-when ride
+// in the native title tooltip (read-only — reserving happens via MCP).
+const claimHint = computed(() =>
+  props.card.claim ? formatClaimHint(props.card.claim) : ''
 )
 </script>
 
@@ -45,6 +51,13 @@ withDefaults(
         <span class="font-medium">{{ card.title }}</span>
       </NuxtLink>
       <div class="flex shrink-0 items-center gap-1">
+        <span
+          v-if="card.claim"
+          :title="claimHint"
+          class="flex items-center text-warning"
+        >
+          <UIcon name="i-lucide-hourglass" class="size-3.5 shrink-0" />
+        </span>
         <UBadge
           v-if="card.subtaskCount"
           size="xs"

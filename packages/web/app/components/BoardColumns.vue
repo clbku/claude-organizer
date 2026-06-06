@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Card, CardStatus } from '~/types/card'
+import type { Card, CardClaim, CardStatus } from '~/types/card'
 import { cardStatusOrder } from '~/types/card'
 
 // Shared board surface used by the main Board and the sprint detail. Owns the
@@ -36,6 +36,16 @@ const parentTitles = computed(() => {
   const m: Record<string, string> = {}
   for (const c of props.cards) {
     if (parentIds.value.has(c.id)) m[c.key] = c.title
+  }
+  return m
+})
+
+// A story is rendered as an envelope, not a tile, so its own claim would have
+// nowhere to show — surface it on the envelope header (keyed by the story key).
+const parentClaims = computed(() => {
+  const m: Record<string, CardClaim> = {}
+  for (const c of props.cards) {
+    if (parentIds.value.has(c.id) && c.claim) m[c.key] = c.claim
   }
   return m
 })
@@ -90,6 +100,7 @@ const columns = computed<Record<CardStatus, Card[]>>(() => {
           :cards="columns[status]"
           group-by-story
           :parent-titles="parentTitles"
+          :parent-claims="parentClaims"
           closable
           @reorder="(p: { status: CardStatus, orderedIds: string[], movedId?: string }) => emit('reorder', p)"
           @close="blockedExpanded = false"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Card, CardStatus } from '~/types/card'
+import type { Card, CardClaim, CardStatus } from '~/types/card'
 import { cardStatusMeta } from '~/types/card'
 
 const props = withDefaults(
@@ -11,8 +11,10 @@ const props = withDefaults(
     groupByStory?: boolean
     /** parentKey -> story title, for the envelope headers. */
     parentTitles?: Record<string, string>
+    /** parentKey -> the story's own claim, for the envelope reservation hint. */
+    parentClaims?: Record<string, CardClaim>
   }>(),
-  { groupByStory: false, parentTitles: () => ({}) }
+  { groupByStory: false, parentTitles: () => ({}), parentClaims: () => ({}) }
 )
 
 const emit = defineEmits<{
@@ -52,6 +54,7 @@ const meta = computed(() => cardStatusMeta[props.status])
       :cards="cards"
       :group-by-story="groupByStory"
       :parent-titles="parentTitles"
+      :parent-claims="parentClaims"
       @reorder="(p) => emit('reorder', p)"
     />
   </div>

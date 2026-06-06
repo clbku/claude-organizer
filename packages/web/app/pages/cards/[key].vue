@@ -953,6 +953,10 @@ const providerIcon = computed(() =>
           </div>
 
           <div class="border border-default rounded-md p-3 text-xs text-muted space-y-1">
+            <div v-if="card.claim" class="flex items-center gap-1.5 text-warning">
+              <UIcon name="i-lucide-hourglass" class="size-3.5 shrink-0" />
+              <span>{{ formatClaimHint(card.claim) }}</span>
+            </div>
             <div>
               <span class="font-semibold">Created</span>: {{ formatDate(card.createdAt) }}
             </div>

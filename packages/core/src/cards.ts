@@ -5,6 +5,7 @@ import { createId, type Database, schema } from '@claude-organizer/db'
 
 import { archivedCondition, type ArchiveFilter } from './archive'
 import { listBlockedBy, listBlocking, pendingBlockerCounts } from './blockers'
+import { claimsByCardIds, getClaim, releaseClaimOnDone } from './cardClaims'
 import { InputError } from './errors'
 import { notify } from './events'
 import { pruneIntakeForDestroyedCards, syncIntakeForCard } from './intake'
@@ -103,11 +104,12 @@ export async function listCards(db: Database, filters: ListCardsFilters) {
     .where(and(...conditions))
     .orderBy(asc(schema.cards.position), desc(schema.cards.createdAt))
   const ids = rows.map(r => r.id)
-  const [tagMap, counts, parentKeys, blockerCounts] = await Promise.all([
+  const [tagMap, counts, parentKeys, blockerCounts, claimMap] = await Promise.all([
     tagsByCardIds(db, ids),
     subtaskCounts(db, ids),
     parentKeysFor(db, rows),
-    pendingBlockerCounts(db, ids)
+    pendingBlockerCounts(db, ids),
+    claimsByCardIds(db, ids)
   ])
   return rows.map(r => ({
     ...r,
@@ -115,7 +117,8 @@ export async function listCards(db: Database, filters: ListCardsFilters) {
     subtaskCount: counts.get(r.id)?.total ?? 0,
     subtaskDone: counts.get(r.id)?.done ?? 0,
     parentKey: r.parentId ? (parentKeys.get(r.parentId) ?? null) : null,
-    blockedByPending: blockerCounts.get(r.id) ?? 0
+    blockedByPending: blockerCounts.get(r.id) ?? 0,
+    claim: claimMap.get(r.id) ?? null
   }))
 }
 
@@ -194,11 +197,19 @@ export async function updateCard(db: Database, input: UpdateCardInput) {
   if (rest.parentId != null) {
     await assertValidParent(db, id, rest.parentId)
   }
-  const [row] = await db
-    .update(schema.cards)
-    .set({ ...rest, updatedAt: sql`now()` })
-    .where(eq(schema.cards.id, id))
-    .returning()
+  const [row] = await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(schema.cards)
+      .set({ ...rest, updatedAt: sql`now()` })
+      .where(eq(schema.cards.id, id))
+      .returning()
+    // Auto-release the claim atomically with the status write (a done card never
+    // stays reserved), mirroring the reorder path.
+    if (updated[0] && rest.status === 'done') {
+      await releaseClaimOnDone(tx, updated[0].id)
+    }
+    return updated
+  })
   if (row) {
     await notify(db, {
       type: 'card.changed',
@@ -226,6 +237,7 @@ export async function reorderCards(db: Database, input: ReorderCardsInput) {
       }
       if (moved.sprintId !== undefined) set.sprintId = moved.sprintId
       await tx.update(schema.cards).set(set).where(eq(schema.cards.id, moved.id))
+      if (moved.status === 'done') await releaseClaimOnDone(tx, moved.id)
     }
     for (let i = 0; i < orderedIds.length; i++) {
       await tx
@@ -368,7 +380,7 @@ export async function listSubtasks(db: Database, parentId: string) {
 }
 
 async function enrichCard(db: Database, row: typeof schema.cards.$inferSelect) {
-  const [tags, subtasks, parent, blockedBy, blocking] = await Promise.all([
+  const [tags, subtasks, parent, blockedBy, blocking, claim] = await Promise.all([
     listCardTags(db, row.id),
     listSubtasks(db, row.id),
     row.parentId
@@ -385,9 +397,18 @@ async function enrichCard(db: Database, row: typeof schema.cards.$inferSelect) {
           .then(r => r[0] ?? null)
       : Promise.resolve(null),
     listBlockedBy(db, row.id),
-    listBlocking(db, row.id)
+    listBlocking(db, row.id),
+    getClaim(db, row.id)
   ])
-  return { ...row, tags, subtasks, parent, blockedBy, blocking }
+  return {
+    ...row,
+    tags,
+    subtasks,
+    parent,
+    blockedBy,
+    blocking,
+    claim: claim ? { ownerLabel: claim.ownerLabel, claimedAt: claim.claimedAt } : null
+  }
 }
 
 async function assertParentIsTopLevel(db: Database, parentId: string) {
