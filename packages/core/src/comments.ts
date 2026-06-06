@@ -8,6 +8,7 @@ import { notify } from './events'
 export const addCommentInput = z.object({
   cardId: z.string(),
   author: z.enum(['ai', 'user']),
+  userId: z.string().nullable().optional(),
   bodyMd: z.string().min(1)
 })
 export type AddCommentInput = z.infer<typeof addCommentInput>
@@ -24,8 +25,19 @@ export async function listComments(
   options: { markAsRead?: boolean } = {}
 ) {
   const rows = await db
-    .select()
+    .select({
+      id: schema.comments.id,
+      cardId: schema.comments.cardId,
+      author: schema.comments.author,
+      userId: schema.comments.userId,
+      bodyMd: schema.comments.bodyMd,
+      readByAi: schema.comments.readByAi,
+      createdAt: schema.comments.createdAt,
+      authorName: schema.users.name,
+      authorImage: schema.users.image
+    })
     .from(schema.comments)
+    .leftJoin(schema.users, eq(schema.users.id, schema.comments.userId))
     .where(eq(schema.comments.cardId, cardId))
     .orderBy(asc(schema.comments.createdAt))
 
@@ -63,6 +75,7 @@ export async function addComment(db: Database, input: AddCommentInput) {
       id: createId('cmt'),
       cardId: parsed.cardId,
       author: parsed.author,
+      userId: parsed.userId ?? null,
       bodyMd: parsed.bodyMd,
       readByAi: parsed.author === 'ai'
     })
@@ -82,7 +95,19 @@ export async function addComment(db: Database, input: AddCommentInput) {
       })
     }
   }
-  return row
+  if (!row) return row
+  let authorName: string | null = null
+  let authorImage: string | null = null
+  if (row.userId) {
+    const [u] = await db
+      .select({ name: schema.users.name, image: schema.users.image })
+      .from(schema.users)
+      .where(eq(schema.users.id, row.userId))
+      .limit(1)
+    authorName = u?.name ?? null
+    authorImage = u?.image ?? null
+  }
+  return { ...row, authorName, authorImage }
 }
 
 export async function updateComment(db: Database, input: UpdateCommentInput) {
