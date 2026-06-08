@@ -28,7 +28,7 @@ Execution constantly hits things the card didn't fully nail down. **Never assume
 
 The **method**:
 
-- **Ambiguity → a direct question** (open-ended where that fits). **Decision → ready-made options**, never "what do you think?": each option concrete and worked out, with its **trade-offs**. Mark the one you recommend with **`(Recommended)`** in the option's **title/label** — not buried in its description — and list it **first** (the marker goes in the title; the *why* may go in the description). That serves both the user who takes the recommendation and the one who knows enough to choose differently. This is what `AskUserQuestion` expects: recommended option first, marked in its label.
+- **Ambiguity → a direct question** (open-ended where that fits). **Decision → ready-made options**, never "what do you think?": each option concrete and worked out, with its **trade-offs**. Mark the one you recommend with a **recommended marker** in the option's **title/label**, written in the **same language as the question** (the user's language — e.g. `(Recommended)` in English, `(Recomendado)` in pt-BR) — not buried in its description — and list it **first** (the marker goes in the title; the *why* may go in the description). That serves both the user who takes the recommendation and the one who knows enough to choose differently. This is what `AskUserQuestion` expects: recommended option first, marked in its label.
 - **One topic per message**; prefer multiple-choice via the `AskUserQuestion` tool.
 - **Unknowns chain** — settle the earlier one first; it narrows the next.
 - **Research when knowledge alone won't yield good options**, then present what you found.
