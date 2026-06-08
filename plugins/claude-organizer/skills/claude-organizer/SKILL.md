@@ -11,7 +11,7 @@ A fresh session starts with no memory of past work. This system is how continuit
 
 > **Four skills, one board.** This skill covers **operating** the board — orienting, reading state, keeping it honest, comments and docs. The other three own distinct phases, and each holds its own workflow rules: **switch to the skill instead of working from memory.**
 >
-> - **`plan`** — a **new demand** (a feature, a change, a fix) to turn into work: it understands the demand and organizes it into sprints/histories/tasks. Planning, not code. **Creating any card goes through here** — never call `create_card` ad-hoc from this context or mid-execution.
+> - **`plan`** — a **new demand** (a feature, a change, a fix) to turn into work: it understands the demand and organizes it into sprints/histories/tasks. Planning, not code. **Creating any card goes through here** — never call `create_card` ad-hoc from this context or mid-execution. A task that lives in an **external tracker** is also a new demand — it enters through `plan` to be re-mapped as card(s), not executed directly.
 > - **`implement`** — **executing** a card that already exists (a task, a story, a sprint's cards): it owns the **mandatory execution lifecycle** (`in_progress` → read comments → implement → review → commit → done). The moment you start building a specific card, that skill drives.
 > - **`review`** — the **mandatory review gate** `implement` fires before work closes: a per-task review and a story-level review, run by a **fresh subagent** that checks acceptance criteria and hunts for reuse/dead-code/comment issues.
 >
@@ -27,6 +27,7 @@ Do this sequence _before_ exploring the codebase or making changes:
 4. **`list_cards`** — the cards in flight. Read **what's on the board now**, not just the active sprint:
    - `list_cards(projectId, sprintId=<active sprint>)` — the active sprint's cards.
    - `list_cards(projectId, backlogOnly=true)` — sprint-less cards. Those in a board status (`todo`…`done`) are **standalone cards on the board**; those in the `backlog` status are the **backlog**.
+   - **Focused filters compose** — `activeOnly` (everything but done/backlog), a `status` list, `tag`, and `limit`/`offset` paging — so you can pull exactly the slice you need (see _Reading the board efficiently_).
 
    The board = the active sprint's cards **plus** every sprint-less card in a board status, so a card you must work may belong to no sprint at all. Returns short summaries, so you can scan many quickly.
 
@@ -37,6 +38,16 @@ Do this sequence _before_ exploring the codebase or making changes:
 If no project matches the current repo, ask the user before creating one.
 
 **Wire the repo link once.** After step 1, if the project has no `repoWebUrl`, detect the current repo's remote so commit hashes link to the provider: read `git remote get-url origin` (fallback: the first of `git remote -v`), convert it to a web URL (`git@github.com:owner/repo.git` or `https://github.com/owner/repo.git` → `https://github.com/owner/repo`; GitLab the same, subgroups included), pick the `provider` by host (`github`/`gitlab`; skip a self-hosted host you can't classify), and save it with `set_project_repo(projectId, provider, repoWebUrl)`. Skip when it's already set or there's no git remote.
+
+## Reading the board efficiently — narrow, not wide
+
+The board grows; an unfiltered read burns context (a bare `list_cards` on a mature project has pushed a single session past 100k+ characters). Read the slice that matters, not the whole board:
+
+- **Filter, don't dump.** Prefer a filtered `list_cards` (the focused filters above) over the broad listing — reach for the unfiltered panorama only when you genuinely need it.
+- **Have a key? Go straight to it.** With a `CO-N` in hand, `get_card_by_key` (or `get_card` by id) instead of listing to find it; for a handful of known keys, `get_cards` fetches them in one call.
+- **Searching the past?** On a large board, `search_cards` matches title/summary/description **and comments** (ranked, with a snippet) — far better than scanning sprint by sprint.
+- **Order of discovery — which tool answers which question:** architecture/decisions → `search_docs`; a prior card or its comments → `search_cards`; unread user feedback → `list_unread_comments` (session start). Pick the tool before you start listing.
+- **Don't over-read.** `get_card` / `list_comments` only for the cards you'll actually touch — don't walk the whole board "just to be safe".
 
 ## Multiple hosts — one server per host, never mix
 
@@ -89,7 +100,7 @@ A comment exists to change what the **next reader** (a memoryless future session
 
 Learn the _criterion_ (signal vs. noise; deducible vs. new) — don't follow a fixed blacklist. "typecheck passed" is just one example of the concept. This criterion applies to **every** comment you write — including the **test plan** the `implement` skill makes you post when a card goes to `review`.
 
-User comments arrive flagged unread. `list_unread_comments` lists them _without_ marking them read; `list_comments(cardId)` marks that card's user comments as read. Check unread comments at session start. **When you pick a card up to develop, `list_comments(cardId)` is mandatory before implementing** — the `implement` skill enforces this (every card, every time, even if read before, because new context may have landed). Reading the history's comments does **not** cover its children.
+User comments arrive flagged unread. **Reading is read-only — it never marks anything.** Both `list_unread_comments` and `list_comments(cardId)` list comments **without** touching the unread flags, so scanning history to find a past decision never silently clears the user's unread. Marking read is a **separate, explicit** step: `mark_comments_read([...commentIds])`, done only when you've actually addressed the comments while working the card. Check unread comments at session start. **When you pick a card up to develop, `list_comments(cardId)` is mandatory before implementing** — the `implement` skill enforces this (every card, every time, even if read before, because new context may have landed). Reading the history's comments does **not** cover its children.
 
 ## Cards — field reference
 

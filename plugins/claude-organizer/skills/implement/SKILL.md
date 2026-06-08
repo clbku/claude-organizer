@@ -1,11 +1,13 @@
 ---
 name: implement
-description: Use to EXECUTE a card that already exists on the board in claude-organizer — implement a sprint, a history/story, or a single task. Trigger the moment you start, resume, or carry out development on a specific card ("work CO-42", "let's implement this story", "continue the task", "build it now"). This skill owns the mandatory execution lifecycle: in_progress → read comments → implement → review → commit → done. It NEVER assumes — any ambiguity or open decision the card doesn't settle goes to the user first (options + recommendation, like `plan`), and answers live in comments. To turn a NEW fuzzy demand into cards, use `plan` instead; to orient/keep the board honest, see `claude-organizer`. Do NOT skip steps.
+description: Use to EXECUTE a card that already exists on the board in claude-organizer — implement a sprint, a history/story, or a single task. Trigger the moment you start, resume, or carry out development on a specific card ("work CO-42", "let's implement this story", "continue the task", "build it now"). This skill owns the mandatory execution lifecycle: in_progress → read comments → implement → review → commit → done. It NEVER assumes — any ambiguity or open decision the card doesn't settle goes to the user first (options + recommendation, like `plan`), and answers live in comments. To turn a NEW fuzzy demand into cards, use `plan` instead — this includes a task that lives in an external tracker (no local card key yet), which is a planning input you re-map via `plan`, never execute here; to orient/keep the board honest, see `claude-organizer`. Do NOT skip steps.
 ---
 
 # Implementing a card
 
 This skill governs the **execution of a card that already exists** on the board — a task, a history (story), or the cards of a sprint. Planning produced the card; here you build it and walk it through its lifecycle while keeping the board honest. To break a new demand into cards, use **`plan`** — not this skill.
+
+**Guard — a task from an external tracker is not a card here.** If the user asks you to implement a task that lives in another tracker (a company issue tracker, a different tool) and hasn't given you a local `CO-N`, that's a **planning input**: send it through **`plan`** to be understood, dimensioned, and re-mapped into local card(s) first. Only a local card key is executable here.
 
 <SKILL-GATE>
 **Load the `claude-organizer` panorama first.** This skill assumes you are oriented on the board. If you have **not** already loaded the **`claude-organizer`** skill in this conversation, invoke it now (Skill tool) and run its start-of-session orientation **before** anything below. If it is already loaded in this conversation, don't reload it — just continue. Don't enter this skill cold.
@@ -19,7 +21,22 @@ The board is only honest if **every** card walks the **full** lifecycle in locks
 
 ## Never assume — ask the user
 
-Execution constantly hits things the card didn't fully nail down. **Never assume your way past one — ask.** The full doctrine (the two kinds of unknown, how to surface a decision as ready-made options with trade-offs and a recommendation, one topic per message, chaining, checking the card first, recording the answer) lives in **`../../shared/deciding.md`**. Read it and apply it. Two things specific to execution:
+Execution constantly hits things the card didn't fully nail down. **Never assume your way past one — ask.** Two kinds of unknown both block well-formed work; resolve both **before** writing code:
+
+- **Ambiguity** — anything unclear about what the user wants: vague wording, an unstated expectation, an edge case nothing mentions, "did they mean X or Y?". Even a *small* one gets a question — don't settle it by guessing the "probably intended" reading.
+- **Decision** — an open choice where more than one reasonable path exists: which library or existing helper, how to shape data, where code lives, a naming/contract call, behavior on an edge case.
+
+The **method**:
+
+- **Ambiguity → a direct question** (open-ended where that fits). **Decision → ready-made options**, never "what do you think?": each option concrete and worked out, with its **trade-offs**. Mark the one you recommend with **`(Recommended)`** in the option's **title/label** — not buried in its description — and list it **first** (the marker goes in the title; the *why* may go in the description). That serves both the user who takes the recommendation and the one who knows enough to choose differently. This is what `AskUserQuestion` expects: recommended option first, marked in its label.
+- **One topic per message**; prefer multiple-choice via the `AskUserQuestion` tool.
+- **Unknowns chain** — settle the earlier one first; it narrows the next.
+- **Research when knowledge alone won't yield good options**, then present what you found.
+- **State the approach before building** — say in plain terms what you're about to do, so the user can catch a wrong assumption *before* it's code.
+
+**Check before you ask** — the answer may already exist in the card's **description** or its **comments** (step 2); read them first and don't re-litigate a settled call. **Record the answer** as a **comment** (step 5), and when it changes the spec, fold it into the **description** too, so a fresh executor reads a card that's already decided. **When to stop:** keep going until nothing material is left to guess — assuming instead of asking is a **defect**, the same as skipping a lifecycle step.
+
+Two things specific to execution:
 
 - **Hit one mid-build → stop and ask.** Don't push past it. Fold the answer back in and record it as a **comment** (it's signal — step 5), so it survives for the next session.
 - **A story is decided up front, as a whole.** Before building a story, **read all of its cards** (description + comments) and gather **every** open decision and ambiguity across them, then clear them with the user **before writing code** — surface the batch one per message, chained. Don't start card 1, hit a fork mid-way, and guess.
@@ -41,6 +58,7 @@ This is the step most often skipped, and skipping it is where the work goes wron
 - **Re-read even if you read them earlier** — something **new** may have landed since: a correction, a constraint, a scope change posted after the briefing or while you were on another card.
 - Reading the **history's** comments does **not** cover its children, and a sibling task having none does **not** mean this one does. Comments are **per-card**.
 - **Comments are where settled decisions live** — the answer to a question you'd otherwise ask may already be here. Read them so you don't re-ask, and don't assume past what they say.
+- **`list_comments` is read-only — it doesn't mark anything.** Once you've **addressed** the user's comments on this card (not just read them), mark them with **`mark_comments_read([...commentIds])`** so they leave the unread queue — do it as you take the card up, not while merely browsing.
 
 ### 3. Read the relevant docs
 
@@ -133,7 +151,7 @@ A **history** (a parent card with sub-tasks) is a container; its status tracks i
 Per card, in order — no step skipped. **Standing rule: never assume — any ambiguity or decision the card doesn't settle goes to the user before you build; for a story, clear all of them up front.**
 
 1. Re-read the board → `claim_task` (conflict → ask, then take-over) → `in_progress` (history too, if a sub-task).
-2. `list_comments(cardId)` — even if read before.
+2. `list_comments(cardId)` (read-only) — even if read before; `mark_comments_read` once you've addressed them.
 3. Read the relevant docs.
 4. Implement — clean code, no needless comments; hit a doubt → stop and ask.
 5. Comment the signal.
