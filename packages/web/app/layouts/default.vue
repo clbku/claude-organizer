@@ -76,8 +76,8 @@ async function onLogout() {
       resizable
       :ui="{ footer: 'flex-col items-stretch gap-2' }"
     >
-      <template #header>
-        <AppProjectSwitcher />
+      <template #header="{ collapsed }">
+        <AppProjectSwitcher :collapsed="collapsed" />
       </template>
 
       <template #default="{ collapsed }">

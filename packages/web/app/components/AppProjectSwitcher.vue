@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { useProjectStore } from '~/stores/project'
 
+defineProps<{ collapsed?: boolean }>()
+
 const store = useProjectStore()
 const { projects, currentProject } = storeToRefs(store)
 
@@ -33,11 +35,13 @@ const items = computed(() => [
     <UButton
       color="neutral"
       variant="ghost"
-      trailing-icon="i-lucide-chevron-down"
-      class="w-full justify-between"
+      :square="collapsed"
+      :trailing-icon="collapsed ? undefined : 'i-lucide-chevron-down'"
+      :class="collapsed ? undefined : 'w-full justify-between'"
     >
       <template #default>
-        <span v-if="currentProject" class="flex items-center gap-2">
+        <UIcon v-if="collapsed" name="i-lucide-folder" class="text-primary" />
+        <span v-else-if="currentProject" class="flex items-center gap-2">
           <UIcon name="i-lucide-folder" class="text-primary" />
           <span class="truncate font-medium">{{ currentProject.name }}</span>
         </span>
