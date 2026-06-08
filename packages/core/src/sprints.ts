@@ -6,6 +6,7 @@ import { createId, type Database, schema } from '@claude-organizer/db'
 import { archivedCondition, type ArchiveFilter } from './archive'
 import { getSystemSettings } from './authz'
 import { notify } from './events'
+import { syncIntakeForSprint } from './intake'
 import { paginate } from './pagination'
 
 export const createSprintInput = z.object({
@@ -155,6 +156,7 @@ export async function archiveSprint(db: Database, id: string) {
           )
         )
     }
+    await syncIntakeForSprint(db, row.projectId, row.id)
     await notify(db, {
       type: 'sprint.changed',
       projectId: row.projectId,
@@ -171,6 +173,7 @@ export async function restoreSprint(db: Database, id: string) {
     .where(eq(schema.sprints.id, id))
     .returning(sprintColumns)
   if (row) {
+    await syncIntakeForSprint(db, row.projectId, row.id)
     await notify(db, {
       type: 'sprint.changed',
       projectId: row.projectId,
@@ -264,6 +267,7 @@ export async function reopenSprint(db: Database, sprintId: string) {
     .where(eq(schema.sprints.id, sprintId))
     .returning(sprintColumns)
   if (row) {
+    await syncIntakeForSprint(db, row.projectId, row.id)
     await notify(db, {
       type: 'sprint.changed',
       projectId: row.projectId,

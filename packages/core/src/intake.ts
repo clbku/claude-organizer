@@ -68,14 +68,19 @@ export async function cardStatesByKeys(
     .select({
       key: schema.cards.key,
       status: schema.cards.status,
-      archivedAt: schema.cards.archivedAt
+      archivedAt: schema.cards.archivedAt,
+      sprintArchivedAt: schema.sprints.archivedAt
     })
     .from(schema.cards)
+    .leftJoin(schema.sprints, eq(schema.cards.sprintId, schema.sprints.id))
     .where(
       and(eq(schema.cards.projectId, projectId), inArray(schema.cards.key, keys))
     )
   for (const r of rows) {
-    map.set(r.key, { status: r.status, archived: r.archivedAt !== null })
+    map.set(r.key, {
+      status: r.status,
+      archived: r.archivedAt !== null || r.sprintArchivedAt !== null
+    })
   }
   return map
 }
@@ -222,10 +227,37 @@ export async function syncIntakeForCard(
   key: string
 ) {
   const items = await findIntakeItemsByCardKeys(db, projectId, [key])
+  await rederiveIntakeItems(db, projectId, items)
+}
+
+// The sprint's cards are NOT archived; intake activeness derives from the
+// sprint (cardStatesByKeys), so the cascade must be re-run explicitly.
+export async function syncIntakeForSprint(
+  db: Database,
+  projectId: string,
+  sprintId: string
+) {
+  const cards = await db
+    .select({ key: schema.cards.key })
+    .from(schema.cards)
+    .where(eq(schema.cards.sprintId, sprintId))
+  const keys = cards.map(c => c.key)
+  if (keys.length === 0) return
+  const items = await findIntakeItemsByCardKeys(db, projectId, keys)
+  await rederiveIntakeItems(db, projectId, items)
+}
+
+async function rederiveIntakeItems(
+  db: Database,
+  projectId: string,
+  items: { id: string, plannedCardKeys: string | null, status: IntakeStatus }[]
+) {
+  const allKeys = [
+    ...new Set(items.flatMap(i => parseCardKeys(i.plannedCardKeys)))
+  ]
+  const states = await cardStatesByKeys(db, projectId, allKeys)
   for (const item of items) {
-    const itemKeys = parseCardKeys(item.plannedCardKeys)
-    const states = await cardStatesByKeys(db, projectId, itemKeys)
-    const hasActive = itemKeys.some((k) => {
+    const hasActive = parseCardKeys(item.plannedCardKeys).some((k) => {
       const s = states.get(k)
       return s !== undefined && !s.archived
     })

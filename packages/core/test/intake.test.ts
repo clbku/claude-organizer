@@ -1,13 +1,22 @@
+import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { schema } from '@claude-organizer/db'
 
 import {
   archiveCard,
+  archiveSprint,
+  completeSprint,
   createCard,
   createIntakeItem,
+  createSprint,
   destroyCard,
   listIntakeItems,
   markIntakePlanned,
+  reopenSprint,
   restoreCard,
+  restoreSprint,
+  startSprint,
   updateCard
 } from '../src/index'
 import { freshProject, useTestDb } from './helpers'
@@ -121,5 +130,117 @@ describe('intake cascade on card archive/restore/destroy', () => {
     await markIntakePlanned(ctx.db, item.id, [parent.key, child.key])
     await destroyCard(ctx.db, parent.id)
     expect(await findItem(project.id, item.id)).toBeUndefined()
+  })
+})
+
+async function plannedItemInSprint(projectId: string, sprintId: string) {
+  const cards = await Promise.all(
+    ['a', 'b'].map(title =>
+      createCard(ctx.db, { projectId, title, sprintId })
+    )
+  )
+  const item = await createIntakeItem(ctx.db, { projectId, bodyMd: 'demand' })
+  await markIntakePlanned(ctx.db, item.id, cards.map(c => c.key))
+  return { item, cards }
+}
+
+async function cardArchivedAt(cardId: string) {
+  const [row] = await ctx.db
+    .select({ archivedAt: schema.cards.archivedAt })
+    .from(schema.cards)
+    .where(eq(schema.cards.id, cardId))
+    .limit(1)
+  return row?.archivedAt ?? null
+}
+
+describe('intake cascade on sprint archive/restore/reopen', () => {
+  it('archives the item when its sprint is archived, without archiving the cards', async () => {
+    const project = await freshProject(ctx.db)
+    const sprint = await createSprint(ctx.db, { projectId: project.id, name: 'S' })
+    const { item, cards } = await plannedItemInSprint(project.id, sprint.id)
+
+    await archiveSprint(ctx.db, sprint.id)
+    expect((await findItem(project.id, item.id))?.status).toBe('archived')
+    for (const c of cards) expect(await cardArchivedAt(c.id)).toBeNull()
+  })
+
+  it('restores the item when the sprint is restored', async () => {
+    const project = await freshProject(ctx.db)
+    const sprint = await createSprint(ctx.db, { projectId: project.id, name: 'S' })
+    const { item } = await plannedItemInSprint(project.id, sprint.id)
+
+    await archiveSprint(ctx.db, sprint.id)
+    await restoreSprint(ctx.db, sprint.id)
+    expect((await findItem(project.id, item.id))?.status).toBe('planned')
+  })
+
+  it('restores the item when the sprint is reopened', async () => {
+    const project = await freshProject(ctx.db)
+    const sprint = await createSprint(ctx.db, { projectId: project.id, name: 'S' })
+    const { item } = await plannedItemInSprint(project.id, sprint.id)
+
+    await archiveSprint(ctx.db, sprint.id)
+    await reopenSprint(ctx.db, sprint.id)
+    expect((await findItem(project.id, item.id))?.status).toBe('planned')
+  })
+
+  it('completing a sprint does not touch the inbox', async () => {
+    const project = await freshProject(ctx.db)
+    const sprint = await createSprint(ctx.db, { projectId: project.id, name: 'S' })
+    const { item } = await plannedItemInSprint(project.id, sprint.id)
+
+    await startSprint(ctx.db, sprint.id)
+    await completeSprint(ctx.db, sprint.id)
+    expect((await findItem(project.id, item.id))?.status).toBe('planned')
+  })
+
+  it('archives a multi-sprint item only when every referenced sprint is archived', async () => {
+    const project = await freshProject(ctx.db)
+    const s1 = await createSprint(ctx.db, { projectId: project.id, name: 'S1' })
+    const s2 = await createSprint(ctx.db, { projectId: project.id, name: 'S2' })
+    const c1 = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'a',
+      sprintId: s1.id
+    })
+    const c2 = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'b',
+      sprintId: s2.id
+    })
+    const item = await createIntakeItem(ctx.db, {
+      projectId: project.id,
+      bodyMd: 'demand'
+    })
+    await markIntakePlanned(ctx.db, item.id, [c1.key, c2.key])
+
+    await archiveSprint(ctx.db, s1.id)
+    expect((await findItem(project.id, item.id))?.status).toBe('planned')
+
+    await archiveSprint(ctx.db, s2.id)
+    expect((await findItem(project.id, item.id))?.status).toBe('archived')
+  })
+
+  it('keeps the item planned when an active sprintless card coexists with an archived-sprint card', async () => {
+    const project = await freshProject(ctx.db)
+    const sprint = await createSprint(ctx.db, { projectId: project.id, name: 'S' })
+    const inSprint = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'a',
+      sprintId: sprint.id
+    })
+    const sprintless = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'b'
+    })
+    const item = await createIntakeItem(ctx.db, {
+      projectId: project.id,
+      bodyMd: 'demand'
+    })
+    await markIntakePlanned(ctx.db, item.id, [inSprint.key, sprintless.key])
+
+    await archiveSprint(ctx.db, sprint.id)
+    expect((await findItem(project.id, item.id))?.status).toBe('planned')
+    expect(await cardArchivedAt(sprintless.id)).toBeNull()
   })
 })
