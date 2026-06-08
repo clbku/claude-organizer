@@ -22,6 +22,17 @@ import type { Database } from '@claude-organizer/db'
 
 import { asJson, pageEnvelope, pageInputs } from './index'
 
+// search_cards returns enriched cards + matchedComment (heavier than list_cards),
+// so it pages tighter than the shared pageInputs default (100/200).
+const searchLimit = z
+  .number()
+  .int()
+  .min(1)
+  .max(100)
+  .optional()
+  .default(25)
+  .describe('Max items to return (default 25, max 100).')
+
 // get_card/get_card_by_key embed the card's commits as METADATA only (no diff):
 // the agent has the local git and can `git show <sha>`, and a squashed PR commit
 // is fetched on demand via get_commit_diff. Built in the MCP layer so the shared
@@ -93,7 +104,7 @@ export function registerCardTools(server: McpServer, db: Database) {
     'search_cards',
     {
       description:
-        'Ranked full-text search over cards AND their comments. Searches key/title/summary/description AND comment bodies — a card matches if the term hits the card OR any of its comments. Ranked by relevance; accepts web-style queries (quoted phrases, OR, -exclude) and tolerates substring/typo (trigram). Returns card summaries WITHOUT descriptionMd PLUS the matched comment snippet when the hit came from a comment — use get_card for the full detail. Accepts the focused-read filters (status/activeOnly, sprintId, tag) to search within a slice. Read-only: never marks comments as read.',
+        'Ranked full-text search over cards AND their comments. Searches key/title/summary/description AND comment bodies — a card matches if the term hits the card OR any of its comments. Ranked by relevance; accepts web-style queries (quoted phrases, OR, -exclude) and tolerates substring/typo (trigram). Returns card summaries WITHOUT descriptionMd PLUS the matched comment snippet when the hit came from a comment — use get_card for the full detail. Accepts the focused-read filters (status/activeOnly, sprintId, tag) to search within a slice. Pages with limit/offset (default 25, max 100); response is { cards, hasMore, offset }. Read-only: never marks comments as read.',
       inputSchema: {
         projectId: z.string(),
         query: z.string().min(1),
@@ -108,11 +119,20 @@ export function registerCardTools(server: McpServer, db: Database) {
         sprintId: z.string().optional(),
         tag: z.string().optional().describe('Tag id or name.'),
         includeArchived: z.boolean().optional(),
-        archivedOnly: z.boolean().optional()
+        archivedOnly: z.boolean().optional(),
+        limit: searchLimit,
+        offset: pageInputs.offset
       }
     },
-    async ({ projectId, query, ...filters }) =>
-      asJson(await searchCards(db, projectId, query, filters))
+    async ({ projectId, query, limit, offset, ...filters }) => {
+      // Probe one past the page so `hasMore` is exact without a COUNT query.
+      const rows = await searchCards(db, projectId, query, {
+        ...filters,
+        limit: limit + 1,
+        offset
+      })
+      return asJson(pageEnvelope('cards', rows, limit, offset))
+    }
   )
 
   server.registerTool(
