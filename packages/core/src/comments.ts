@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { createId, type Database, schema } from '@claude-organizer/db'
 
 import { notify } from './events'
+import { paginate } from './pagination'
 
 export const addCommentInput = z.object({
   cardId: z.string(),
@@ -22,24 +23,29 @@ export type UpdateCommentInput = z.infer<typeof updateCommentInput>
 export async function listComments(
   db: Database,
   cardId: string,
-  options: { markAsRead?: boolean } = {}
+  options: { markAsRead?: boolean, limit?: number, offset?: number } = {}
 ) {
-  const rows = await db
-    .select({
-      id: schema.comments.id,
-      cardId: schema.comments.cardId,
-      author: schema.comments.author,
-      userId: schema.comments.userId,
-      bodyMd: schema.comments.bodyMd,
-      readByAi: schema.comments.readByAi,
-      createdAt: schema.comments.createdAt,
-      authorName: schema.users.name,
-      authorImage: schema.users.image
-    })
-    .from(schema.comments)
-    .leftJoin(schema.users, eq(schema.users.id, schema.comments.userId))
-    .where(eq(schema.comments.cardId, cardId))
-    .orderBy(asc(schema.comments.createdAt))
+  const rows = await paginate(
+    db
+      .select({
+        id: schema.comments.id,
+        cardId: schema.comments.cardId,
+        author: schema.comments.author,
+        userId: schema.comments.userId,
+        bodyMd: schema.comments.bodyMd,
+        readByAi: schema.comments.readByAi,
+        createdAt: schema.comments.createdAt,
+        authorName: schema.users.name,
+        authorImage: schema.users.image
+      })
+      .from(schema.comments)
+      .leftJoin(schema.users, eq(schema.users.id, schema.comments.userId))
+      .where(eq(schema.comments.cardId, cardId))
+      .orderBy(asc(schema.comments.createdAt))
+      .$dynamic(),
+    options.limit,
+    options.offset
+  )
 
   if (options.markAsRead) {
     const unreadIds = rows
@@ -137,26 +143,33 @@ export async function updateComment(db: Database, input: UpdateCommentInput) {
 
 export async function listUnreadCommentsForProject(
   db: Database,
-  projectId: string
+  projectId: string,
+  limit?: number,
+  offset?: number
 ) {
-  return db
-    .select({
-      id: schema.comments.id,
-      cardId: schema.comments.cardId,
-      bodyMd: schema.comments.bodyMd,
-      createdAt: schema.comments.createdAt,
-      cardTitle: schema.cards.title
-    })
-    .from(schema.comments)
-    .innerJoin(schema.cards, eq(schema.cards.id, schema.comments.cardId))
-    .where(
-      and(
-        eq(schema.cards.projectId, projectId),
-        eq(schema.comments.author, 'user'),
-        eq(schema.comments.readByAi, false)
+  return paginate(
+    db
+      .select({
+        id: schema.comments.id,
+        cardId: schema.comments.cardId,
+        bodyMd: schema.comments.bodyMd,
+        createdAt: schema.comments.createdAt,
+        cardTitle: schema.cards.title
+      })
+      .from(schema.comments)
+      .innerJoin(schema.cards, eq(schema.cards.id, schema.comments.cardId))
+      .where(
+        and(
+          eq(schema.cards.projectId, projectId),
+          eq(schema.comments.author, 'user'),
+          eq(schema.comments.readByAi, false)
+        )
       )
-    )
-    .orderBy(asc(schema.comments.createdAt))
+      .orderBy(asc(schema.comments.createdAt))
+      .$dynamic(),
+    limit,
+    offset
+  )
 }
 
 export async function deleteComment(db: Database, id: string) {

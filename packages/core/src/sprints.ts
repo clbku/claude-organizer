@@ -6,6 +6,7 @@ import { createId, type Database, schema } from '@claude-organizer/db'
 import { archivedCondition, type ArchiveFilter } from './archive'
 import { getSystemSettings } from './authz'
 import { notify } from './events'
+import { paginate } from './pagination'
 
 export const createSprintInput = z.object({
   projectId: z.string(),
@@ -24,24 +25,45 @@ export const updateSprintInput = z.object({
 })
 export type UpdateSprintInput = z.infer<typeof updateSprintInput>
 
+const sprintColumns = {
+  id: schema.sprints.id,
+  projectId: schema.sprints.projectId,
+  roadmapId: schema.sprints.roadmapId,
+  name: schema.sprints.name,
+  goal: schema.sprints.goal,
+  status: schema.sprints.status,
+  startsAt: schema.sprints.startsAt,
+  endsAt: schema.sprints.endsAt,
+  createdAt: schema.sprints.createdAt,
+  updatedAt: schema.sprints.updatedAt,
+  archivedAt: schema.sprints.archivedAt
+}
+
 export async function listSprints(
   db: Database,
   projectId: string,
-  filter?: ArchiveFilter
+  filter?: ArchiveFilter,
+  limit?: number,
+  offset?: number
 ) {
   const conditions = [eq(schema.sprints.projectId, projectId)]
   const archived = archivedCondition(schema.sprints.archivedAt, filter)
   if (archived) conditions.push(archived)
-  return db
-    .select()
-    .from(schema.sprints)
-    .where(and(...conditions))
-    .orderBy(schema.sprints.createdAt)
+  return paginate(
+    db
+      .select(sprintColumns)
+      .from(schema.sprints)
+      .where(and(...conditions))
+      .orderBy(schema.sprints.createdAt)
+      .$dynamic(),
+    limit,
+    offset
+  )
 }
 
 export async function getActiveSprint(db: Database, projectId: string) {
   const [row] = await db
-    .select()
+    .select(sprintColumns)
     .from(schema.sprints)
     .where(
       and(
@@ -56,7 +78,7 @@ export async function getActiveSprint(db: Database, projectId: string) {
 
 export async function getSprint(db: Database, id: string) {
   const [row] = await db
-    .select()
+    .select(sprintColumns)
     .from(schema.sprints)
     .where(eq(schema.sprints.id, id))
     .limit(1)
@@ -77,7 +99,7 @@ export async function createSprint(db: Database, input: CreateSprintInput) {
       endsAt: parsed.endsAt,
       status: 'planned'
     })
-    .returning()
+    .returning(sprintColumns)
   if (row) {
     await notify(db, {
       type: 'sprint.changed',
@@ -95,7 +117,7 @@ export async function updateSprint(db: Database, input: UpdateSprintInput) {
     .update(schema.sprints)
     .set({ ...rest, updatedAt: sql`now()` })
     .where(eq(schema.sprints.id, id))
-    .returning()
+    .returning(sprintColumns)
   if (row) {
     await notify(db, {
       type: 'sprint.changed',
@@ -113,7 +135,7 @@ export async function archiveSprint(db: Database, id: string) {
     .update(schema.sprints)
     .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
     .where(eq(schema.sprints.id, id))
-    .returning()
+    .returning(sprintColumns)
   if (row) {
     // Default: drop the diffs of every commit on this sprint's cards (the cards
     // stay active; only the heavy blobs go) — re-run attach-commit to restore.
@@ -147,7 +169,7 @@ export async function restoreSprint(db: Database, id: string) {
     .update(schema.sprints)
     .set({ archivedAt: null, updatedAt: sql`now()` })
     .where(eq(schema.sprints.id, id))
-    .returning()
+    .returning(sprintColumns)
   if (row) {
     await notify(db, {
       type: 'sprint.changed',
@@ -211,7 +233,7 @@ export async function startSprint(db: Database, sprintId: string) {
         updatedAt: sql`now()`
       })
       .where(eq(schema.sprints.id, sprintId))
-      .returning()
+      .returning(sprintColumns)
     return activated ?? null
   })
   if (row) {
@@ -240,7 +262,7 @@ export async function reopenSprint(db: Database, sprintId: string) {
       updatedAt: sql`now()`
     })
     .where(eq(schema.sprints.id, sprintId))
-    .returning()
+    .returning(sprintColumns)
   if (row) {
     await notify(db, {
       type: 'sprint.changed',
@@ -260,7 +282,7 @@ export async function completeSprint(db: Database, sprintId: string) {
       updatedAt: sql`now()`
     })
     .where(eq(schema.sprints.id, sprintId))
-    .returning()
+    .returning(sprintColumns)
   if (row) {
     await notify(db, {
       type: 'sprint.changed',

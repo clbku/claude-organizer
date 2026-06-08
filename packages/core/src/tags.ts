@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { createId, type Database, schema } from '@claude-organizer/db'
 
 import { notify } from './events'
+import { paginate } from './pagination'
 
 export interface Tag {
   id: string
@@ -32,12 +33,31 @@ export const updateTagInput = z.object({
 })
 export type UpdateTagInput = z.infer<typeof updateTagInput>
 
-export async function listTags(db: Database, projectId: string) {
-  return db
-    .select()
-    .from(schema.tags)
-    .where(eq(schema.tags.projectId, projectId))
-    .orderBy(asc(schema.tags.name))
+// The `Tag` wire type omits `createdAt`; allow-list keeps it (and any future
+// column) out of the listing.
+const tagColumns = {
+  id: schema.tags.id,
+  projectId: schema.tags.projectId,
+  name: schema.tags.name,
+  color: schema.tags.color
+}
+
+export async function listTags(
+  db: Database,
+  projectId: string,
+  limit?: number,
+  offset?: number
+): Promise<Tag[]> {
+  return paginate(
+    db
+      .select(tagColumns)
+      .from(schema.tags)
+      .where(eq(schema.tags.projectId, projectId))
+      .orderBy(asc(schema.tags.name))
+      .$dynamic(),
+    limit,
+    offset
+  )
 }
 
 export async function createTag(db: Database, input: CreateTagInput) {

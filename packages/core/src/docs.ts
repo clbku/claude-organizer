@@ -5,6 +5,7 @@ import { createId, type Database, schema } from '@claude-organizer/db'
 
 import type { ArchiveFilter } from './archive'
 import { notify } from './events'
+import { paginate } from './pagination'
 
 const docKind = z.enum(['module', 'adr', 'guide', 'note'])
 
@@ -42,11 +43,20 @@ const docListColumns = {
   updatedAt: schema.docs.updatedAt
 }
 
+// Allow-list, not a bare select: bodyTsv can't leak into read_doc or a doc
+// mutation return.
+const docDetailColumns = {
+  ...docListColumns,
+  bodyMd: schema.docs.bodyMd
+}
+
 export async function listDocs(
   db: Database,
   projectId: string,
   kind?: z.infer<typeof docKind>,
-  filter?: ArchiveFilter
+  filter?: ArchiveFilter,
+  limit?: number,
+  offset?: number
 ) {
   const conditions = [eq(schema.docs.projectId, projectId)]
   if (kind) conditions.push(eq(schema.docs.kind, kind))
@@ -60,11 +70,16 @@ export async function listDocs(
       conditions.push(notInArray(schema.docs.id, hidden))
     }
   }
-  return db
-    .select(docListColumns)
-    .from(schema.docs)
-    .where(and(...conditions))
-    .orderBy(asc(schema.docs.position), asc(schema.docs.title))
+  return paginate(
+    db
+      .select(docListColumns)
+      .from(schema.docs)
+      .where(and(...conditions))
+      .orderBy(asc(schema.docs.position), asc(schema.docs.title))
+      .$dynamic(),
+    limit,
+    offset
+  )
 }
 
 /** Ids of every doc that is archived or descends from an archived doc. */
@@ -87,7 +102,7 @@ async function archivedDocSubtreeIds(
 
 export async function getDoc(db: Database, id: string) {
   const [row] = await db
-    .select()
+    .select(docDetailColumns)
     .from(schema.docs)
     .where(eq(schema.docs.id, id))
     .limit(1)
@@ -108,7 +123,7 @@ export async function createDoc(db: Database, input: CreateDocInput) {
       kind: parsed.kind ?? 'note',
       position: parsed.position ?? 0
     })
-    .returning()
+    .returning(docDetailColumns)
   if (row) {
     await notify(db, { type: 'doc.changed', projectId: row.projectId, docId: row.id })
   }
@@ -122,7 +137,7 @@ export async function updateDoc(db: Database, input: UpdateDocInput) {
     .update(schema.docs)
     .set({ ...rest, updatedAt: sql`now()` })
     .where(eq(schema.docs.id, id))
-    .returning()
+    .returning(docDetailColumns)
   if (row) {
     await notify(db, { type: 'doc.changed', projectId: row.projectId, docId: row.id })
   }
@@ -136,7 +151,7 @@ export async function archiveDoc(db: Database, id: string) {
     .update(schema.docs)
     .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
     .where(eq(schema.docs.id, id))
-    .returning()
+    .returning(docDetailColumns)
   if (row) {
     await notify(db, { type: 'doc.changed', projectId: row.projectId, docId: row.id })
   }
@@ -148,7 +163,7 @@ export async function restoreDoc(db: Database, id: string) {
     .update(schema.docs)
     .set({ archivedAt: null, updatedAt: sql`now()` })
     .where(eq(schema.docs.id, id))
-    .returning()
+    .returning(docDetailColumns)
   if (row) {
     await notify(db, { type: 'doc.changed', projectId: row.projectId, docId: row.id })
   }
@@ -174,7 +189,9 @@ export async function destroyDoc(db: Database, id: string) {
 export async function searchDocs(
   db: Database,
   projectId: string,
-  query: string
+  query: string,
+  limit?: number,
+  offset?: number
 ) {
   // Without this, a whitespace-only query degenerates into ILIKE '%   %' (matches all).
   const q = query.trim()
@@ -192,21 +209,25 @@ export async function searchDocs(
     word_similarity(${q}, coalesce(${schema.docs.summary}, ''))
   )`
   const term = `%${q}%`
-  return db
-    .select(docListColumns)
-    .from(schema.docs)
-    .where(
-      and(
-        eq(schema.docs.projectId, projectId),
-        or(
-          sql`${schema.docs.bodyTsv} @@ ${tsQuery}`,
-          ilike(schema.docs.title, term),
-          ilike(schema.docs.summary, term),
-          sql`${q} <% ${schema.docs.title}`,
-          sql`${q} <% coalesce(${schema.docs.summary}, '')`
+  return paginate(
+    db
+      .select(docListColumns)
+      .from(schema.docs)
+      .where(
+        and(
+          eq(schema.docs.projectId, projectId),
+          or(
+            sql`${schema.docs.bodyTsv} @@ ${tsQuery}`,
+            ilike(schema.docs.title, term),
+            ilike(schema.docs.summary, term),
+            sql`${q} <% ${schema.docs.title}`,
+            sql`${q} <% coalesce(${schema.docs.summary}, '')`
+          )
         )
       )
-    )
-    .orderBy(desc(rank), desc(trgmSim), desc(schema.docs.updatedAt))
-    .limit(50)
+      .orderBy(desc(rank), desc(trgmSim), desc(schema.docs.updatedAt))
+      .$dynamic(),
+    limit,
+    offset
+  )
 }
