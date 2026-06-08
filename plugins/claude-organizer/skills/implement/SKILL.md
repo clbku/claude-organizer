@@ -84,12 +84,12 @@ As you work, **`add_comment(cardId, …)`** for what carries **signal** — deci
 
 - **`set_card_status(id, "review")` the instant you stop and the user takes over** to validate. Status reflects **who holds the ball**, not whether a commit exists — so move it even though the commit lands only after the user confirms (steps 7–10).
 - On the **same move**, post **one** comment with the **test plan**: what to open, what to do, what to expect, and briefly what you already checked. Console scrollback is ephemeral; this comment is where the user (and a future session) sees how to validate what's in review. It follows the same signal-vs-noise rule as any comment.
-- Then **capture the working-tree diff onto the card**: `pnpm attach-worktree-diff <CO-N>` (or the bundled `scripts/attach-worktree-diff.mjs` / `.py`). The diff goes straight to the API **outside your context** — **never read or paste it**. This lets the user see what will land before any commit exists. (Token only when auth is on — see _Auth flag for diff capture_.)
+- Then **capture the working-tree diff onto the card** with this skill's bundled `attach-worktree-diff` script (see _Diff-capture scripts — they ship inside this skill_ for where it lives and how to run it). The diff goes straight to the API **outside your context** — **never read or paste it**. This lets the user see what will land before any commit exists. (Token only when auth is on — see _Auth flag for diff capture_.)
 - Then **wait for the user to validate**. Do **not** self-approve and do **not** jump ahead to commit or `done`.
 
 ### 7. Per-task review gate — a fresh subagent, **before commit** (skip only if trivial)
 
-With the behavior validated, run the **per-task review** via the **`review`** skill **before** committing — over the **working-tree diff** (`git diff`), so any fixes fold into the change and the card keeps **one clean commit**. It spawns a **fresh subagent** (objective eyes — you just wrote this code, so you're the worst judge of it) that checks **this task's acceptance criteria** and hunts for reuse / dead code / leftover comments, then reports and asks what to do (fix now / follow-up card / other). When fixes fold into the working tree, **re-run `pnpm attach-worktree-diff <CO-N>`** so the pending diff reflects the adjusted change.
+With the behavior validated, run the **per-task review** via the **`review`** skill **before** committing — over the **working-tree diff** (`git diff`), so any fixes fold into the change and the card keeps **one clean commit**. It spawns a **fresh subagent** (objective eyes — you just wrote this code, so you're the worst judge of it) that checks **this task's acceptance criteria** and hunts for reuse / dead code / leftover comments, then reports and asks what to do (fix now / follow-up card / other). When fixes fold into the working tree, **re-run the `attach-worktree-diff` script** so the pending diff reflects the adjusted change.
 
 A **trivial** task (one-liner, rename, config — nothing with real logic) may **skip** this by quick judgment; note the skip briefly so it's visible, not silent. For a **standalone** task (no parent), this per-task review *is* the whole review — there's no story layer above it. Skipping the gate (beyond the trivial exception) is a defect.
 
@@ -104,7 +104,7 @@ Before committing, ask once: **did a decision, a standardization, or long-lived 
 ### 10. Commit, then attach the commit's diff to the card — **always**
 
 - After the user confirms, create **one commit per card**, message in English referencing the key (e.g. `feat(tags): … (CO-4)`), per the repo's `CLAUDE.md` (commit + versioning rules).
-- **Always attach the commit's diff** right after it lands: `pnpm attach-commit <sha>` (or the bundled `scripts/attach-commit.mjs` / `.py`). It runs `git show` and POSTs the diff to the API (`CO_API_URL`, default `http://127.0.0.1:4400`), so the card's **Changes** section shows what the commit produced. (Token only when auth is on — see _Auth flag for diff capture_.)
+- **Always attach the commit's diff** right after it lands with this skill's bundled `attach-commit` script (see _Diff-capture scripts — they ship inside this skill_). It runs `git show` and POSTs the diff to the API (`CO_API_URL`, default `http://127.0.0.1:4400`), so the card's **Changes** section shows what the commit produced. (Token only when auth is on — see _Auth flag for diff capture_.)
 - The diff is captured **outside your context on purpose** — **never read it or paste it into a comment** (it burns tokens and adds noise).
 - Attaching the real commit **clears the pending working-tree diff** automatically (the `__working__` sentinel row is dropped), so the card swaps from "uncommitted" to the committed diff with no manual cleanup on the happy path.
 
@@ -116,11 +116,22 @@ If this is the **last child of a story**, the **story-level review gate** fires 
 
 At this story boundary — and before advancing to the next card/story or ending the session — re-check the inbox **fresh**: call **`list_inbox` (pending)** again (don't trust the orientation snapshot — the user may have dropped demands while you worked). If it surfaces pending demands the work didn't cover, **stop and ask** whether to review/plan them now (a decision gate — they may **reshape the upcoming stories**). The criterion and wording live in the **`claude-organizer`** skill (_Inbox_).
 
+## Diff-capture scripts — they ship inside this skill
+
+`attach-commit` and `attach-worktree-diff` are **not** an npm package and **not** guaranteed to be a `package.json` script in the repo you're working in. They are **bundled in this skill**, at `scripts/attach-commit.mjs` and `scripts/attach-worktree-diff.mjs` (Python twins `.py` for hosts without Node) — the path is **relative to this skill's own base directory**, not the project's working dir. So locate them under the directory this `SKILL.md` was loaded from and run that copy **by its absolute path**:
+
+```bash
+node "<this skill's directory>/scripts/attach-commit.mjs" <sha>
+node "<this skill's directory>/scripts/attach-worktree-diff.mjs" <CO-N>
+```
+
+`pnpm attach-commit <sha>` / `pnpm attach-worktree-diff <CO-N>` are a convenience **only in the claude-organizer dev repo** (where those `package.json` scripts exist). Anywhere else, call the bundled script by its path — **don't** `pnpm`-run a script that isn't there, and **don't** try to install anything from npm.
+
 ## Auth flag for diff capture — read it from CLAUDE.md
 
 The diff-capture scripts (`attach-worktree-diff`, `attach-commit`) need a card-scoped token **only when auth is on**. Don't probe the server before every attach — read the flag the project's **`CLAUDE.md`** records, and act on it:
 
-- **Auth on** → mint `issue_commit_token(<CO-N>)` and pass it in `CO_COMMIT_TOKEN` (e.g. `CO_COMMIT_TOKEN=<token> pnpm attach-commit <sha>`); the token is short-lived and card-scoped, so mint one per attach.
+- **Auth on** → mint `issue_commit_token(<CO-N>)` and pass it in `CO_COMMIT_TOKEN` (e.g. `CO_COMMIT_TOKEN=<token> node "<this skill's directory>/scripts/attach-commit.mjs" <sha>`); the token is short-lived and card-scoped, so mint one per attach.
 - **Auth off, or no flag yet** → run the script tokenless.
 - **Self-healing** — if an attach unexpectedly returns **401**, auth is actually on: write the flag to `CLAUDE.md` (auth **on**), then retry the attach with a token.
 
