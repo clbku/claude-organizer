@@ -115,6 +115,7 @@ async function onLogout() {
             color="neutral"
             variant="ghost"
             block
+            class="justify-start"
             :square="collapsed"
             :icon="isDark ? 'i-lucide-moon' : 'i-lucide-sun'"
             :label="collapsed ? undefined : (isDark ? 'Dark mode' : 'Light mode')"
