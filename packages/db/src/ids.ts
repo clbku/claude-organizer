@@ -10,6 +10,7 @@ export const idPrefixes = {
   card: 'crd',
   comment: 'cmt',
   commit: 'ccm',
+  attachment: 'att',
   tag: 'tag',
   doc: 'doc',
   intake: 'itk',

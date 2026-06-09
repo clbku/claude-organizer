@@ -18,6 +18,12 @@ import { createId, type Database, schema } from '@claude-organizer/db'
 import { archivedCondition, type ArchiveFilter } from './archive'
 import { getSystemSettings } from './authz'
 import { listBlockedBy, listBlocking, pendingBlockerCounts } from './blockers'
+import {
+  attachmentCountsByCardIds,
+  hasAttachments,
+  listCardAttachments,
+  PROOF_OF_WORK_REQUIRED
+} from './cardAttachments'
 import { claimsByCardIds, getClaim, releaseClaimOnDone } from './cardClaims'
 import { InputError } from './errors'
 import { notify } from './events'
@@ -172,13 +178,15 @@ export async function enrichCardRows<
   T extends { id: string, parentId: string | null }
 >(db: Database, rows: T[]) {
   const ids = rows.map(r => r.id)
-  const [tagMap, counts, parentKeys, blockerCounts, claimMap] = await Promise.all([
-    tagsByCardIds(db, ids),
-    subtaskCounts(db, ids),
-    parentKeysFor(db, rows),
-    pendingBlockerCounts(db, ids),
-    claimsByCardIds(db, ids)
-  ])
+  const [tagMap, counts, parentKeys, blockerCounts, claimMap, attachmentCounts]
+    = await Promise.all([
+      tagsByCardIds(db, ids),
+      subtaskCounts(db, ids),
+      parentKeysFor(db, rows),
+      pendingBlockerCounts(db, ids),
+      claimsByCardIds(db, ids),
+      attachmentCountsByCardIds(db, ids)
+    ])
   return rows.map(r => ({
     ...r,
     tags: tagMap.get(r.id) ?? [],
@@ -186,7 +194,8 @@ export async function enrichCardRows<
     subtaskDone: counts.get(r.id)?.done ?? 0,
     parentKey: r.parentId ? (parentKeys.get(r.parentId) ?? null) : null,
     blockedByPending: blockerCounts.get(r.id) ?? 0,
-    claim: claimMap.get(r.id) ?? null
+    claim: claimMap.get(r.id) ?? null,
+    attachmentCount: attachmentCounts.get(r.id) ?? 0
   }))
 }
 
@@ -410,6 +419,11 @@ export async function updateCard(db: Database, input: UpdateCardInput) {
     await assertValidParent(db, id, rest.parentId)
   }
   const [row] = await db.transaction(async (tx) => {
+    // Inside the tx so the proof-of-work invariant is atomic with the status
+    // write — an attachment deleted mid-flight can't slip a card to done.
+    if (rest.status === 'done' && !(await hasAttachments(tx, id))) {
+      throw new InputError(PROOF_OF_WORK_REQUIRED)
+    }
     const updated = await tx
       .update(schema.cards)
       .set({ ...rest, updatedAt: sql`now()` })
@@ -443,6 +457,9 @@ export async function reorderCards(db: Database, input: ReorderCardsInput) {
   const { orderedIds, moved } = reorderCardsInput.parse(input)
   const row = await db.transaction(async (tx) => {
     if (moved) {
+      if (moved.status === 'done' && !(await hasAttachments(tx, moved.id))) {
+        throw new InputError(PROOF_OF_WORK_REQUIRED)
+      }
       const set: Record<string, unknown> = {
         status: moved.status,
         updatedAt: sql`now()`
@@ -599,26 +616,28 @@ async function enrichCard<T extends { id: string, parentId: string | null }>(
   db: Database,
   row: T
 ) {
-  const [tags, subtasks, parent, blockedBy, blocking, claim] = await Promise.all([
-    listCardTags(db, row.id),
-    listSubtasks(db, row.id),
-    row.parentId
-      ? db
-          .select({
-            id: schema.cards.id,
-            key: schema.cards.key,
-            title: schema.cards.title,
-            status: schema.cards.status
-          })
-          .from(schema.cards)
-          .where(eq(schema.cards.id, row.parentId))
-          .limit(1)
-          .then(r => r[0] ?? null)
-      : Promise.resolve(null),
-    listBlockedBy(db, row.id),
-    listBlocking(db, row.id),
-    getClaim(db, row.id)
-  ])
+  const [tags, subtasks, parent, blockedBy, blocking, claim, attachments]
+    = await Promise.all([
+      listCardTags(db, row.id),
+      listSubtasks(db, row.id),
+      row.parentId
+        ? db
+            .select({
+              id: schema.cards.id,
+              key: schema.cards.key,
+              title: schema.cards.title,
+              status: schema.cards.status
+            })
+            .from(schema.cards)
+            .where(eq(schema.cards.id, row.parentId))
+            .limit(1)
+            .then(r => r[0] ?? null)
+        : Promise.resolve(null),
+      listBlockedBy(db, row.id),
+      listBlocking(db, row.id),
+      getClaim(db, row.id),
+      listCardAttachments(db, row.id)
+    ])
   return {
     ...row,
     tags,
@@ -626,7 +645,9 @@ async function enrichCard<T extends { id: string, parentId: string | null }>(
     parent,
     blockedBy,
     blocking,
-    claim: claim ? { ownerLabel: claim.ownerLabel, claimedAt: claim.claimedAt } : null
+    claim: claim ? { ownerLabel: claim.ownerLabel, claimedAt: claim.claimedAt } : null,
+    attachments,
+    attachmentCount: attachments.length
   }
 }
 

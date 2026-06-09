@@ -19,6 +19,7 @@
     "@claude-organizer/db": "workspace:*",
     "@claude-organizer/shared": "workspace:*",
     "drizzle-orm": "0.45.2",
+    "sharp": "0.34.4",
     "zod": "4.4.3"
   },
   "devDependencies": {
