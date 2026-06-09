@@ -11,6 +11,12 @@ FROM base AS build
 COPY . .
 RUN pnpm install --frozen-lockfile
 
+# Inbox enrichment spawns the Claude CLI headless (`claude -p`); bundle it into
+# the image. The npm build ships a native binary that needs glibc, so add the
+# musl/alpine compatibility shim alongside it.
+RUN apk add --no-cache libgcc libstdc++ gcompat \
+  && npm i -g @anthropic-ai/claude-code
+
 # Browser-facing API URL is baked into the SPA at build time (ssr: false), so it
 # must be set here, not at runtime. Default works for a browser on the host.
 ARG NUXT_PUBLIC_API_URL=http://127.0.0.1:4400

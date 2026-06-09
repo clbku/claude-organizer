@@ -85,6 +85,15 @@ export async function spawnEnrichment(
   const proc = spawn('claude', ['-p', '--model', 'claude-sonnet-4-6'], {
     stdio: ['pipe', 'pipe', 'inherit']
   })
+
+  // A spawn failure (e.g. the claude binary is missing) surfaces as an async
+  // 'error' event on the child and its stdin pipe. An unhandled one is rethrown
+  // by Node and crashes the whole API; catch both and just mark the item failed.
+  proc.on('error', () => {
+    void markFailed(db, item.id, item.projectId)
+  })
+  proc.stdin?.on('error', () => {})
+
   proc.stdin?.end(buildPrompt(item.bodyMd))
 
   if (!proc.pid) {
@@ -127,10 +136,12 @@ export async function spawnEnrichment(
     if (code === 0) {
       try {
         const text = stdout.trim()
-        // Strip accidental markdown fences
-        const jsonText = text.startsWith('```')
-          ? text.replace(/^```[^\n]*\n?/, '').replace(/\n?```$/, '')
-          : text
+        // The agentic CLI often wraps the JSON in prose ("Now I have enough
+        // context…") or markdown fences despite the prompt, so extract the
+        // outermost { … } object instead of requiring the whole output to parse.
+        const start = text.indexOf('{')
+        const end = text.lastIndexOf('}')
+        const jsonText = start !== -1 && end > start ? text.slice(start, end + 1) : text
         const parsed = JSON.parse(jsonText)
         if (typeof parsed.enrichedBodyMd === 'string') {
           await markEnriched(db, item.id, item.projectId, {

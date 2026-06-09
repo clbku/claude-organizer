@@ -62,6 +62,11 @@ services:
       MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-http://127.0.0.1:4402}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+    # Enrichment runs `claude -p` inside this container. Reuse the host's
+    # already-authenticated login by mounting its credentials (RW so the CLI can
+    # write back refreshed tokens). Only works when the container shares this host.
+    volumes:
+      - ${HOME}/.claude/.credentials.json:/root/.claude/.credentials.json
     ports:
       - "4400:4400"
     depends_on:
@@ -84,6 +89,10 @@ services:
       # Signs the card-scoped commit token (issue_commit_token); must match the
       # api's value. Optional — falls back to BETTER_AUTH_SECRET when empty.
       CO_COMMIT_TOKEN_SECRET: ${CO_COMMIT_TOKEN_SECRET:-}
+    # create_inbox runs createIntakeItem here, which spawns `claude -p` in THIS
+    # container — so it needs the host login mounted too (see the api service).
+    volumes:
+      - ${HOME}/.claude/.credentials.json:/root/.claude/.credentials.json
     ports:
       - "4402:4402"
     depends_on:
