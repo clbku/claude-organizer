@@ -5,6 +5,7 @@ import type { IntakeItem, IntakeStatus } from '~/types/intake'
 const store = useProjectStore()
 const { currentProject, currentProjectId } = storeToRefs(store)
 const api = useApi()
+const toast = useToast()
 
 useHead({ title: 'Inbox' })
 
@@ -14,6 +15,7 @@ const archived = ref<IntakeItem[]>([])
 const newBody = ref('')
 const adding = ref(false)
 const preview = ref<{ title: string, body: string | null } | null>(null)
+const panelOpen = ref<Record<string, boolean>>({})
 
 // The pending item being edited; its editor binds to useAutoSave's buffer, kept
 // out of the reloaded lists so a realtime echo can't clobber an in-flight edit.
@@ -51,6 +53,8 @@ function onBodyInput(item: IntakeItem, value: string) {
 const isEmptyEdit = (item: IntakeItem) =>
   current.value?.id === item.id && !editing.bodyMd.trim()
 
+let enrichingPollTimer: ReturnType<typeof setInterval> | null = null
+
 async function loadInbox() {
   if (!currentProjectId.value) {
     pending.value = []
@@ -59,19 +63,35 @@ async function loadInbox() {
     return
   }
   const path = `/projects/${currentProjectId.value}/intake`
-  const [p, pl, a] = await Promise.all([
+  const [p, enrichingItems, enrichedItems, pl, a] = await Promise.all([
     api<IntakeItem[]>(path, { query: { status: 'pending' } }),
+    api<IntakeItem[]>(path, { query: { status: 'enriching' } }),
+    api<IntakeItem[]>(path, { query: { status: 'enriched' } }),
     api<IntakeItem[]>(path, { query: { status: 'planned' } }),
     api<IntakeItem[]>(path, { query: { status: 'archived' } })
   ])
-  pending.value = p
+  // pending section: pending + enriching + enriched, newest first
+  pending.value = [...p, ...enrichingItems, ...enrichedItems].sort(
+    (x, y) => new Date(y.createdAt).getTime() - new Date(x.createdAt).getTime()
+  )
   planned.value = pl
   archived.value = a
   // Re-point the edited item at its refreshed object so smart-sync can follow.
   if (current.value) {
     current.value = pending.value.find(i => i.id === current.value!.id) ?? null
   }
+  const hasEnriching = pending.value.some(i => i.status === 'enriching')
+  if (hasEnriching && !enrichingPollTimer) {
+    enrichingPollTimer = setInterval(loadInbox, 3000)
+  } else if (!hasEnriching && enrichingPollTimer) {
+    clearInterval(enrichingPollTimer)
+    enrichingPollTimer = null
+  }
 }
+
+onUnmounted(() => {
+  if (enrichingPollTimer) clearInterval(enrichingPollTimer)
+})
 
 // A planned item's `completed` is derived from its cards' status, so a card
 // moving to/from `done` (a card.changed with no intake write) must re-bucket it.
@@ -121,6 +141,19 @@ async function setStatus(id: string, status: IntakeStatus) {
   if (current.value?.id === id) stopEdit()
   await api(`/intake/${id}`, { method: 'PATCH', body: { status } })
   await loadInbox()
+}
+
+const confirming = ref<string | null>(null)
+async function confirmEnrichment(id: string) {
+  confirming.value = id
+  try {
+    await api(`/intake/${id}/confirm`, { method: 'POST' })
+    await loadInbox()
+  } catch {
+    toast.add({ title: 'Could not confirm enrichment', description: 'The demand may have changed. Please refresh and try again.', color: 'error' })
+  } finally {
+    confirming.value = null
+  }
 }
 
 const destroyTarget = ref<IntakeItem | null>(null)
@@ -200,11 +233,10 @@ const plannedCompleted = computed(() => planned.value.filter(i => i.completed))
           <div
             v-for="item in pending"
             :key="item.id"
-            class="group relative"
+            class="group relative rounded-md border border-default overflow-hidden"
           >
             <InlineEditable
               type="markdown"
-              bordered
               min-height="80px"
               placeholder="Empty demand"
               editor-placeholder="Describe the demand… (markdown)"
@@ -213,9 +245,82 @@ const plannedCompleted = computed(() => planned.value.filter(i => i.completed))
               @edit-start="startEdit(item)"
               @edit-stop="stopEdit"
             />
-            <p v-if="isEmptyEdit(item)" class="mt-1.5 text-xs text-error">
+            <p v-if="isEmptyEdit(item)" class="mx-3 mb-2 text-xs text-error">
               A demand can't be empty — archive or destroy it instead.
             </p>
+
+            <!-- Enrichment status row -->
+            <div v-if="item.status === 'enriching'" class="px-3 pb-2">
+              <UBadge color="warning" variant="subtle" size="sm">
+                <UIcon name="i-lucide-loader-2" class="animate-spin size-3 mr-1" />
+                Enriching…
+              </UBadge>
+            </div>
+            <div
+              v-else-if="item.status === 'enriched'"
+              class="px-3 pb-2 flex items-center justify-between"
+            >
+              <UBadge
+                color="success"
+                variant="subtle"
+                size="sm"
+                label="Ready to confirm"
+              />
+              <UButton
+                size="xs"
+                color="primary"
+                variant="soft"
+                icon="i-lucide-circle-check"
+                label="Confirm enrichment"
+                :loading="confirming === item.id"
+                @click="confirmEnrichment(item.id)"
+              />
+            </div>
+            <div v-else-if="item.enrichedBodyMd" class="px-3 pb-2">
+              <UBadge
+                color="neutral"
+                variant="subtle"
+                size="sm"
+                label="Enriched"
+              />
+            </div>
+
+            <!-- Collapsible enrichment outputs panel -->
+            <div v-if="item.enrichedBodyMd" class="border-t border-default">
+              <button
+                type="button"
+                class="flex items-center gap-1.5 w-full px-3 py-2 text-xs font-medium text-muted hover:text-default hover:bg-elevated/50 transition text-left"
+                @click="panelOpen[item.id] = !panelOpen[item.id]"
+              >
+                <UIcon
+                  :name="panelOpen[item.id] ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+                  class="size-3 shrink-0"
+                />
+                Enrichment details
+              </button>
+              <div v-if="panelOpen[item.id]" class="px-3 pb-3 space-y-3">
+                <div class="space-y-1">
+                  <p class="text-xs font-semibold text-muted">
+                    Rewritten description
+                  </p>
+                  <AppMarkdown :value="item.enrichedBodyMd" :class="PROSE" />
+                </div>
+                <div v-if="item.contextNotesMd" class="space-y-1">
+                  <p class="text-xs font-semibold text-muted">
+                    Context notes
+                  </p>
+                  <AppMarkdown :value="item.contextNotesMd" :class="PROSE" />
+                </div>
+                <div v-if="item.draftPlanMd" class="space-y-1">
+                  <p class="text-xs font-semibold text-muted">
+                    Draft plan
+                  </p>
+                  <AppMarkdown :value="item.draftPlanMd" :class="PROSE" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Action overlay -->
             <div
               v-if="current?.id !== item.id"
               class="absolute top-2 right-2 flex items-center gap-0.5 rounded-md bg-default/80 backdrop-blur-sm opacity-0 transition group-hover:opacity-100 focus-within:opacity-100"
