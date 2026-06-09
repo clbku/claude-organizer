@@ -129,6 +129,12 @@ async function resolveToolProjectIds(
     case 'remove_tag_from_card':
       return entity('card', str(input.cardId))
 
+    case 'upload_card_attachment':
+    case 'list_card_attachments':
+      return str(input.cardId)
+        ? entity('card', str(input.cardId))
+        : entity('cardKey', str(input.cardKey))
+
     case 'add_blocker':
     case 'remove_blocker':
       return resolveCardsProjectIds(

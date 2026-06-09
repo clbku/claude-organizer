@@ -5,6 +5,7 @@ import type { Database } from '@claude-organizer/db'
 
 import type { McpScope } from '../scope'
 import { registerBlockerTools } from './blockers'
+import { registerCardAttachmentTools } from './cardAttachments'
 import { registerCardClaimTools } from './cardClaims'
 import { registerCardTools } from './cards'
 import { registerCommentTools } from './comments'
@@ -26,6 +27,7 @@ export function registerTools(
   registerProjectTools(server, db, scope)
   registerSprintTools(server, db)
   registerCardTools(server, db)
+  registerCardAttachmentTools(server, db)
   registerCardClaimTools(server, db)
   registerCommentTools(server, db)
   registerCommitTools(server)

@@ -88,6 +88,11 @@ export async function createAttachment(db: Database, input: CreateAttachmentInpu
   }
 
   let bytes = input.bytes
+  // Lenient base64 (MCP) or an empty multipart part can decode to zero bytes —
+  // a 0-byte file is meaningless proof of work, reject it before touching disk.
+  if (bytes.byteLength === 0) {
+    throw new InputError('Attachment is empty')
+  }
   if (input.mimeType.startsWith('image/')) {
     bytes = await compressImage(bytes)
   }
