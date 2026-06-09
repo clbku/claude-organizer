@@ -54,6 +54,11 @@ const isEmptyEdit = (item: IntakeItem) =>
   current.value?.id === item.id && !editing.bodyMd.trim()
 
 let enrichingPollTimer: ReturnType<typeof setInterval> | null = null
+// Monotonic load id. Concurrent reloads (the 3s poll, realtime echoes, an
+// explicit add) can resolve out of order; only the latest may write the lists,
+// so a slow earlier response can't clobber a fresher one — which is what made a
+// just-added item vanish until a manual refresh.
+let loadSeq = 0
 
 async function loadInbox() {
   if (!currentProjectId.value) {
@@ -62,6 +67,7 @@ async function loadInbox() {
     archived.value = []
     return
   }
+  const seq = ++loadSeq
   const path = `/projects/${currentProjectId.value}/intake`
   const [p, enrichingItems, enrichedItems, pl, a] = await Promise.all([
     api<IntakeItem[]>(path, { query: { status: 'pending' } }),
@@ -70,6 +76,7 @@ async function loadInbox() {
     api<IntakeItem[]>(path, { query: { status: 'planned' } }),
     api<IntakeItem[]>(path, { query: { status: 'archived' } })
   ])
+  if (seq !== loadSeq) return
   // pending section: pending + enriching + enriched, newest first
   pending.value = [...p, ...enrichingItems, ...enrichedItems].sort(
     (x, y) => new Date(y.createdAt).getTime() - new Date(x.createdAt).getTime()
@@ -119,11 +126,16 @@ async function addItem() {
   if (!body || !currentProjectId.value || adding.value) return
   adding.value = true
   try {
-    await api(`/projects/${currentProjectId.value}/intake`, {
+    const created = await api<IntakeItem>(`/projects/${currentProjectId.value}/intake`, {
       method: 'POST',
       body: { bodyMd: body }
     })
     newBody.value = ''
+    // Show the new item instantly, before the reload round-trip; loadInbox()
+    // then reconciles from the server (dedup by id keeps it single).
+    if (created && !pending.value.some(i => i.id === created.id)) {
+      pending.value = [created, ...pending.value]
+    }
     await loadInbox()
   } finally {
     adding.value = false
