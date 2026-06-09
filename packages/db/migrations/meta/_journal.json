@@ -162,6 +162,13 @@
       "when": 1781010504215,
       "tag": "0022_slippery_mysterio",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1781019231504,
+      "tag": "0023_lowly_lester",
+      "breakpoints": true
     }
   ]
 }

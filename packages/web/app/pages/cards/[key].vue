@@ -134,6 +134,24 @@ const { editing, saving, justSaved, save } = useAutoSave<
   }
 })
 
+const toast = useToast()
+
+// Status changes can be rejected by the proof-of-work guard (move to `done`
+// with no attachments). save() re-throws, so guide the user to the panel.
+async function changeStatus(v: CardStatus) {
+  try {
+    await save({ status: v })
+  } catch (err) {
+    const pow = proofOfWorkError(err)
+    toast.add({
+      title: pow ? 'Attach proof of work first' : 'Update failed',
+      description: pow ?? 'Could not change the status.',
+      color: pow ? 'warning' : 'error',
+      icon: pow ? 'i-lucide-paperclip' : undefined
+    })
+  }
+}
+
 const dueDateInput = computed({
   get: () => (card.value?.dueDate ? card.value.dueDate.slice(0, 10) : ''),
   set: (val) => {
@@ -635,6 +653,13 @@ const providerIcon = computed(() =>
             </ul>
           </section>
 
+          <CardAttachments
+            :key="card.id"
+            :card-id="card.id"
+            :attachments="card.attachments ?? []"
+            @changed="refreshCard"
+          />
+
           <section v-if="!card.parentId">
             <h2 class="text-xs font-semibold text-muted uppercase tracking-wide mb-3">
               Sub-tasks
@@ -885,7 +910,7 @@ const providerIcon = computed(() =>
                 :items="statusOptions"
                 value-key="value"
                 class="w-full"
-                @update:model-value="(v: CardStatus) => save({ status: v })"
+                @update:model-value="changeStatus"
               />
             </div>
 

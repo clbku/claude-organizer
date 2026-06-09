@@ -41,6 +41,18 @@ export default fp(async (app) => {
       return reply.code(400).send({ error: err.message, code: 'validation_error' })
     }
 
+    // Plugin-level HTTP errors carry a 4xx statusCode (e.g. @fastify/multipart's
+    // 413 for an oversized upload) — honor it instead of masking it as a 500.
+    if (
+      typeof err.statusCode === 'number'
+      && err.statusCode >= 400
+      && err.statusCode < 500
+    ) {
+      return reply
+        .code(err.statusCode)
+        .send({ error: err.message, code: 'invalid_input' })
+    }
+
     // Anything else is an unexpected fault: log it and return 500 (instead of
     // the previous behaviour of masking every failure as a 400).
     req.log.error({ err }, 'unhandled error')

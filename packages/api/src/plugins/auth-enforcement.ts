@@ -137,9 +137,13 @@ async function resolveProjectIds(
       return entity('cardKey', params.key!)
     case '/cards/:cardId/comments':
     case '/cards/:cardId/commits':
+    case '/cards/:cardId/attachments':
     case '/cards/:cardId/tags/:tagId':
     case '/cards/:cardId/blockers/:blockerId':
       return entity('card', params.cardId!)
+    case '/attachments/:id/file':
+    case '/attachments/:id':
+      return entity('attachment', params.id!)
     case '/cards/reorder': {
       // Reorder mutates every id in the payload, so access must cover them all.
       const ordered = (body.orderedIds as string[] | undefined) ?? []
