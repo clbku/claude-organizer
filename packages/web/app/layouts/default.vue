@@ -7,6 +7,12 @@ const store = useProjectStore()
 const { projects } = storeToRefs(store)
 const { user, isAdmin, capabilities, signOut } = useAuth()
 
+const colorMode = useColorMode()
+const isDark = computed(() => colorMode.value === 'dark')
+function toggleColorMode() {
+  colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
+}
+
 // Load projects here (not only in the boot plugin): the layout renders only for
 // authenticated pages, so by now the session cookie exists and /projects is
 // authorized. Idempotent — a no-op if the boot plugin already loaded them.
@@ -98,6 +104,22 @@ async function onLogout() {
           :collapsed="collapsed"
           tooltip
         />
+
+        <UTooltip
+          :text="isDark ? 'Dark mode' : 'Light mode'"
+          :disabled="!collapsed"
+          :content="{ side: 'right' }"
+        >
+          <UButton
+            color="neutral"
+            variant="ghost"
+            block
+            :square="collapsed"
+            :icon="isDark ? 'i-lucide-moon' : 'i-lucide-sun'"
+            :label="collapsed ? undefined : (isDark ? 'Dark mode' : 'Light mode')"
+            @click="toggleColorMode"
+          />
+        </UTooltip>
 
         <UDropdownMenu
           v-if="user"
