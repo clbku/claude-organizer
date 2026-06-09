@@ -103,6 +103,7 @@ export interface ProjectRow {
   nextKeySeq: number
   repoProvider: RepoProvider | null
   repoWebUrl: string | null
+  repoLocalPath: string | null
   createdAt: string
   updatedAt: string
   archivedAt: string | null

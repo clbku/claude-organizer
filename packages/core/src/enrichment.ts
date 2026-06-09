@@ -1,5 +1,7 @@
 import { spawn } from 'child_process'
 import { eq, sql } from 'drizzle-orm'
+import { statSync } from 'fs'
+import { tmpdir } from 'os'
 
 import { type Database, schema } from '@claude-organizer/db'
 
@@ -8,8 +10,15 @@ import { notify } from './events'
 // In-memory registry: alive within one API process lifetime
 const running = new Map<string, import('child_process').ChildProcess>()
 
-function buildPrompt(bodyMd: string): string {
-  return `You are enriching a software demand captured in a project inbox. You have access to bash and file reading tools to briefly explore the codebase for context if needed.
+function buildPrompt(bodyMd: string, explore: boolean): string {
+  // `explore` is on only when the spawn runs in the project's own checkout, so
+  // codebase context is real. Otherwise we tell Claude NOT to read files — the
+  // cwd is unrelated to this project and any file it found would be misleading.
+  const context = explore
+    ? 'You have access to bash and file reading tools to briefly explore the codebase (your current working directory is this project\'s repository) for context if needed.'
+    : 'No project codebase is available in your working directory. Enrich from the demand text alone — do NOT read files or run commands, and keep contextNotesMd to general guidance without referencing specific files.'
+
+  return `You are enriching a software demand captured in a project inbox. ${context}
 
 The demand to enrich:
 ---
@@ -22,6 +31,20 @@ Produce a JSON object with exactly these three fields:
 - "draftPlanMd": string — preliminary breakdown of tasks to implement this demand
 
 Respond with ONLY the JSON object. No markdown fences. No explanation.`
+}
+
+// Resolve the cwd Claude should run in: the project's local checkout when it is
+// configured AND present on this filesystem, else a neutral temp dir (so an
+// unrelated repo — e.g. the server's own /app — is never explored by mistake).
+function resolveEnrichCwd(repoLocalPath: string | null): { cwd: string, explore: boolean } {
+  if (repoLocalPath) {
+    try {
+      if (statSync(repoLocalPath).isDirectory()) return { cwd: repoLocalPath, explore: true }
+    } catch {
+      // path not mounted / missing in this process — fall through to text-only
+    }
+  }
+  return { cwd: tmpdir(), explore: false }
 }
 
 async function markEnriched(
@@ -81,8 +104,18 @@ export async function spawnEnrichment(
   db: Database,
   item: { id: string, projectId: string, bodyMd: string }
 ) {
+  // Run Claude inside the project's own checkout so it explores the right code;
+  // fall back to a neutral cwd + text-only prompt when no valid path is set.
+  const [project] = await db
+    .select({ repoLocalPath: schema.projects.repoLocalPath })
+    .from(schema.projects)
+    .where(eq(schema.projects.id, item.projectId))
+    .limit(1)
+  const { cwd, explore } = resolveEnrichCwd(project?.repoLocalPath ?? null)
+
   // Prompt via stdin: avoids process-table exposure and OS arg-length limits
   const proc = spawn('claude', ['-p', '--model', 'claude-sonnet-4-6'], {
+    cwd,
     stdio: ['pipe', 'pipe', 'inherit']
   })
 
@@ -94,7 +127,7 @@ export async function spawnEnrichment(
   })
   proc.stdin?.on('error', () => {})
 
-  proc.stdin?.end(buildPrompt(item.bodyMd))
+  proc.stdin?.end(buildPrompt(item.bodyMd, explore))
 
   if (!proc.pid) {
     await markFailed(db, item.id, item.projectId)

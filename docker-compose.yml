@@ -64,9 +64,12 @@ services:
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
     # Enrichment runs `claude -p` inside this container. Reuse the host's
     # already-authenticated login by mounting its credentials (RW so the CLI can
-    # write back refreshed tokens). Only works when the container shares this host.
+    # write back refreshed tokens). The workspaces root is mounted read-only at
+    # the SAME path as on the host, so a project's stored repoLocalPath resolves
+    # verbatim and Claude explores the right checkout. Only works on this host.
     volumes:
       - ${HOME}/.claude/.credentials.json:/root/.claude/.credentials.json
+      - ${HOME}/Documents:${HOME}/Documents:ro
     ports:
       - "4400:4400"
     depends_on:
@@ -90,9 +93,10 @@ services:
       # api's value. Optional — falls back to BETTER_AUTH_SECRET when empty.
       CO_COMMIT_TOKEN_SECRET: ${CO_COMMIT_TOKEN_SECRET:-}
     # create_inbox runs createIntakeItem here, which spawns `claude -p` in THIS
-    # container — so it needs the host login mounted too (see the api service).
+    # container — so it needs the host login + workspaces mount too (see api).
     volumes:
       - ${HOME}/.claude/.credentials.json:/root/.claude/.credentials.json
+      - ${HOME}/Documents:${HOME}/Documents:ro
     ports:
       - "4402:4402"
     depends_on:

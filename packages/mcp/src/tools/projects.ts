@@ -145,17 +145,23 @@ export function registerProjectTools(
     'set_project_repo',
     {
       description:
-        'Set (or clear) the project\'s source repository so commit hashes link to the provider\'s commit page. Pass `provider` (github|gitlab) + `repoWebUrl` (e.g. https://github.com/owner/repo), or null on both to clear. The skill calls this after detecting the git remote.',
+        'Set (or clear) the project\'s source repository. `provider` (github|gitlab) + `repoWebUrl` link commit hashes to the provider\'s commit page; `localPath` is the absolute path to a local checkout, used as the cwd when inbox enrichment runs Claude so it explores THIS project\'s code. Each field is optional: pass null to clear it, omit it to leave it unchanged. The skill calls this after detecting the git remote.',
       inputSchema: {
         projectId: z.string(),
-        provider: z.enum(['github', 'gitlab']).nullable(),
+        provider: z.enum(['github', 'gitlab']).nullable().optional(),
         repoWebUrl: z
           .url()
           .nullable()
-          .describe('Repo web base, e.g. https://github.com/owner/repo (no .git).')
+          .optional()
+          .describe('Repo web base, e.g. https://github.com/owner/repo (no .git).'),
+        localPath: z
+          .string()
+          .nullable()
+          .optional()
+          .describe('Absolute path to a local checkout, e.g. /Users/me/code/my-app.')
       }
     },
-    async ({ projectId, provider, repoWebUrl }) =>
-      asJson(await setProjectRepo(db, { projectId, provider, repoWebUrl }))
+    async ({ projectId, provider, repoWebUrl, localPath }) =>
+      asJson(await setProjectRepo(db, { projectId, provider, repoWebUrl, localPath }))
   )
 }

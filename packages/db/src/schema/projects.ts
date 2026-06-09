@@ -25,6 +25,9 @@ export const projects = pgTable(
     nextKeySeq: integer('next_key_seq').notNull().default(1),
     repoProvider: repoProviderEnum('repo_provider'),
     repoWebUrl: text('repo_web_url'),
+    // Absolute path to a local checkout, used as the cwd when enrichment spawns
+    // the Claude CLI so it explores THIS project's code (not the server's own).
+    repoLocalPath: text('repo_local_path'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .default(sql`now()`),

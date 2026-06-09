@@ -35,6 +35,7 @@ const projectColumns = {
   nextKeySeq: schema.projects.nextKeySeq,
   repoProvider: schema.projects.repoProvider,
   repoWebUrl: schema.projects.repoWebUrl,
+  repoLocalPath: schema.projects.repoLocalPath,
   createdAt: schema.projects.createdAt,
   updatedAt: schema.projects.updatedAt,
   archivedAt: schema.projects.archivedAt
@@ -149,26 +150,37 @@ export async function updateProjectKeyPrefix(
 
 export const setProjectRepoInput = z.object({
   projectId: z.string(),
-  provider: z.enum(REPO_PROVIDERS).nullable(),
+  provider: z.enum(REPO_PROVIDERS).nullable().optional(),
   repoWebUrl: z
     .url()
     .transform(u => u.replace(/\.git$/, '').replace(/\/+$/, ''))
     .nullable()
+    .optional(),
+  // Absolute path to a local checkout. Pass null to clear; omit to leave as-is.
+  localPath: z
+    .string()
+    .trim()
+    .min(1)
+    .refine(p => p.startsWith('/'), 'must be an absolute path')
+    .nullable()
+    .optional()
 })
 export type SetProjectRepoInput = z.input<typeof setProjectRepoInput>
 
 /**
- * Point a project at its source repository (or clear it with nulls) so the web
- * can link a commit hash to the provider's commit page. The claude-organizer
- * skill detects the git remote and calls this; there is no manual edit UI yet.
+ * Point a project at its source repository so the web can link a commit hash to
+ * the provider's commit page, and so inbox enrichment explores the right code.
+ * Each field is optional: pass null to clear it, omit it to leave it unchanged.
+ * The claude-organizer skill detects the git remote and calls this.
  */
 export async function setProjectRepo(db: Database, input: SetProjectRepoInput) {
   const parsed = setProjectRepoInput.parse(input)
   const [row] = await db
     .update(schema.projects)
     .set({
-      repoProvider: parsed.provider,
-      repoWebUrl: parsed.repoWebUrl,
+      ...(parsed.provider !== undefined ? { repoProvider: parsed.provider } : {}),
+      ...(parsed.repoWebUrl !== undefined ? { repoWebUrl: parsed.repoWebUrl } : {}),
+      ...(parsed.localPath !== undefined ? { repoLocalPath: parsed.localPath } : {}),
       updatedAt: sql`now()`
     })
     .where(eq(schema.projects.id, parsed.projectId))
