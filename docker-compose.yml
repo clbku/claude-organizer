@@ -62,6 +62,9 @@ services:
       MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-http://127.0.0.1:4402}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      # api and mcp must share this dir on a single volume: mcp writes uploads,
+      # api serves them back. Same path + same volume in both services.
+      ATTACHMENTS_DIR: /app/data/attachments
     # Enrichment runs `claude -p` inside this container. Reuse the host's
     # already-authenticated login by mounting its credentials (RW so the CLI can
     # write back refreshed tokens). The workspaces root is mounted read-only at
@@ -70,6 +73,7 @@ services:
     volumes:
       - ${HOME}/.claude/.credentials.json:/root/.claude/.credentials.json
       - ${HOME}/Documents:${HOME}/Documents:ro
+      - ./docker/data/attachments:/app/data/attachments
     ports:
       - "4400:4400"
     depends_on:
@@ -92,11 +96,14 @@ services:
       # Signs the card-scoped commit token (issue_commit_token); must match the
       # api's value. Optional — falls back to BETTER_AUTH_SECRET when empty.
       CO_COMMIT_TOKEN_SECRET: ${CO_COMMIT_TOKEN_SECRET:-}
+      # Shared with api: mcp writes uploaded attachments here, api serves them.
+      ATTACHMENTS_DIR: /app/data/attachments
     # create_inbox runs createIntakeItem here, which spawns `claude -p` in THIS
     # container — so it needs the host login + workspaces mount too (see api).
     volumes:
       - ${HOME}/.claude/.credentials.json:/root/.claude/.credentials.json
       - ${HOME}/Documents:${HOME}/Documents:ro
+      - ./docker/data/attachments:/app/data/attachments
     ports:
       - "4402:4402"
     depends_on:

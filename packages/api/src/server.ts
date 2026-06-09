@@ -1,4 +1,5 @@
 import cors from '@fastify/cors'
+import multipart from '@fastify/multipart'
 import websocket from '@fastify/websocket'
 import Fastify from 'fastify'
 
@@ -13,6 +14,7 @@ import { registerAdminRoutes } from './routes/admin'
 import { registerAuthRoutes } from './routes/auth'
 import { registerBackupRoutes } from './routes/backup'
 import { registerBlockerRoutes } from './routes/blockers'
+import { registerCardAttachmentRoutes } from './routes/cardAttachments'
 import { registerCardClaimRoutes } from './routes/cardClaims'
 import { registerCardCommitRoutes } from './routes/cardCommits'
 import { registerCardRoutes } from './routes/cards'
@@ -67,6 +69,11 @@ await app.register(cors, {
   methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']
 })
 await app.register(websocket)
+// Raw upload cap is generous (100MB) so large photos reach the core, which
+// applies the real 20MB-after-compression rule; one file per request.
+await app.register(multipart, {
+  limits: { fileSize: 100 * 1024 * 1024, files: 1 }
+})
 await app.register(errorHandlerPlugin)
 await app.register(eventsPlugin)
 
@@ -81,6 +88,7 @@ registerSprintRoutes(app, db)
 registerCardRoutes(app, db)
 registerCardClaimRoutes(app, db)
 registerCardCommitRoutes(app, db)
+registerCardAttachmentRoutes(app, db)
 registerCommentRoutes(app, db)
 registerTagRoutes(app, db)
 registerBlockerRoutes(app, db)
