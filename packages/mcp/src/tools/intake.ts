@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import {
   archiveIntakeItem,
+  confirmIntakeEnrichment,
   createIntakeItem,
   destroyIntakeItem,
   intakeStatus,
@@ -32,7 +33,7 @@ export function registerIntakeTools(server: McpServer, db: Database) {
     'list_inbox',
     {
       description:
-        'List the raw intake demands of a project (the Inbox). Defaults to pending demands; pass status to filter. Each item has id, bodyMd, status, plannedCardKeys and timestamps. Pages with limit/offset; response is { items, hasMore, offset }.',
+        'List the raw intake demands of a project (the Inbox). Defaults to pending demands; pass status to filter. Each item has id, bodyMd, status, plannedCardKeys, timestamps, and enrichment fields (enrichedBodyMd, contextNotesMd, draftPlanMd, enrichedAt — all null when not enriched). Status may be pending, enriching, enriched, planned, or archived. Pages with limit/offset; response is { items, hasMore, offset }.',
       inputSchema: {
         projectId: z.string(),
         status: intakeStatus.optional(),
@@ -84,5 +85,22 @@ export function registerIntakeTools(server: McpServer, db: Database) {
       }
     },
     async ({ id }) => asJson(await destroyIntakeItem(db, id))
+  )
+
+  server.registerTool(
+    'confirm_inbox_enrichment',
+    {
+      description:
+        'Confirm an enriched inbox demand, resetting its status from enriched back to pending so it can be planned. Call this after the user has reviewed the enriched content (enrichedBodyMd, contextNotesMd, draftPlanMd) and approved it. Returns the updated demand with status pending and enriched fields preserved. Errors with 409 if the demand is not in enriched state.',
+      inputSchema: {
+        id: z.string()
+      }
+    },
+    async ({ id }) => {
+      const result = await confirmIntakeEnrichment(db, id)
+      if (result === null) throw new Error('Inbox demand not found')
+      if ('conflict' in result) throw new Error('Demand is not in enriched state — cannot confirm')
+      return asJson(result)
+    }
   )
 }
