@@ -219,9 +219,15 @@ export async function markIntakePlanned(
 }
 
 export async function archiveIntakeItem(db: Database, id: string) {
+  const [current] = await db
+    .select({ subprocessId: schema.intakeItems.subprocessId })
+    .from(schema.intakeItems)
+    .where(eq(schema.intakeItems.id, id))
+    .limit(1)
+  if (current?.subprocessId) killEnrichment(current.subprocessId)
   const [row] = await db
     .update(schema.intakeItems)
-    .set({ status: 'archived', archivedAt: sql`now()`, updatedAt: sql`now()` })
+    .set({ status: 'archived', archivedAt: sql`now()`, subprocessId: null, updatedAt: sql`now()` })
     .where(eq(schema.intakeItems.id, id))
     .returning(intakeColumns)
   if (row) await notifyChanged(db, row)

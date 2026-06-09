@@ -161,6 +161,7 @@ async function resolveProjectIds(
     case '/tags/:tagId':
       return entity('tag', params.tagId!)
     case '/intake/:id':
+    case '/intake/:id/confirm':
       return entity('intakeItem', params.id!)
     case '/comments/:id':
       return entity('comment', params.id!)

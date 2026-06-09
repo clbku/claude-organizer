@@ -86,7 +86,7 @@ export type SchemaConformance = [
   Assert<Equal<ProjectRow, Wire<InferSelectModel<typeof projects>>>>,
   Assert<Equal<TagRow, Wire<InferSelectModel<typeof tags>>>>,
   Assert<Equal<RoadmapRow, Wire<InferSelectModel<typeof roadmaps>>>>,
-  Assert<Equal<IntakeItemRow, Wire<InferSelectModel<typeof intakeItems>>>>,
+  Assert<Equal<IntakeItemRow, Wire<Omit<InferSelectModel<typeof intakeItems>, 'subprocessId'>>>>,
   Assert<Equal<UserAuthzRow, Wire<InferSelectModel<typeof userAuthz>>>>,
   Assert<
     Equal<UserProjectAccessRow, Wire<InferSelectModel<typeof userProjectAccess>>>
