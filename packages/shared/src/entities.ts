@@ -134,6 +134,11 @@ export interface IntakeItemRow {
   createdAt: string
   updatedAt: string
   archivedAt: string | null
+  enrichedBodyMd: string | null
+  contextNotesMd: string | null
+  draftPlanMd: string | null
+  enrichedAt: string | null
+  subprocessId: string | null
 }
 
 export interface UserAuthzRow {

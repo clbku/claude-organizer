@@ -20,7 +20,12 @@ export const intakeItems = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .default(sql`now()`),
-    archivedAt: timestamp('archived_at', { withTimezone: true })
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    enrichedBodyMd: text('enriched_body_md'),
+    contextNotesMd: text('context_notes_md'),
+    draftPlanMd: text('draft_plan_md'),
+    enrichedAt: timestamp('enriched_at', { withTimezone: true }),
+    subprocessId: text('subprocess_id')
   },
   t => [
     index('intake_items_project_idx').on(t.projectId),
