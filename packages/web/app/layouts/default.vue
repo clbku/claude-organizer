@@ -97,13 +97,27 @@ async function onLogout() {
       </template>
 
       <template #footer="{ collapsed }">
-        <UNavigationMenu
-          v-if="adminOrOpenMode"
-          :items="systemLinks"
-          orientation="vertical"
-          :collapsed="collapsed"
-          tooltip
-        />
+        <template v-if="adminOrOpenMode">
+          <UTooltip
+            v-for="link in systemLinks"
+            :key="link.to as string"
+            class="w-full"
+            :text="link.label as string"
+            :disabled="!collapsed"
+            :content="{ side: 'right' }"
+          >
+            <UButton
+              :to="link.to as string"
+              color="neutral"
+              variant="ghost"
+              block
+              class="justify-start"
+              :square="collapsed"
+              :icon="link.icon as string"
+              :label="collapsed ? undefined : (link.label as string)"
+            />
+          </UTooltip>
+        </template>
 
         <UTooltip
           class="w-full"
@@ -120,6 +134,20 @@ async function onLogout() {
             :icon="isDark ? 'i-lucide-moon' : 'i-lucide-sun'"
             :label="collapsed ? undefined : (isDark ? 'Dark mode' : 'Light mode')"
             @click="toggleColorMode"
+          />
+        </UTooltip>
+
+        <UTooltip
+          class="w-full"
+          text="Expand"
+          :disabled="!collapsed"
+          :content="{ side: 'right' }"
+        >
+          <UDashboardSidebarCollapse
+            block
+            class="justify-start"
+            :square="collapsed"
+            :label="collapsed ? undefined : 'Collapse'"
           />
         </UTooltip>
 
