@@ -106,6 +106,7 @@ async function onLogout() {
         />
 
         <UTooltip
+          class="w-full"
           :text="isDark ? 'Dark mode' : 'Light mode'"
           :disabled="!collapsed"
           :content="{ side: 'right' }"
