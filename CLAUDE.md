@@ -30,7 +30,7 @@ This project in the MCP:
 
 - **slug**: `claude-organizer`
 - **keyPrefix**: `CO` (cards are `CO-1`, `CO-2`…)
-- **projectId**: `prj_zrvn6leze9r3`
+- **projectId**: `prj_5tiw3z4dpx7h`
 
 ## Knowledge lives in the docs, not here
 
