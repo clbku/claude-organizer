@@ -10,13 +10,17 @@ import { notify } from './events'
 // In-memory registry: alive within one API process lifetime
 const running = new Map<string, import('child_process').ChildProcess>()
 
+// Subagent-spawning tools are disallowed so Claude explores directly (bounded)
+// instead of fanning out subagents — which blew enrichment runtime up to minutes.
+const DISALLOWED_TOOLS = ['Agent', 'Workflow']
+
 function buildPrompt(bodyMd: string, explore: boolean): string {
-  // `explore` is on only when the spawn runs in the project's own checkout, so
-  // codebase context is real. Otherwise we tell Claude NOT to read files — the
-  // cwd is unrelated to this project and any file it found would be misleading.
+  // When the cwd is the project's own checkout, let Claude explore it directly;
+  // otherwise enrich from the text alone so it never cites an unrelated repo.
+  // Either way it must not spawn subagents (also enforced via --disallowed-tools).
   const context = explore
-    ? 'You have access to bash and file reading tools to briefly explore the codebase (your current working directory is this project\'s repository) for context if needed.'
-    : 'No project codebase is available in your working directory. Enrich from the demand text alone — do NOT read files or run commands, and keep contextNotesMd to general guidance without referencing specific files.'
+    ? 'You may use the bash and file-reading tools to briefly explore the codebase yourself (your current working directory is this project\'s repository) for context. Do NOT spawn subagents.'
+    : 'No project codebase is available in your working directory. Enrich from the demand text alone — do NOT read files, run commands, or spawn subagents, and keep contextNotesMd to general guidance without referencing specific files.'
 
   return `You are enriching a software demand captured in a project inbox. ${context}
 
@@ -113,11 +117,14 @@ export async function spawnEnrichment(
     .limit(1)
   const { cwd, explore } = resolveEnrichCwd(project?.repoLocalPath ?? null)
 
-  // Prompt via stdin: avoids process-table exposure and OS arg-length limits
-  const proc = spawn('claude', ['-p', '--model', 'claude-sonnet-4-6'], {
-    cwd,
-    stdio: ['pipe', 'pipe', 'inherit']
-  })
+  // Prompt via stdin: avoids process-table exposure and OS arg-length limits.
+  // --disallowed-tools blocks subagent spawning (Agent/Workflow) while keeping
+  // bash/file tools, so Claude explores directly instead of fanning out.
+  const proc = spawn(
+    'claude',
+    ['-p', '--disallowed-tools', ...DISALLOWED_TOOLS, '--model', 'claude-sonnet-4-6'],
+    { cwd, stdio: ['pipe', 'pipe', 'inherit'] }
+  )
 
   // A spawn failure (e.g. the claude binary is missing) surfaces as an async
   // 'error' event on the child and its stdin pipe. An unhandled one is rethrown
