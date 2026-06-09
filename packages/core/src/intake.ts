@@ -8,6 +8,7 @@ import {
   type IntakeStatus
 } from '@claude-organizer/shared'
 
+import { killEnrichment, spawnEnrichment } from './enrichment'
 import { notify } from './events'
 import { paginate } from './pagination'
 
@@ -33,7 +34,11 @@ const intakeColumns = {
   plannedCardKeys: schema.intakeItems.plannedCardKeys,
   createdAt: schema.intakeItems.createdAt,
   updatedAt: schema.intakeItems.updatedAt,
-  archivedAt: schema.intakeItems.archivedAt
+  archivedAt: schema.intakeItems.archivedAt,
+  enrichedBodyMd: schema.intakeItems.enrichedBodyMd,
+  contextNotesMd: schema.intakeItems.contextNotesMd,
+  draftPlanMd: schema.intakeItems.draftPlanMd,
+  enrichedAt: schema.intakeItems.enrichedAt
 }
 
 async function notifyChanged(db: Database, row: { id: string, projectId: string }) {
@@ -131,15 +136,60 @@ export async function createIntakeItem(db: Database, input: CreateIntakeItemInpu
     .values({
       id: createId('itk'),
       projectId: parsed.projectId,
-      bodyMd: parsed.bodyMd
+      bodyMd: parsed.bodyMd,
+      status: 'enriching'
     })
     .returning(intakeColumns)
-  if (row) await notifyChanged(db, row)
+  if (row) {
+    await notifyChanged(db, row)
+    void spawnEnrichment(db, { id: row.id, projectId: row.projectId, bodyMd: row.bodyMd })
+  }
   return row
 }
 
 export async function updateIntakeItem(db: Database, input: UpdateIntakeItemInput) {
   const parsed = updateIntakeItemInput.parse(input)
+
+  const [current] = await db
+    .select({
+      status: schema.intakeItems.status,
+      subprocessId: schema.intakeItems.subprocessId,
+      projectId: schema.intakeItems.projectId
+    })
+    .from(schema.intakeItems)
+    .where(eq(schema.intakeItems.id, parsed.id))
+    .limit(1)
+
+  if (!current) return null
+
+  if (current.status === 'enriched') {
+    // After enrichment, edits save content only — no re-enrichment
+    const [row] = await db
+      .update(schema.intakeItems)
+      .set({ bodyMd: parsed.bodyMd, updatedAt: sql`now()` })
+      .where(eq(schema.intakeItems.id, parsed.id))
+      .returning(intakeColumns)
+    if (row) await notifyChanged(db, row)
+    return row ?? null
+  }
+
+  if (current.status === 'enriching') {
+    // Clear subprocessId in DB first so the stale close handler sees it's superseded,
+    // then kill the process, then re-spawn with the new content
+    const [row] = await db
+      .update(schema.intakeItems)
+      .set({ bodyMd: parsed.bodyMd, status: 'enriching', subprocessId: null, updatedAt: sql`now()` })
+      .where(eq(schema.intakeItems.id, parsed.id))
+      .returning(intakeColumns)
+    if (row) {
+      await notifyChanged(db, row)
+      killEnrichment(current.subprocessId)
+      void spawnEnrichment(db, { id: row.id, projectId: row.projectId, bodyMd: row.bodyMd })
+    }
+    return row ?? null
+  }
+
+  // pending / planned / archived — normal save
   const [row] = await db
     .update(schema.intakeItems)
     .set({ bodyMd: parsed.bodyMd, updatedAt: sql`now()` })
@@ -311,6 +361,26 @@ export async function pruneIntakeForDestroyedCards(
       .where(eq(schema.intakeItems.id, item.id))
     await notifyChanged(db, item)
   }
+}
+
+/** Reset an enriched demand back to pending (preserving enriched fields) so it can be planned. */
+export async function confirmIntakeEnrichment(db: Database, id: string) {
+  const [current] = await db
+    .select({ status: schema.intakeItems.status })
+    .from(schema.intakeItems)
+    .where(eq(schema.intakeItems.id, id))
+    .limit(1)
+
+  if (!current) return null
+  if (current.status !== 'enriched') return { conflict: true as const }
+
+  const [row] = await db
+    .update(schema.intakeItems)
+    .set({ status: 'pending', updatedAt: sql`now()` })
+    .where(eq(schema.intakeItems.id, id))
+    .returning(intakeColumns)
+  if (row) await notifyChanged(db, row)
+  return row ?? null
 }
 
 export async function destroyIntakeItem(db: Database, id: string) {

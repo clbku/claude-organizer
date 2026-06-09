@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import {
   archiveIntakeItem,
+  confirmIntakeEnrichment,
   createIntakeItem,
   destroyIntakeItem,
   InputError,
@@ -72,6 +73,16 @@ export function registerIntakeRoutes(app: FastifyInstance, db: Database) {
 
       if (!row) return reply.code(404).send({ error: 'not_found' })
       return row
+    }
+  )
+
+  app.post<{ Params: { id: string } }>(
+    '/intake/:id/confirm',
+    async (req, reply) => {
+      const result = await confirmIntakeEnrichment(db, req.params.id)
+      if (result === null) return reply.code(404).send({ error: 'not_found' })
+      if ('conflict' in result) return reply.code(409).send({ error: 'not_enriched' })
+      return result
     }
   )
 
