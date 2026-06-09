@@ -7,6 +7,7 @@ type SprintFilter = 'all' | 'sprint' | 'loose'
 const store = useProjectStore()
 const { currentProject, currentProjectId } = storeToRefs(store)
 const api = useApi()
+const toast = useToast()
 
 useHead({ title: 'Board' })
 
@@ -118,7 +119,17 @@ async function onReorder({
       body: { orderedIds, moved: movedId ? { id: movedId, status } : undefined }
     })
   } catch (err) {
-    console.error('Failed to reorder, reloading', err)
+    const pow = proofOfWorkError(err)
+    if (pow) {
+      toast.add({
+        title: 'Attach proof of work first',
+        description: pow,
+        color: 'warning',
+        icon: 'i-lucide-paperclip'
+      })
+    } else {
+      console.error('Failed to reorder, reloading', err)
+    }
     await loadCards()
   }
 }

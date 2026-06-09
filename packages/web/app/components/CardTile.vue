@@ -60,6 +60,15 @@ const claimHint = computed(() =>
         >
           {{ card.subtaskDone }}/{{ card.subtaskCount }}
         </UBadge>
+        <UBadge
+          v-if="card.attachmentCount"
+          size="xs"
+          variant="soft"
+          color="neutral"
+          icon="i-lucide-paperclip"
+        >
+          {{ card.attachmentCount }}
+        </UBadge>
         <UBadge v-if="card.priority > 0" size="xs" variant="soft">
           P{{ card.priority }}
         </UBadge>
