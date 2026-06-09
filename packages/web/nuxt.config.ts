@@ -17,6 +17,7 @@ export default defineNuxtConfig({
     }
   },
   css: ['~/assets/css/main.css'],
+  colorMode: { preference: 'system' },
   runtimeConfig: {
     public: {
       apiUrl: process.env.NUXT_PUBLIC_API_URL ?? 'http://127.0.0.1:4400',
