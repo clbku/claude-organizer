@@ -1,5 +1,5 @@
 import { spawn } from 'child_process'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, lt, sql } from 'drizzle-orm'
 import { statSync } from 'fs'
 import { tmpdir } from 'os'
 
@@ -9,6 +9,11 @@ import { notify } from './events'
 
 // In-memory registry: alive within one API process lifetime
 const running = new Map<string, import('child_process').ChildProcess>()
+
+// Items left in `enriching` longer than this — orphaned by a process that died
+// mid-run, or a runaway agent — are swept back to pending. Must comfortably
+// exceed the slowest legitimate run.
+const ENRICHMENT_TIMEOUT_MS = 15 * 60_000
 
 // Subagent-spawning tools are disallowed so Claude explores directly (bounded)
 // instead of fanning out subagents — which blew enrichment runtime up to minutes.
@@ -144,6 +149,10 @@ export async function spawnEnrichment(
   const subprocessId = String(proc.pid)
   running.set(subprocessId, proc)
 
+  // Watchdog: if the run hangs or runs away, terminate it; the 'close' handler
+  // then marks the item failed. Cleared on a normal close.
+  const watchdog = setTimeout(() => proc.kill('SIGTERM'), ENRICHMENT_TIMEOUT_MS)
+
   let stdout = ''
   proc.stdout?.on('data', (chunk: Buffer) => {
     stdout += chunk.toString()
@@ -162,6 +171,7 @@ export async function spawnEnrichment(
     .where(eq(schema.intakeItems.id, item.id))
 
   const handleClose = async (code: number | null) => {
+    clearTimeout(watchdog)
     running.delete(subprocessId)
 
     const [current] = await db
@@ -205,4 +215,36 @@ export async function spawnEnrichment(
     proc.removeAllListeners('close')
     proc.on('close', handleClose)
   }
+}
+
+/**
+ * Recover inbox items stuck in `enriching`: either orphaned because their
+ * spawning process died (container restart, crash) so the in-memory close
+ * handler never fired, or a run that has exceeded the timeout. DB-driven, so it
+ * also catches items spawned by another process (e.g. the mcp server). Each is
+ * marked failed (→ pending) for a manual retry; a best-effort kill stops any
+ * local process still lingering. Returns the number reconciled.
+ */
+export async function reconcileStuckEnrichment(db: Database): Promise<number> {
+  const stale = await db
+    .select({
+      id: schema.intakeItems.id,
+      projectId: schema.intakeItems.projectId,
+      subprocessId: schema.intakeItems.subprocessId
+    })
+    .from(schema.intakeItems)
+    .where(
+      and(
+        eq(schema.intakeItems.status, 'enriching'),
+        lt(
+          schema.intakeItems.updatedAt,
+          sql`now() - make_interval(secs => ${ENRICHMENT_TIMEOUT_MS / 1000})`
+        )
+      )
+    )
+  for (const item of stale) {
+    killEnrichment(item.subprocessId)
+    await markFailed(db, item.id, item.projectId)
+  }
+  return stale.length
 }

@@ -3,6 +3,7 @@ import websocket from '@fastify/websocket'
 import Fastify from 'fastify'
 
 import { createAuth, getTrustedOrigins } from '@claude-organizer/auth'
+import { reconcileStuckEnrichment } from '@claude-organizer/core'
 import { createDb } from '@claude-organizer/db'
 
 import { registerAuthEnforcement } from './plugins/auth-enforcement'
@@ -96,9 +97,20 @@ const shutdown = async () => {
 process.on('SIGINT', shutdown)
 process.on('SIGTERM', shutdown)
 
+// Recover inbox items stuck in `enriching` (orphaned by a dead process or a
+// runaway run): sweep once on boot, then on an interval. unref() so it never
+// keeps the process alive on shutdown.
+const sweepEnrichment = () => {
+  reconcileStuckEnrichment(db)
+    .then((n) => { if (n > 0) app.log.warn(`reconciled ${n} stuck enrichment item(s)`) })
+    .catch(err => app.log.error(err, 'enrichment reconcile failed'))
+}
+
 try {
   await app.listen({ port, host })
   app.log.info(`API ready on http://${host}:${port}`)
+  sweepEnrichment()
+  setInterval(sweepEnrichment, 60_000).unref()
 } catch (err) {
   app.log.error(err)
   process.exit(1)
