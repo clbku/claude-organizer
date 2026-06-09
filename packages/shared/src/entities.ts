@@ -80,6 +80,17 @@ export interface CardClaimRow {
   claimedAt: string
 }
 
+export interface CardAttachmentRow {
+  id: string
+  cardId: string
+  filename: string
+  mimeType: string
+  size: number
+  storagePath: string
+  uploaderLabel: string | null
+  createdAt: string
+}
+
 export interface DocRow {
   id: string
   projectId: string
@@ -169,6 +180,7 @@ export interface SystemSettingsRow {
 export type Project = ProjectRow
 export type Roadmap = RoadmapRow
 export type CardCommit = CardCommitRow
+export type CardAttachment = CardAttachmentRow
 
 /**
  * Comment as returned by the API. `authorName`/`authorImage` are joined from the
@@ -245,6 +257,8 @@ export interface Card extends Omit<CardRow, 'descriptionMd' | 'archivedAt'> {
   blocking?: CardParent[]
   blockedByPending?: number
   claim?: CardClaim | null
+  attachmentCount?: number
+  attachments?: CardAttachment[]
 }
 
 /** Doc list item: no body, `archivedAt` optional (list endpoints omit it). */
