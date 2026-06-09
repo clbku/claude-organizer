@@ -147,6 +147,7 @@ async function onLogout() {
             block
             class="justify-start"
             :square="collapsed"
+            :icon="collapsed ? 'i-lucide-chevrons-right' : 'i-lucide-chevrons-left'"
             :label="collapsed ? undefined : 'Collapse'"
           />
         </UTooltip>
