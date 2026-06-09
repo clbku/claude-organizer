@@ -4,8 +4,9 @@
 //   node scripts/attach-commit.mjs <sha> [CO-N]
 //   pnpm attach-commit <sha> [CO-N]
 //
-// The card key is parsed from the commit message (`feat(...): … (CO-12)`) unless
-// passed explicitly. The diff goes straight from `git` to the API over HTTP — it
+// The card key is parsed from the commit message — preferring a `CO: <key>`
+// Git trailer, then the `feat(...): … (CO-12)` subject — unless passed
+// explicitly. The diff goes straight from `git` to the API over HTTP — it
 // never passes through an AI context (no MCP, no tokens spent reading it).
 //
 // Zero dependencies: standalone Node 18+ (global fetch). A Python twin lives at
@@ -59,7 +60,13 @@ function git(args) {
 // the end of the subject), then fall back to the whole message.
 const KEY_RE = /\b([A-Z][A-Z0-9]*-\d+)\b/g
 
+// A `CO: <key>` Git trailer is the most reliable source: it survives subject
+// rewrites (e.g. a squash-merge that rebuilds the subject line). Prefer it.
+const TRAILER_RE = /^CO:\s*([A-Z][A-Z0-9]*-\d+)\s*$/m
+
 function parseKey(message) {
+  const trailer = message.match(TRAILER_RE)
+  if (trailer) return trailer[1]
   const subject = message.split('\n', 1)[0]
   const onSubject = [...subject.matchAll(KEY_RE)].map(m => m[1])
   if (onSubject.length) return onSubject[onSubject.length - 1]

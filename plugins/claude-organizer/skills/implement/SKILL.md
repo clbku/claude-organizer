@@ -103,7 +103,12 @@ Before committing, ask once: **did a decision, a standardization, or long-lived 
 
 ### 10. Commit, then attach the commit's diff to the card — **always**
 
-- After the user confirms, create **one commit per card**, message in English referencing the key (e.g. `feat(tags): … (CO-4)`), per the repo's `CLAUDE.md` (commit + versioning rules).
+- After the user confirms, create **one commit per card**, message in English referencing the key (e.g. `feat(tags): … (CO-4)`), per the repo's `CLAUDE.md` (commit + versioning rules). End the message with a blank line and a `CO: <key>` **Git trailer**, so the key stays machine-readable even if a squash-merge rewrites the subject. Canonical shape:
+  ```
+  <type>(<scope>): <subject> (CO-N)
+
+  CO: CO-N
+  ```
 - **Always attach the commit's diff** right after it lands with this skill's bundled `attach-commit` script (see _Diff-capture scripts — they ship inside this skill_). It runs `git show` and POSTs the diff to the API (`CO_API_URL`, default `http://127.0.0.1:4400`), so the card's **Changes** section shows what the commit produced. (Token only when auth is on — see _Auth flag for diff capture_.)
 - The diff is captured **outside your context on purpose** — **never read it or paste it into a comment** (it burns tokens and adds noise).
 - Attaching the real commit **clears the pending working-tree diff** automatically (the `__working__` sentinel row is dropped), so the card swaps from "uncommitted" to the committed diff with no manual cleanup on the happy path.
@@ -170,5 +175,5 @@ Per card, in order — no step skipped. **Standing rule: never assume — any am
 7. Per-task review gate (fresh subagent; skip only if trivial) → fixes fold in → re-run `attach-worktree-diff`.
 8. Let the user review the diff.
 9. Capture durable knowledge in the docs.
-10. Commit (one per card, key in message) → `attach-commit`.
+10. Commit (one per card, key in subject + `CO: <key>` trailer) → `attach-commit`.
 11. `done` after the user confirms — story's last child → story-level review gate first, then close the history; re-check the inbox fresh at the boundary.

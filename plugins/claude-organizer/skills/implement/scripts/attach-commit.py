@@ -3,8 +3,9 @@
 
     python3 scripts/attach-commit.py <sha> [CO-N]
 
-The card key is parsed from the commit message (``feat(...): … (CO-12)``) unless
-passed explicitly. The diff goes straight from ``git`` to the API over HTTP — it
+The card key is parsed from the commit message — preferring a ``CO: <key>`` Git
+trailer, then the ``feat(...): … (CO-12)`` subject — unless passed explicitly.
+The diff goes straight from ``git`` to the API over HTTP — it
 never passes through an AI context (no MCP, no tokens spent reading it).
 
 Standard library only; a Node twin lives at scripts/attach-commit.mjs for
@@ -47,6 +48,10 @@ MAX_LINES_PER_FILE = 1000
 # `CO-12`, `ABC-7` — an uppercase prefix, a dash, digits.
 KEY_RE = re.compile(r"\b([A-Z][A-Z0-9]*-\d+)\b")
 
+# A `CO: <key>` Git trailer is the most reliable source: it survives subject
+# rewrites (e.g. a squash-merge that rebuilds the subject line). Prefer it.
+TRAILER_RE = re.compile(r"^CO:\s*([A-Z][A-Z0-9]*-\d+)\s*$", re.MULTILINE)
+
 
 def fail(msg):
     print(f"✗ {msg}", file=sys.stderr)
@@ -67,7 +72,10 @@ def git(args):
 
 
 def parse_key(message):
-    """Prefer the last key on the subject line, else the first anywhere."""
+    """Prefer the `CO:` trailer, then the last subject key, else the first anywhere."""
+    trailer = TRAILER_RE.search(message)
+    if trailer:
+        return trailer.group(1)
     subject = message.split("\n", 1)[0]
     on_subject = KEY_RE.findall(subject)
     if on_subject:

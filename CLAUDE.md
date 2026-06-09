@@ -46,10 +46,18 @@ overrides below, and points to the docs for the rest.
   international). Content authored for the user — **tasks, comments and docs** —
   follows the user's language.
 - **Commits**: one commit per card/task, **only after the user confirms** it
-  works; the message is written **in English** and references the key (e.g.
-  `feat(tags): … (CO-4)`). After committing, attach its diff to the card with
-  `pnpm attach-commit <sha>` (captured outside the AI context — never read or
-  paste the diff).
+  works; the message is written **in English**, references the key on the
+  subject (e.g. `feat(tags): … (CO-4)`) **and** ends with a blank line + a
+  `CO: <key>` Git trailer so the key survives a squash-merge subject rewrite:
+
+  ```
+  feat(tags): add tag filtering to board (CO-4)
+
+  CO: CO-4
+  ```
+
+  After committing, attach its diff to the card with `pnpm attach-commit <sha>`
+  (captured outside the AI context — never read or paste the diff).
 - **PRs**: written **in English** (title *and* body, same as commits — only
   tasks/comments/docs follow the user's language). Write the **title as a
   conventional-commit** (`feat(scope): … (CO-N)`); PRs are **squash-merged**, so
