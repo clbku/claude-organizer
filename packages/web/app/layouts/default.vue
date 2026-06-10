@@ -73,15 +73,6 @@ const systemLinks = computed<NavigationMenuItem[]>(() => [
 
 const accountItems = computed<DropdownMenuItem[][]>(() => [
   [{ label: user.value?.email ?? '', type: 'label' }],
-  [{
-    label: themeLabel.value,
-    icon: themeIcon.value,
-    // preventDefault keeps the menu open so you can see the theme flip.
-    onSelect: (e: Event) => {
-      e.preventDefault()
-      toggleTheme()
-    }
-  }],
   [{ label: 'Log out', icon: 'i-lucide-log-out', onSelect: onLogout }]
 ])
 
