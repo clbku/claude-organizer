@@ -80,9 +80,29 @@ export interface CardClaimRow {
   claimedAt: string
 }
 
-export interface CardAttachmentRow {
+/**
+ * Inbox attachments are image proofs/mockups only and stay small — enforced on
+ * the raw upload, before server-side compression (cards keep the permissive
+ * 20MB-post-compression rule). Shared so the web can reject before uploading.
+ */
+export const MAX_INBOX_IMAGE_BYTES = 5 * 1024 * 1024
+export const INBOX_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp'
+] as const
+
+/**
+ * File attached to a card or an intake item. At most one of `cardId` /
+ * `intakeItemId` is set; both null = a staged upload (composing a new intake
+ * item), anchored to its project until associated or swept.
+ */
+export interface AttachmentRow {
   id: string
-  cardId: string
+  projectId: string
+  cardId: string | null
+  intakeItemId: string | null
   filename: string
   mimeType: string
   size: number
@@ -180,7 +200,9 @@ export interface SystemSettingsRow {
 export type Project = ProjectRow
 export type Roadmap = RoadmapRow
 export type CardCommit = CardCommitRow
-export type CardAttachment = CardAttachmentRow
+export type Attachment = AttachmentRow
+/** Compat alias from when attachments were card-only. */
+export type CardAttachment = AttachmentRow
 
 /**
  * Comment as returned by the API. `authorName`/`authorImage` are joined from the
@@ -199,6 +221,7 @@ export interface Comment extends CommentRow {
  */
 export interface IntakeItem extends IntakeItemRow {
   completed?: boolean
+  attachmentCount?: number
 }
 
 /** Tag as embedded in cards or listed for a project (createdAt not surfaced). */

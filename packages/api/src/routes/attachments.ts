@@ -2,7 +2,7 @@ import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import path from 'node:path'
 
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 
 import {
   attachmentsDir,
@@ -10,30 +10,57 @@ import {
   deleteAttachment,
   getAttachment,
   InputError,
-  listCardAttachments
+  listCardAttachments,
+  listIntakeAttachments
 } from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
+import {
+  INBOX_IMAGE_TYPES,
+  MAX_INBOX_IMAGE_BYTES
+} from '@claude-organizer/shared'
 
-export function registerCardAttachmentRoutes(
-  app: FastifyInstance,
-  db: Database
-) {
+const inboxImageTypes = new Set<string>(INBOX_IMAGE_TYPES)
+
+// `maxBytes` caps the part at the multipart layer (abort early as 413) instead
+// of buffering up to the generous global limit just to reject afterwards.
+async function readUpload(req: FastifyRequest, maxBytes?: number) {
+  const data = await req.file(
+    maxBytes ? { limits: { fileSize: maxBytes } } : undefined
+  )
+  if (!data) {
+    throw new InputError('No file was uploaded')
+  }
+  return {
+    filename: data.filename,
+    mimeType: data.mimetype,
+    bytes: await data.toBuffer()
+  }
+}
+
+function assertInboxImage(upload: { mimeType: string, bytes: Buffer }) {
+  if (!inboxImageTypes.has(upload.mimeType)) {
+    throw new InputError(
+      'Only JPEG, PNG, GIF or WebP images can be attached to inbox items'
+    )
+  }
+  if (upload.bytes.byteLength > MAX_INBOX_IMAGE_BYTES) {
+    throw new InputError(
+      `Image exceeds the ${MAX_INBOX_IMAGE_BYTES / (1024 * 1024)}MB inbox limit`
+    )
+  }
+}
+
+export function registerAttachmentRoutes(app: FastifyInstance, db: Database) {
   // Multipart upload of a single file. The raw size is capped generously by the
   // multipart plugin (registered in server.ts); the core enforces the real
   // 20MB-after-compression rule and rejects oversized non-images.
   app.post<{ Params: { cardId: string } }>(
     '/cards/:cardId/attachments',
     async (req, reply) => {
-      const data = await req.file()
-      if (!data) {
-        throw new InputError('No file was uploaded')
-      }
-      const bytes = await data.toBuffer()
+      const upload = await readUpload(req)
       const row = await createAttachment(db, {
         cardId: req.params.cardId,
-        filename: data.filename,
-        mimeType: data.mimetype,
-        bytes
+        ...upload
       })
       return reply.code(201).send(row)
     }
@@ -42,6 +69,39 @@ export function registerCardAttachmentRoutes(
   app.get<{ Params: { cardId: string } }>(
     '/cards/:cardId/attachments',
     async req => listCardAttachments(db, req.params.cardId)
+  )
+
+  // Staged upload while composing an intake item that doesn't exist yet; the
+  // create-intake call associates the returned ids, the sweep reaps leftovers.
+  app.post<{ Params: { projectId: string } }>(
+    '/projects/:projectId/uploads/attachments',
+    async (req, reply) => {
+      const upload = await readUpload(req, MAX_INBOX_IMAGE_BYTES)
+      assertInboxImage(upload)
+      const row = await createAttachment(db, {
+        stagingProjectId: req.params.projectId,
+        ...upload
+      })
+      return reply.code(201).send(row)
+    }
+  )
+
+  app.post<{ Params: { id: string } }>(
+    '/intake/:id/attachments',
+    async (req, reply) => {
+      const upload = await readUpload(req, MAX_INBOX_IMAGE_BYTES)
+      assertInboxImage(upload)
+      const row = await createAttachment(db, {
+        intakeItemId: req.params.id,
+        ...upload
+      })
+      return reply.code(201).send(row)
+    }
+  )
+
+  app.get<{ Params: { id: string } }>(
+    '/intake/:id/attachments',
+    async req => listIntakeAttachments(db, req.params.id)
   )
 
   // Stream the bytes back from disk. `inline` lets the browser render images in

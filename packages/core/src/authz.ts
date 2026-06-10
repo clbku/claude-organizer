@@ -361,13 +361,9 @@ export async function resolveEntityProjectId(
     }
     case 'attachment': {
       const [row] = await db
-        .select({ projectId: schema.cards.projectId })
-        .from(schema.cardAttachments)
-        .innerJoin(
-          schema.cards,
-          eq(schema.cardAttachments.cardId, schema.cards.id)
-        )
-        .where(eq(schema.cardAttachments.id, id))
+        .select({ projectId: schema.attachments.projectId })
+        .from(schema.attachments)
+        .where(eq(schema.attachments.id, id))
         .limit(1)
       return row?.projectId ?? null
     }

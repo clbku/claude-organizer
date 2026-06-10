@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { Attachment } from '@claude-organizer/shared'
+
 import { useProjectStore } from '~/stores/project'
 import type { IntakeItem, IntakeStatus } from '~/types/intake'
 
@@ -16,6 +18,17 @@ const newBody = ref('')
 const adding = ref(false)
 const preview = ref<{ title: string, body: string | null } | null>(null)
 const panelOpen = ref<Record<string, boolean>>({})
+const attachOpen = ref<Record<string, boolean>>({})
+
+// Staged uploads made while composing; their ids ride along on the create call
+// (exposed `items`/`reset`/`uploading` from AttachmentsPanel — refs unwrap on
+// the instance). Submit stays disabled while an upload is in flight, or its
+// row would miss the snapshot and silently orphan.
+const stagedPanel = ref<{
+  items: Attachment[]
+  reset: () => void
+  uploading: boolean
+} | null>(null)
 
 // The pending item being edited; its editor binds to useAutoSave's buffer, kept
 // out of the reloaded lists so a realtime echo can't clobber an in-flight edit.
@@ -124,13 +137,16 @@ useProjectData(currentProjectId, loadInbox, {
 async function addItem() {
   const body = newBody.value.trim()
   if (!body || !currentProjectId.value || adding.value) return
+  if (stagedPanel.value?.uploading) return
   adding.value = true
   try {
+    const attachmentIds = stagedPanel.value?.items.map(a => a.id) ?? []
     const created = await api<IntakeItem>(`/projects/${currentProjectId.value}/intake`, {
       method: 'POST',
-      body: { bodyMd: body }
+      body: { bodyMd: body, attachmentIds }
     })
     newBody.value = ''
+    stagedPanel.value?.reset()
     // Show the new item instantly, before the reload round-trip; loadInbox()
     // then reconciles from the server (dedup by id keeps it single).
     if (created && !pending.value.some(i => i.id === created.id)) {
@@ -223,13 +239,19 @@ const plannedCompleted = computed(() => planned.value.filter(i => i.completed))
             min-height="80px"
             placeholder="Capture a raw demand… (markdown, ⌘/Ctrl+Enter to add)"
           />
+          <AttachmentsPanel
+            v-if="currentProjectId"
+            :key="currentProjectId"
+            ref="stagedPanel"
+            :scope="{ kind: 'staging', projectId: currentProjectId }"
+          />
           <div class="flex justify-end">
             <UButton
               icon="i-lucide-plus"
               label="Add to inbox"
               color="primary"
               :loading="adding"
-              :disabled="!newBody.trim()"
+              :disabled="!newBody.trim() || stagedPanel?.uploading"
               @click="addItem"
             />
           </div>
@@ -329,6 +351,31 @@ const plannedCompleted = computed(() => planned.value.filter(i => i.completed))
                   </p>
                   <AppMarkdown :value="item.draftPlanMd" :class="PROSE" />
                 </div>
+              </div>
+            </div>
+
+            <!-- Collapsible attachments panel -->
+            <div class="border-t border-default">
+              <button
+                type="button"
+                class="flex items-center gap-1.5 w-full px-3 py-2 text-xs font-medium text-muted hover:text-default hover:bg-elevated/50 transition text-left"
+                @click="attachOpen[item.id] = !attachOpen[item.id]"
+              >
+                <UIcon
+                  :name="attachOpen[item.id] ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+                  class="size-3 shrink-0"
+                />
+                <UIcon name="i-lucide-paperclip" class="size-3 shrink-0" />
+                Attachments
+                <span v-if="item.attachmentCount" class="text-default">
+                  ({{ item.attachmentCount }})
+                </span>
+              </button>
+              <div v-if="attachOpen[item.id]" class="px-3 pb-3">
+                <AttachmentsPanel
+                  :scope="{ kind: 'intake', intakeItemId: item.id }"
+                  @changed="loadInbox"
+                />
               </div>
             </div>
 

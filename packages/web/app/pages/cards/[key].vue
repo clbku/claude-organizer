@@ -653,9 +653,9 @@ const providerIcon = computed(() =>
             </ul>
           </section>
 
-          <CardAttachments
+          <AttachmentsPanel
             :key="card.id"
-            :card-id="card.id"
+            :scope="{ kind: 'card', cardId: card.id }"
             :attachments="card.attachments ?? []"
             @changed="refreshCard"
           />

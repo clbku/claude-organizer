@@ -1,6 +1,7 @@
 import { relations, sql } from 'drizzle-orm'
 import { index, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 
+import { attachments } from './attachments'
 import { intakeStatusEnum } from './enums'
 import { projects } from './projects'
 
@@ -33,9 +34,10 @@ export const intakeItems = pgTable(
   ]
 )
 
-export const intakeItemsRelations = relations(intakeItems, ({ one }) => ({
+export const intakeItemsRelations = relations(intakeItems, ({ one, many }) => ({
   project: one(projects, {
     fields: [intakeItems.projectId],
     references: [projects.id]
-  })
+  }),
+  attachments: many(attachments)
 }))

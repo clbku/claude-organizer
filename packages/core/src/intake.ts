@@ -8,6 +8,7 @@ import {
   type IntakeStatus
 } from '@claude-organizer/shared'
 
+import { attachmentCountsByIntakeIds } from './attachments'
 import { killEnrichment, spawnEnrichment } from './enrichment'
 import { notify } from './events'
 import { paginate } from './pagination'
@@ -123,9 +124,14 @@ export async function listIntakeItems(
 
   const keys = [...new Set(items.flatMap(i => parseCardKeys(i.plannedCardKeys)))]
   const states = await cardStatesByKeys(db, projectId, keys)
+  const attachmentCounts = await attachmentCountsByIntakeIds(
+    db,
+    items.map(i => i.id)
+  )
   return items.map(item => ({
     ...item,
-    completed: deriveCompleted(item.plannedCardKeys, states)
+    completed: deriveCompleted(item.plannedCardKeys, states),
+    attachmentCount: attachmentCounts.get(item.id) ?? 0
   }))
 }
 

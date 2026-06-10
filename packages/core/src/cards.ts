@@ -16,14 +16,14 @@ import { z } from 'zod'
 import { createId, type Database, schema } from '@claude-organizer/db'
 
 import { archivedCondition, type ArchiveFilter } from './archive'
-import { getSystemSettings } from './authz'
-import { listBlockedBy, listBlocking, pendingBlockerCounts } from './blockers'
 import {
   attachmentCountsByCardIds,
   hasAttachments,
   listCardAttachments,
   PROOF_OF_WORK_REQUIRED
-} from './cardAttachments'
+} from './attachments'
+import { getSystemSettings } from './authz'
+import { listBlockedBy, listBlocking, pendingBlockerCounts } from './blockers'
 import { claimsByCardIds, getClaim, releaseClaimOnDone } from './cardClaims'
 import { InputError } from './errors'
 import { notify } from './events'

@@ -4,17 +4,20 @@ import websocket from '@fastify/websocket'
 import Fastify from 'fastify'
 
 import { createAuth, getTrustedOrigins } from '@claude-organizer/auth'
-import { reconcileStuckEnrichment } from '@claude-organizer/core'
+import {
+  reconcileStuckEnrichment,
+  sweepStagedAttachments
+} from '@claude-organizer/core'
 import { createDb } from '@claude-organizer/db'
 
 import { registerAuthEnforcement } from './plugins/auth-enforcement'
 import errorHandlerPlugin from './plugins/error-handler'
 import eventsPlugin from './plugins/events'
 import { registerAdminRoutes } from './routes/admin'
+import { registerAttachmentRoutes } from './routes/attachments'
 import { registerAuthRoutes } from './routes/auth'
 import { registerBackupRoutes } from './routes/backup'
 import { registerBlockerRoutes } from './routes/blockers'
-import { registerCardAttachmentRoutes } from './routes/cardAttachments'
 import { registerCardClaimRoutes } from './routes/cardClaims'
 import { registerCardCommitRoutes } from './routes/cardCommits'
 import { registerCardRoutes } from './routes/cards'
@@ -88,7 +91,7 @@ registerSprintRoutes(app, db)
 registerCardRoutes(app, db)
 registerCardClaimRoutes(app, db)
 registerCardCommitRoutes(app, db)
-registerCardAttachmentRoutes(app, db)
+registerAttachmentRoutes(app, db)
 registerCommentRoutes(app, db)
 registerTagRoutes(app, db)
 registerBlockerRoutes(app, db)
@@ -114,11 +117,21 @@ const sweepEnrichment = () => {
     .catch(err => app.log.error(err, 'enrichment reconcile failed'))
 }
 
+// Staged uploads whose composer was abandoned (tab closed, draft discarded)
+// expire after a TTL; same boot + interval scheme as the enrichment sweep.
+const sweepStaging = () => {
+  sweepStagedAttachments(db)
+    .then((n) => { if (n > 0) app.log.info(`swept ${n} staged attachment(s)`) })
+    .catch(err => app.log.error(err, 'staged attachment sweep failed'))
+}
+
 try {
   await app.listen({ port, host })
   app.log.info(`API ready on http://${host}:${port}`)
   sweepEnrichment()
   setInterval(sweepEnrichment, 60_000).unref()
+  sweepStaging()
+  setInterval(sweepStaging, 3_600_000).unref()
 } catch (err) {
   app.log.error(err)
   process.exit(1)

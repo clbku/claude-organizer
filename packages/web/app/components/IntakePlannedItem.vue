@@ -22,6 +22,13 @@ const keys = computed(() =>
         />
         <span>→</span>
         <AppMarkdown :value="keys" />
+        <span
+          v-if="item.attachmentCount"
+          class="flex items-center gap-0.5"
+          :title="`${item.attachmentCount} attachment(s)`"
+        >
+          <UIcon name="i-lucide-paperclip" class="size-3" />{{ item.attachmentCount }}
+        </span>
       </div>
     </div>
     <div

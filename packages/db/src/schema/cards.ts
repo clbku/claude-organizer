@@ -9,7 +9,7 @@ import {
   uniqueIndex
 } from 'drizzle-orm/pg-core'
 
-import { cardAttachments } from './cardAttachments'
+import { attachments } from './attachments'
 import { cardCommits } from './cardCommits'
 import { tsvector } from './columns'
 import { comments } from './comments'
@@ -73,5 +73,5 @@ export const cardsRelations = relations(cards, ({ one, many }) => ({
   tags: many(cardTags),
   comments: many(comments),
   commits: many(cardCommits),
-  attachments: many(cardAttachments)
+  attachments: many(attachments)
 }))

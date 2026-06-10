@@ -1,26 +1,41 @@
 <script setup lang="ts">
-import type { CardAttachment } from '@claude-organizer/shared'
+import type { Attachment } from '@claude-organizer/shared'
+import {
+  INBOX_IMAGE_TYPES,
+  MAX_INBOX_IMAGE_BYTES
+} from '@claude-organizer/shared'
 
-// Proof-of-work files on a card. Upload (drag-drop or click), preview images in
-// a lightbox, download any file, delete with confirmation. The parent seeds the
-// already-loaded list and listens to `changed` to refresh its badge/done-guard.
+// Attachment panel for any owner (see AttachmentScope): upload (drag-drop or
+// click), preview images in a lightbox, download any file, delete with
+// confirmation. The parent may seed an already-loaded list and listens to
+// `changed` to refresh its badge/done-guard. For the staging scope the parent
+// reads `items` (exposed) for the ids to submit, then calls `reset()`.
 const props = withDefaults(
-  defineProps<{ cardId: string, attachments?: CardAttachment[] }>(),
+  defineProps<{ scope: AttachmentScope, attachments?: Attachment[] }>(),
   { attachments: () => [] }
 )
 const emit = defineEmits<{ changed: [] }>()
 
 const toast = useToast()
-const { items, uploading, refresh, upload, remove, fetchObjectUrl }
-  = useCardAttachments(props.cardId)
+const { items, uploading, refresh, upload, remove, reset, fetchObjectUrl }
+  = useAttachments(props.scope)
 
 items.value = props.attachments
 onMounted(refresh)
 
-const lightbox = ref<CardAttachment | null>(null)
+defineExpose({ items, reset, uploading })
+
+const imagesOnly = computed(() => props.scope.kind !== 'card')
+const hint = computed(() =>
+  imagesOnly.value
+    ? `JPEG, PNG, GIF or WebP up to ${MAX_INBOX_IMAGE_BYTES / (1024 * 1024)}MB.`
+    : 'Images are compressed; max 20MB after compression.'
+)
+
+const lightbox = ref<Attachment | null>(null)
 
 // Object URLs for image previews: built as the list changes, revoked when an
-// item leaves or the panel unmounts (see useCardAttachments for the why). The
+// item leaves or the panel unmounts (see useAttachments for the why). The
 // sequence token drops a run superseded mid-flight so its URLs don't leak.
 const objectUrls = ref<Record<string, string>>({})
 let syncToken = 0
@@ -57,6 +72,9 @@ watch(
   { immediate: true }
 )
 onBeforeUnmount(() => {
+  // Invalidate any in-flight watch run so it revokes the URLs it just created
+  // instead of assigning them after the panel is gone (collapse-mid-fetch).
+  syncToken++
   for (const url of Object.values(objectUrls.value)) URL.revokeObjectURL(url)
 })
 
@@ -65,9 +83,11 @@ const dragging = ref(false)
 
 async function handleFiles(files: FileList | null | undefined) {
   if (!files?.length) return
+  let uploaded = 0
   for (const file of Array.from(files)) {
     try {
       await upload(file)
+      uploaded++
     } catch (err) {
       toast.add({
         title: `Upload failed: ${file.name}`,
@@ -77,7 +97,7 @@ async function handleFiles(files: FileList | null | undefined) {
       })
     }
   }
-  emit('changed')
+  if (uploaded > 0) emit('changed')
 }
 
 function onInputChange(e: Event) {
@@ -94,7 +114,7 @@ const lightboxOpen = computed({
   }
 })
 
-async function download(att: CardAttachment) {
+async function download(att: Attachment) {
   try {
     const reused = objectUrls.value[att.id]
     const url = reused ?? (await fetchObjectUrl(att.id))
@@ -116,7 +136,7 @@ async function download(att: CardAttachment) {
   }
 }
 
-const toDelete = ref<CardAttachment | null>(null)
+const toDelete = ref<Attachment | null>(null)
 const deleting = ref(false)
 const deleteOpen = computed({
   get: () => toDelete.value !== null,
@@ -146,7 +166,10 @@ async function confirmDelete() {
 
 <template>
   <section>
-    <h2 class="text-xs font-semibold text-muted uppercase tracking-wide mb-3">
+    <h2
+      v-if="scope.kind === 'card'"
+      class="text-xs font-semibold text-muted uppercase tracking-wide mb-3"
+    >
       Attachments
       <span v-if="items.length" class="text-default ml-1">({{ items.length }})</span>
     </h2>
@@ -165,14 +188,16 @@ async function confirmDelete() {
     >
       <UIcon name="i-lucide-upload" class="size-5 text-muted mx-auto mb-1.5" />
       <p class="text-sm text-muted">
-        <span class="text-primary font-medium">Click to upload</span> or drag a file here
+        <span class="text-primary font-medium">Click to upload</span>
+        or drag {{ imagesOnly ? 'an image' : 'a file' }} here
       </p>
       <p class="text-xs text-muted/60 mt-0.5">
-        Images are compressed; max 20MB after compression.
+        {{ hint }}
       </p>
       <input
         ref="fileInput"
         type="file"
+        :accept="imagesOnly ? INBOX_IMAGE_TYPES.join(',') : undefined"
         class="hidden"
         @change="onInputChange"
       >

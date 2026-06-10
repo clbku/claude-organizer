@@ -118,6 +118,7 @@ async function resolveProjectIds(
     case '/comments/unread':
       return one(query.projectId ?? null)
     case '/projects/:projectId/intake':
+    case '/projects/:projectId/uploads/attachments':
     case '/ws/projects/:projectId':
       return one(params.projectId ?? null)
     case '/projects/:slug': {
@@ -166,6 +167,7 @@ async function resolveProjectIds(
       return entity('tag', params.tagId!)
     case '/intake/:id':
     case '/intake/:id/confirm':
+    case '/intake/:id/attachments':
       return entity('intakeItem', params.id!)
     case '/comments/:id':
       return entity('comment', params.id!)

@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import {
   archiveIntakeItem,
+  associateStagedAttachments,
   confirmIntakeEnrichment,
   createIntakeItem,
   destroyIntakeItem,
@@ -18,7 +19,10 @@ import { INTAKE_STATUSES } from '@claude-organizer/shared'
 const listIntakeQuery = z.object({
   status: z.enum(INTAKE_STATUSES).optional()
 })
-const createIntakeBody = z.object({ bodyMd: z.string().min(1) })
+const createIntakeBody = z.object({
+  bodyMd: z.string().min(1),
+  attachmentIds: z.array(z.string()).optional()
+})
 const patchIntakeBody = z.object({
   bodyMd: z.string().min(1).optional(),
   status: z.enum(INTAKE_STATUSES).optional(),
@@ -38,10 +42,15 @@ export function registerIntakeRoutes(app: FastifyInstance, db: Database) {
     '/projects/:projectId/intake',
     async (req) => {
       const body = createIntakeBody.parse(req.body)
-      return createIntakeItem(db, {
+      const row = await createIntakeItem(db, {
         projectId: req.params.projectId,
         bodyMd: body.bodyMd
       })
+      if (!row) return row
+      const claimed = body.attachmentIds?.length
+        ? await associateStagedAttachments(db, row.id, body.attachmentIds)
+        : []
+      return { ...row, attachmentCount: claimed.length }
     }
   )
 
