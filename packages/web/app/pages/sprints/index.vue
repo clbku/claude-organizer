@@ -147,7 +147,6 @@ async function createSprint() {
     <template #header>
       <UDashboardNavbar title="Sprints">
         <template #leading>
-          <UDashboardSidebarCollapse />
           <UIcon name="i-lucide-timer" class="text-primary" />
         </template>
         <template #right>

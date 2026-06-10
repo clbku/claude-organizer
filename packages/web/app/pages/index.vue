@@ -167,7 +167,6 @@ const stats = computed<{ label: string, value: string | number, icon: string }[]
     <template #header>
       <UDashboardNavbar title="Home">
         <template #leading>
-          <UDashboardSidebarCollapse />
           <UIcon name="i-lucide-home" class="text-primary" />
         </template>
         <template #right>
