@@ -1,3 +1,4 @@
+export * from './aiClaudeCli'
 export * from './aiExecution'
 export * from './archive'
 export * from './attachments'
