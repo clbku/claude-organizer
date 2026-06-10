@@ -118,7 +118,6 @@ async function confirmRemove() {
     <template #header>
       <UDashboardNavbar title="Users">
         <template #leading>
-          <UDashboardSidebarCollapse />
           <UIcon name="i-lucide-users" class="text-primary" />
         </template>
       </UDashboardNavbar>

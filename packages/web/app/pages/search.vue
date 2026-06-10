@@ -90,7 +90,6 @@ onBeforeUnmount(() => {
     <template #header>
       <UDashboardNavbar title="Search">
         <template #leading>
-          <UDashboardSidebarCollapse />
           <UIcon name="i-lucide-search" class="text-primary" />
         </template>
       </UDashboardNavbar>
