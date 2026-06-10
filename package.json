@@ -1,6 +1,6 @@
 {
   "name": "claude-organizer",
-  "version": "0.13.3",
+  "version": "0.15.0",
   "private": true,
   "description": "Project management system for Claude Code: cards, sprints, roadmaps, docs - exposed via MCP",
   "packageManager": "pnpm@9.12.0",
@@ -14,6 +14,7 @@
     "db:generate": "pnpm --filter @claude-organizer/db generate",
     "db:migrate": "pnpm --filter @claude-organizer/db migrate",
     "db:studio": "pnpm --filter @claude-organizer/db studio",
+    "backfill:embeddings": "tsx packages/core/scripts/backfill-embeddings.ts",
     "dev:api": "pnpm --filter @claude-organizer/api dev",
     "dev:web": "pnpm --filter @claude-organizer/web dev",
     "dev:mcp": "pnpm --filter @claude-organizer/mcp dev",

@@ -1,6 +1,6 @@
 {
   "name": "@claude-organizer/core",
-  "version": "0.13.3",
+  "version": "0.15.0",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
@@ -18,6 +18,7 @@
   "dependencies": {
     "@claude-organizer/db": "workspace:*",
     "@claude-organizer/shared": "workspace:*",
+    "@huggingface/transformers": "4.2.0",
     "drizzle-orm": "0.45.2",
     "sharp": "0.34.4",
     "zod": "4.4.3"

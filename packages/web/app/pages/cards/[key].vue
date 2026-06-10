@@ -448,6 +448,7 @@ const providerIcon = computed(() =>
     <template #header>
       <UDashboardNavbar :title="card?.key ?? cardKey">
         <template #leading>
+          <UDashboardSidebarCollapse />
           <UButton
             icon="i-lucide-arrow-left"
             color="neutral"

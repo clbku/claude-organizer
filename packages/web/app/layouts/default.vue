@@ -7,18 +7,22 @@ const store = useProjectStore()
 const { projects } = storeToRefs(store)
 const { user, isAdmin, capabilities, signOut } = useAuth()
 
-const colorMode = useColorMode()
-const isDark = computed(() => colorMode.value === 'dark')
-function toggleColorMode() {
-  colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
-}
-
 // Load projects here (not only in the boot plugin): the layout renders only for
 // authenticated pages, so by now the session cookie exists and /projects is
 // authorized. Idempotent — a no-op if the boot plugin already loaded them.
 store.ensureLoaded()
 
 const version = useRuntimeConfig().public.appVersion
+
+// First load follows the OS (preference stays 'system' until an explicit pick);
+// @nuxt/ui ships @nuxtjs/color-mode, so the value/preference persist on their own.
+const colorMode = useColorMode()
+const isDark = computed(() => colorMode.value === 'dark')
+const themeLabel = computed(() => (isDark.value ? 'Dark mode' : 'Light mode'))
+const themeIcon = computed(() => (isDark.value ? 'i-lucide-moon' : 'i-lucide-sun'))
+function toggleTheme() {
+  colorMode.preference = isDark.value ? 'light' : 'dark'
+}
 
 // Admin, or sem-auth mode (an open board has no admin to gate). The same gate the
 // settings page applies to system actions — here it drives both project creation
@@ -57,6 +61,9 @@ const projectLinks = computed<NavigationMenuItem[]>(() => [
   { label: 'Docs', icon: 'i-lucide-book', to: '/docs' }
 ])
 
+// No theme entry here even with no user menu: the sidebar footer renders a
+// dedicated toggle for everyone (this fork's layout), so a menu copy would be
+// dead weight (these render as plain links, `onSelect` is never wired).
 const systemLinks = computed<NavigationMenuItem[]>(() => [
   ...(isAdmin.value
     ? [{ label: 'Users', icon: 'i-lucide-users', to: '/admin/users' }]
@@ -66,6 +73,15 @@ const systemLinks = computed<NavigationMenuItem[]>(() => [
 
 const accountItems = computed<DropdownMenuItem[][]>(() => [
   [{ label: user.value?.email ?? '', type: 'label' }],
+  [{
+    label: themeLabel.value,
+    icon: themeIcon.value,
+    // preventDefault keeps the menu open so you can see the theme flip.
+    onSelect: (e: Event) => {
+      e.preventDefault()
+      toggleTheme()
+    }
+  }],
   [{ label: 'Log out', icon: 'i-lucide-log-out', onSelect: onLogout }]
 ])
 
@@ -131,9 +147,9 @@ async function onLogout() {
             block
             class="justify-start"
             :square="collapsed"
-            :icon="isDark ? 'i-lucide-moon' : 'i-lucide-sun'"
-            :label="collapsed ? undefined : (isDark ? 'Dark mode' : 'Light mode')"
-            @click="toggleColorMode"
+            :icon="themeIcon"
+            :label="collapsed ? undefined : themeLabel"
+            @click="toggleTheme"
           />
         </UTooltip>
 

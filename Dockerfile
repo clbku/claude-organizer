@@ -3,7 +3,10 @@
 #   - migrate / api -> tsx (TS source + workspace deps)
 #   - mcp           -> node on its tsup bundle (dist/server.mjs)
 #   - web           -> node on the Nuxt/Nitro build output (.output)
-FROM node:20-alpine AS base
+# Debian (glibc), not alpine (musl): onnxruntime-node — the embedding runtime for
+# semantic search (CO-241) — ships glibc-only prebuilt bindings and won't load on
+# musl. Slim keeps the image lean while staying glibc.
+FROM node:20-slim AS base
 RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
 WORKDIR /app
 
@@ -12,10 +15,9 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 
 # Inbox enrichment spawns the Claude CLI headless (`claude -p`); bundle it into
-# the image. The npm build ships a native binary that needs glibc, so add the
-# musl/alpine compatibility shim alongside it.
-RUN apk add --no-cache libgcc libstdc++ gcompat \
-  && npm i -g @anthropic-ai/claude-code
+# the image. Its native binary wants glibc — satisfied natively by the Debian
+# base (the old alpine base needed gcompat shims).
+RUN npm i -g @anthropic-ai/claude-code
 
 # Browser-facing API URL is baked into the SPA at build time (ssr: false), so it
 # must be set here, not at runtime. Default works for a browser on the host.
