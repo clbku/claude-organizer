@@ -4,22 +4,29 @@ import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { schema } from '@claude-organizer/db'
+import { MCP_RUNTIME_SERVICE } from '@claude-organizer/shared'
 
 import {
   addComment,
+  applyEmbeddingModel,
   approveUser,
   canAccessProject,
   claimOrCreateUserAuthz,
   ConflictError,
   createCard,
   deleteUser,
+  getEmbeddingStatus,
   getSystemSettings,
   getUserAuthz,
+  InputError,
   listAccessibleProjectIds,
   listAllUsers,
+  recordRuntimeEmbeddingConfig,
   resolveCommentsProjectIds,
+  resolveEffectiveEmbeddingConfig,
   resolveEntityProjectId,
   setAuthEnabled,
+  setEmbeddingModel,
   setKeepDiffsOnArchive,
   setUserAuthz
 } from '../src/index'
@@ -236,5 +243,114 @@ describe('system settings', () => {
     expect(await setKeepDiffsOnArchive(ctx.db, false)).toEqual({
       keepDiffsOnArchive: false
     })
+  })
+
+  it('persists embeddingModel and resolves the effective config above env', async () => {
+    expect(await getSystemSettings(ctx.db)).toMatchObject({ embeddingModel: null })
+
+    const prevEnv = process.env.EMBEDDING_MODEL
+    process.env.EMBEDDING_MODEL = 'intfloat/multilingual-e5-base'
+    try {
+      await setEmbeddingModel(ctx.db, 'intfloat/multilingual-e5-large')
+      expect(await getSystemSettings(ctx.db)).toMatchObject({
+        embeddingModel: 'intfloat/multilingual-e5-large'
+      })
+      // Persisted choice wins over EMBEDDING_MODEL=base.
+      expect(await resolveEffectiveEmbeddingConfig(ctx.db)).toMatchObject({
+        model: 'intfloat/multilingual-e5-large',
+        dim: 1024
+      })
+
+      await setEmbeddingModel(ctx.db, 'none')
+      expect(await resolveEffectiveEmbeddingConfig(ctx.db)).toMatchObject({ model: null })
+
+      // Unset ⇒ fall back to env (base here).
+      await setEmbeddingModel(ctx.db, null)
+      expect(await resolveEffectiveEmbeddingConfig(ctx.db)).toMatchObject({
+        model: 'intfloat/multilingual-e5-base'
+      })
+
+      // A non-registry id is rejected at the write boundary (can't carry a dim).
+      await expect(setEmbeddingModel(ctx.db, 'acme/whatever')).rejects.toThrow(InputError)
+    } finally {
+      if (prevEnv === undefined) delete process.env.EMBEDDING_MODEL
+      else process.env.EMBEDDING_MODEL = prevEnv
+    }
+  })
+})
+
+// Co-located with the system-settings tests so the shared singleton row mutates
+// sequentially (no cross-file race). These cases never change the column dim
+// (the suite runs with EMBEDDING_MODEL=none, so none/null stay at 384) — a real
+// dim-change reconcile would mutate the global pgvector column and flake the
+// parallel embedding-foundation test, so that path is validated functionally.
+describe('embedding runtime apply', () => {
+  async function settle(db: typeof ctx.db) {
+    for (let i = 0; i < 100; i++) {
+      const s = await getEmbeddingStatus(db)
+      if (s.state !== 'reconciling' && s.state !== 'backfilling') return s
+      await new Promise(r => setTimeout(r, 10))
+    }
+    throw new Error('embedding apply did not settle')
+  }
+
+  it('reports the effective config (idle, disabled under EMBEDDING_MODEL=none)', async () => {
+    await setEmbeddingModel(ctx.db, null)
+    expect(await getEmbeddingStatus(ctx.db)).toMatchObject({
+      model: null,
+      dim: 384,
+      enabled: false
+    })
+  })
+
+  it('rejects an unknown model and applies nothing', async () => {
+    await setEmbeddingModel(ctx.db, null)
+    await expect(applyEmbeddingModel(ctx.db, 'acme/nope')).rejects.toThrow(InputError)
+    expect(await getSystemSettings(ctx.db)).toMatchObject({ embeddingModel: null })
+  })
+
+  it('applying none persists the choice and settles the backfill', async () => {
+    await applyEmbeddingModel(ctx.db, 'none')
+    expect(await getSystemSettings(ctx.db)).toMatchObject({ embeddingModel: 'none' })
+    const s = await settle(ctx.db)
+    expect(s).toMatchObject({
+      state: 'done',
+      model: null,
+      enabled: false,
+      backfill: { docs: 0, cards: 0, comments: 0 }
+    })
+    await setEmbeddingModel(ctx.db, null)
+  })
+
+  it('rejects a concurrent apply (the slot is claimed before the first await)', async () => {
+    await setEmbeddingModel(ctx.db, null)
+    const [a, b] = await Promise.allSettled([
+      applyEmbeddingModel(ctx.db, 'none'),
+      applyEmbeddingModel(ctx.db, 'none')
+    ])
+    expect([a.status, b.status].sort()).toEqual(['fulfilled', 'rejected'])
+    const rejected = (a.status === 'rejected' ? a : b) as PromiseRejectedResult
+    expect(rejected.reason).toBeInstanceOf(ConflictError)
+    await settle(ctx.db)
+    await setEmbeddingModel(ctx.db, null)
+  })
+
+  it('flags mcpRestartRequired durably when the MCP loaded a stale model', async () => {
+    await setEmbeddingModel(ctx.db, null)
+    const eff = await resolveEffectiveEmbeddingConfig(ctx.db)
+
+    // MCP recorded a different model than the persisted/effective one ⇒ stale.
+    await recordRuntimeEmbeddingConfig(ctx.db, MCP_RUNTIME_SERVICE, {
+      model: 'intfloat/multilingual-e5-large',
+      dim: 1024,
+      e5Prefix: true
+    })
+    expect((await getEmbeddingStatus(ctx.db)).mcpRestartRequired).toBe(true)
+
+    // MCP matches the effective config ⇒ no restart needed.
+    await recordRuntimeEmbeddingConfig(ctx.db, MCP_RUNTIME_SERVICE, eff)
+    expect((await getEmbeddingStatus(ctx.db)).mcpRestartRequired).toBe(false)
+
+    await ctx.db.delete(schema.embeddingRuntime)
   })
 })

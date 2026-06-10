@@ -38,6 +38,31 @@ export interface EmbeddingConfig {
   e5Prefix: boolean
 }
 
+/** Key the MCP records its loaded model under (shared by the writer and reader). */
+export const MCP_RUNTIME_SERVICE = 'mcp'
+
+/** State of an in-flight (or last) runtime model swap; `idle` ⇒ none this process. */
+export type EmbeddingRuntimeState
+  = | 'idle'
+    | 'reconciling'
+    | 'backfilling'
+    | 'done'
+    | 'error'
+
+/** Effective embedding config + progress of the last/ongoing model swap (CO-252). */
+export interface EmbeddingRuntimeStatus {
+  state: EmbeddingRuntimeState
+  model: string | null
+  dim: number
+  enabled: boolean
+  /** A dim change dropped the old vectors → search is lexical-only until backfill ends. */
+  dimChanged: boolean
+  /** The MCP is a separate process/bundle — restart it to use the new model. */
+  mcpRestartRequired: boolean
+  backfill: { docs: number, cards: number, comments: number }
+  error: string | null
+}
+
 type Env = Record<string, string | undefined>
 
 // `shared` is zero-dep (no @types/node), so reach process.env via globalThis.
@@ -47,12 +72,18 @@ function readProcessEnv(): Env {
 }
 
 /**
- * Resolve the active embedding config from the environment. Throws on a bad
- * config (unknown model with no `EMBEDDING_DIM`, or an out-of-range dim) so a
- * typo fails fast and visibly instead of silently embedding into the wrong space.
+ * Resolve the active embedding config. Precedence: a persisted `overrideModel`
+ * (the UI choice in `systemSettings`) wins over `EMBEDDING_MODEL`, which wins over
+ * the default. `overrideModel` carries only the model id (`'none'`, a registry id,
+ * or a custom id); the dim of a custom override still comes from `EMBEDDING_DIM`.
+ * Throws on a bad config (unknown model with no `EMBEDDING_DIM`, or an out-of-range
+ * dim) so a typo fails fast instead of silently embedding into the wrong space.
  */
-export function resolveEmbeddingConfig(env: Env = readProcessEnv()): EmbeddingConfig {
-  const raw = env.EMBEDDING_MODEL?.trim()
+export function resolveEmbeddingConfig(
+  env: Env = readProcessEnv(),
+  overrideModel?: string | null
+): EmbeddingConfig {
+  const raw = overrideModel?.trim() || env.EMBEDDING_MODEL?.trim()
   if (raw === 'none') {
     return { model: null, dim: DEFAULT_EMBEDDING_DIM, e5Prefix: false }
   }
