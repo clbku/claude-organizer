@@ -113,6 +113,11 @@ export async function spawnEnrichment(
   db: Database,
   item: { id: string, projectId: string, bodyMd: string }
 ) {
+  // Tests must never fork a real `claude -p`: it runs in the background and its
+  // close handler writes the item's status back at a non-deterministic time,
+  // racing assertions (and the 15-min run hangs the suite). The runner sets
+  // ENRICHMENT=off (see vitest.config) to no-op the spawn.
+  if (process.env.ENRICHMENT === 'off') return
   // Run Claude inside the project's own checkout so it explores the right code;
   // fall back to a neutral cwd + text-only prompt when no valid path is set.
   const [project] = await db

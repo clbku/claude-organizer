@@ -344,6 +344,7 @@ async function onDocRemoved() {
                 <UIcon
                   :name="docKindMeta[d.kind].icon"
                   class="size-4 shrink-0"
+                  :class="`text-${docKindMeta[d.kind].color}`"
                 />
                 <span class="truncate">{{ d.title }}</span>
               </button>
