@@ -99,14 +99,19 @@ async function onLogout() {
     <UDashboardSidebar
       collapsible
       resizable
-      :ui="{ footer: 'flex-col items-stretch gap-2' }"
+      class="bg-elevated/25"
+      :ui="{ footer: 'flex-col items-stretch gap-2 lg:border-t lg:border-default' }"
     >
       <template #header="{ collapsed }">
         <AppProjectSwitcher :collapsed="collapsed" />
       </template>
 
       <template #default="{ collapsed }">
-        <AppCardSearch v-if="!collapsed" class="mb-2" />
+        <UDashboardSearchButton
+          :collapsed="collapsed"
+          label="Search cards…"
+          class="bg-transparent ring-default"
+        />
         <UNavigationMenu
           :items="projectLinks"
           orientation="vertical"
@@ -146,6 +151,8 @@ async function onLogout() {
         <span v-if="!collapsed" class="block w-full text-center text-xs text-muted">v{{ version }}</span>
       </template>
     </UDashboardSidebar>
+
+    <AppSearchModal />
 
     <div
       v-if="noProjectsForUser"
