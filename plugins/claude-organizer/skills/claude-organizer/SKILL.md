@@ -102,6 +102,8 @@ Learn the _criterion_ (signal vs. noise; deducible vs. new) — don't follow a f
 
 User comments arrive flagged unread. **Reading is read-only — it never marks anything.** Both `list_unread_comments` and `list_comments(cardId)` list comments **without** touching the unread flags, so scanning history to find a past decision never silently clears the user's unread. Marking read is a **separate, explicit** step: `mark_comments_read([...commentIds])`, done only when you've actually addressed the comments while working the card. Check unread comments at session start. **When you pick a card up to develop, `list_comments(cardId)` is mandatory before implementing** — the `implement` skill enforces this (every card, every time, even if read before, because new context may have landed). Reading the history's comments does **not** cover its children.
 
+**Author each paragraph or bullet as one continuous line — never hard-wrap (manual line breaks) mid-paragraph.** Soft-wrapping is the renderer's job, not the author's, and this holds for **every authored body alike — card/task descriptions, comments and docs**. Legitimate markdown structure is not hard-wrap and stays: headings, one list item per line, table rows, fenced code blocks, and blank-line-separated paragraphs — the rule forbids only the artificial break *inside* a single paragraph or bullet.
+
 ## Cards — field reference
 
 **To create cards, use the `plan` skill — not `create_card` from here.** This section is **only** a field reference (so you understand the shape of a card and can keep existing ones honest with `update_card`, status moves, tags, blockers); it is **not** a licence to mint new cards directly.
@@ -112,6 +114,14 @@ User comments arrive flagged unread. **Reading is read-only — it never marks a
 - **`parentId`** makes a card a sub-task of a **history** (one level). A card can be **blocked by** others (add/remove blockers) — the board flags it while a blocker isn't `done`.
 
 **Always tag a task after creating it.** Attach the tag(s) that fit — area/layer (e.g. `web`, `api`, `mcp`) or type (e.g. `bug`). If no existing tag fits, **suggest new tag(s) and ask the user before creating them** — never invent tags silently. Tagged cards keep the board filterable and scannable.
+
+## Archiving done cards — default to sprint-less, and always confirm
+
+Archiving clears finished cards off the board; how you scope the batch depends on what the user actually said:
+
+- **"archive the done cards"** (no sprint mentioned) ⇒ assume the **done cards with no sprint**: enumerate with `list_cards(projectId, status=["done"], backlogOnly=true)`. Rationale: archiving a sprint already takes its cards off the board, and archiving the done cards of an *archived* sprint is moot — so the natural default target is the **sprint-less** done.
+- **"archive the done cards of sprint X"** (explicit) ⇒ only then use the sprint filter: that sprint's done cards.
+- **Always confirm before archiving** — present the **count** and the **keys** (`CO-N`) you're about to archive, and wait for the OK. Never bulk-archive without it.
 
 ## Docs — read before building, record after deciding
 
@@ -140,6 +150,13 @@ Rules of thumb:
 - **Update > duplicate.** If a doc for the area already exists, edit it (pass its `id`) — don't create a second one that drifts.
 - **No doc spam** — the same signal-vs-noise discipline as comments. Durable and non-deducible → record. Ephemeral, obvious, or deducible from the code/board → leave it out. If it would rot on the next refactor or just restate the obvious, it's not a doc.
 - **Retire a `note` when its issue is resolved — don't mark it "resolved".** A `note` capturing a pending item / gap is **transient**: once the work lands, move whatever durable knowledge it holds into the right `module`/`adr` (the permanent home) and then **delete or archive the note**. Leaving a note that says "resolved" is doc spam — a future reader has to open it to learn it no longer matters. If nothing durable survives, just delete it.
+
+## Image attachments — describe for search, open on demand
+
+Images pasted or dropped into a card, comment, doc or inbox item are stored as **attachments** and surfaced two ways: the read payloads (`get_card`, `list_comments`, `read_doc`, `list_inbox`) carry an **`attachments` array** (`{ id, uri, mime, width, height, description }`), and each image is an **MCP resource** at `attachment://<id>`.
+
+- **Open the image whenever it carries meaning you need.** The agent isn't a browser — a markdown `![](…)` link is not "seen". To understand or implement anything an image conveys, read it via its resource (`ReadMcpResource attachment://<id>`); the `uri` is right there in the payload's `attachments` array.
+- **Give every image a short textual description** — in the markdown `alt` (`![a screenshot of the misaligned toggle button](…)`) and/or the surrounding prose — so lexical/semantic **search finds the card from words alone**. The description **aids discovery; it doesn't replace looking** — reopen the resource whenever you actually need the pixels.
 
 ## Conventions
 

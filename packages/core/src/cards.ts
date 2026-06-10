@@ -16,6 +16,7 @@ import { z } from 'zod'
 import { createId, type Database, schema } from '@claude-organizer/db'
 
 import { archivedCondition, type ArchiveFilter } from './archive'
+import { gcAttachmentsOnArchive, gcAttachmentsOnDestroy } from './attachmentGc'
 import { getSystemSettings } from './authz'
 import { listBlockedBy, listBlocking, pendingBlockerCounts } from './blockers'
 import { claimsByCardIds, getClaim, releaseClaimOnDone } from './cardClaims'
@@ -678,6 +679,7 @@ export async function archiveCard(db: Database, id: string) {
         .set({ diff: null })
         .where(eq(schema.cardCommits.cardId, id))
     }
+    await gcAttachmentsOnArchive(db, { projectId: row.projectId, cardIds: [id] })
     await syncIntakeForCard(db, row.projectId, row.key)
     await notify(db, {
       type: 'card.changed',
@@ -725,9 +727,13 @@ export async function destroyCard(db: Database, id: string) {
       .limit(1)
     if (!card) return null
     const subs = await tx
-      .select({ key: schema.cards.key })
+      .select({ id: schema.cards.id, key: schema.cards.key })
       .from(schema.cards)
       .where(eq(schema.cards.parentId, id))
+    await gcAttachmentsOnDestroy(tx, {
+      projectId: card.projectId,
+      cardIds: [card.id, ...subs.map(s => s.id)]
+    })
     await tx.delete(schema.cards).where(eq(schema.cards.parentId, id))
     await tx.delete(schema.cards).where(eq(schema.cards.id, id))
     return { card, keys: [card.key, ...subs.map(s => s.key)] }

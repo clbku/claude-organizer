@@ -1,4 +1,7 @@
 export * from './archive'
+export * from './attachmentGc'
+export * from './attachments'
+export * from './attachmentToken'
 export * from './authz'
 export * from './backup'
 export * from './blockers'
