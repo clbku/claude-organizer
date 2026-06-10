@@ -66,14 +66,18 @@ function diskName(id: string, filename: string): string {
 
 /**
  * Shrink an image below the size ceiling: auto-orient, then resize down through
- * a ladder of max edges, keeping the input format. Returns the original bytes
- * untouched if sharp can't decode them (the caller's size guard still applies).
+ * a ladder of max edges, keeping the input format.
+ *
+ * `failOn: 'truncated'` is deliberate: an incomplete decode (e.g. a base64
+ * payload cut short before it reached us) must throw, not be silently
+ * re-encoded with a gray fill and stored. Any `image/*` sharp can't fully
+ * decode is rejected with a clear `InputError` instead of a broken file.
  */
 async function compressImage(bytes: Buffer): Promise<Buffer> {
   let smallest = bytes
   try {
     for (const edge of [2560, 1920, 1280, 960]) {
-      const out = await sharp(bytes, { failOn: 'none', animated: true })
+      const out = await sharp(bytes, { failOn: 'truncated', animated: true })
         .rotate()
         .resize(edge, edge, { fit: 'inside', withoutEnlargement: true })
         .toBuffer()
@@ -81,7 +85,9 @@ async function compressImage(bytes: Buffer): Promise<Buffer> {
       if (out.byteLength <= MAX_ATTACHMENT_BYTES) return out
     }
   } catch {
-    return bytes
+    throw new InputError(
+      'Image could not be decoded — it looks corrupt or truncated. Re-upload the complete file (large images upload more reliably through the web UI).'
+    )
   }
   return smallest
 }
