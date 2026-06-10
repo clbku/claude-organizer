@@ -332,6 +332,10 @@ export async function triggerCardRun(db: Database, input: TriggerCardRunInput) {
       prompt: buildRunnerPrompt(card, comments),
       cwd: worktreePath,
       disallowedTools: DISALLOWED_TOOLS,
+      // Auto-approve file writes/edits — an unattended run has no one to approve
+      // the prompts, so default gating would block every change. Shell commands
+      // stay gated, which also keeps the agent from running `git commit`.
+      permissionMode: 'acceptEdits',
       timeoutMs: RUNNER_TIMEOUT_MS,
       model: process.env.CO_RUNNER_MODEL || undefined
     })

@@ -30,14 +30,25 @@ class ClaudeCliExecutionService implements AiExecutionService {
   private readonly running = new Map<string, RunningJob>()
 
   async start(request: AiExecutionRequest): Promise<AiExecutionHandle> {
-    const { prompt, cwd, disallowedTools = [], timeoutMs, model = DEFAULT_MODEL } = request
+    const {
+      prompt,
+      cwd,
+      disallowedTools = [],
+      timeoutMs,
+      model = DEFAULT_MODEL,
+      permissionMode = 'default'
+    } = request
 
     // Prompt via stdin (not argv): avoids process-table exposure and OS
     // arg-length limits. --disallowed-tools lets a caller bound the run (e.g.
     // block subagent-spawning tools) so the model works directly instead of
-    // fanning out.
+    // fanning out. --permission-mode lifts the interactive approval gate so an
+    // unattended run can write files (headless has no approver, so the default
+    // mode silently blocks every edit). `bypassPermissions` is refused when the
+    // CLI runs as root, so the runner uses `acceptEdits`.
     const args = ['-p']
     if (disallowedTools.length > 0) args.push('--disallowed-tools', ...disallowedTools)
+    if (permissionMode !== 'default') args.push('--permission-mode', permissionMode)
     args.push('--model', model)
 
     const proc = spawn('claude', args, { cwd, stdio: ['pipe', 'pipe', 'inherit'] })

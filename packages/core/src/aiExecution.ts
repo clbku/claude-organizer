@@ -27,6 +27,14 @@ export interface AiExecutionRequest {
   timeoutMs?: number
   /** Provider model id; the adapter picks a sensible default when omitted. */
   model?: string
+  /**
+   * How much the provider may act without interactive approval. `default` (or
+   * omitted) keeps the provider's normal gating — right for a read-only task like
+   * enrichment. `acceptEdits` auto-approves file writes/edits so an unattended
+   * run (the auto-implement runner) can actually change files; non-edit tools
+   * like shell commands stay gated. Advisory for providers with no such concept.
+   */
+  permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
 }
 
 export interface AiExecutionResult {

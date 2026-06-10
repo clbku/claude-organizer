@@ -13,6 +13,10 @@ x-app: &app
 # host-published 5544. The host .env keeps localhost:5544 for non-Docker dev.
 x-db-env: &db-env
   DATABASE_URL: postgres://${POSTGRES_USER:-organizer}:${POSTGRES_PASSWORD:-organizer}@postgres:5432/${POSTGRES_DB:-organizer}
+  # Where the auto-implement runner (CO-26) creates each run's git worktree.
+  # Mounted at the same host path rw in api + mcp so the worktree is reviewable on
+  # the host. Defaults to a temp dir (container-only) when unset.
+  CO_RUNNER_WORKTREE_DIR: ${HOME}/.co-worktrees
 
 services:
   postgres:
@@ -75,6 +79,11 @@ services:
     volumes:
       - ${HOME}/.claude/.credentials.json:/root/.claude/.credentials.json
       - ${HOME}/Documents:${HOME}/Documents:ro
+      # The auto-implement runner writes the repo's .git (worktree refs + auto/*
+      # branch), so the checkout is mounted rw over the read-only workspaces root;
+      # plus a host-visible dir for the per-run worktrees (CO_RUNNER_WORKTREE_DIR).
+      - ${HOME}/Documents/claude-organizer:${HOME}/Documents/claude-organizer:rw
+      - ${HOME}/.co-worktrees:${HOME}/.co-worktrees:rw
       - ./docker/data/attachments:/app/data/attachments
     ports:
       - "4400:4400"
@@ -105,6 +114,11 @@ services:
     volumes:
       - ${HOME}/.claude/.credentials.json:/root/.claude/.credentials.json
       - ${HOME}/Documents:${HOME}/Documents:ro
+      # The auto-implement runner writes the repo's .git (worktree refs + auto/*
+      # branch), so the checkout is mounted rw over the read-only workspaces root;
+      # plus a host-visible dir for the per-run worktrees (CO_RUNNER_WORKTREE_DIR).
+      - ${HOME}/Documents/claude-organizer:${HOME}/Documents/claude-organizer:rw
+      - ${HOME}/.co-worktrees:${HOME}/.co-worktrees:rw
       - ./docker/data/attachments:/app/data/attachments
     ports:
       - "4402:4402"
