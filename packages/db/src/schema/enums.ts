@@ -35,6 +35,12 @@ export const intakeStatusEnum = pgEnum('intake_status', [
   'archived'
 ])
 
+export const cardRunStatusEnum = pgEnum('card_run_status', [
+  'running',
+  'done',
+  'failed'
+])
+
 export const userRoleEnum = pgEnum('user_role', ['admin', 'user'])
 
 export const userStatusEnum = pgEnum('user_status', ['pending', 'approved'])

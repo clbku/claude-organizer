@@ -1,4 +1,5 @@
 import type {
+  CardRunStatus,
   CardStatus,
   CommentAuthor,
   DocKind,
@@ -78,6 +79,24 @@ export interface CardClaimRow {
   ownerToken: string
   ownerLabel: string | null
   claimedAt: string
+}
+
+/**
+ * One auto-implement runner execution for a card (CO-26), in wire form. The
+ * port `jobId` is internal (cancel/sweep read it from the DB directly) so it is
+ * omitted here, like intakeItems.subprocessId. `worktreePath` is surfaced so the
+ * user can open the isolated checkout to review the diff a run produced.
+ */
+export interface CardRunRow {
+  id: string
+  cardId: string
+  projectId: string
+  status: CardRunStatus
+  worktreePath: string | null
+  branch: string | null
+  error: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 /**
@@ -201,6 +220,7 @@ export interface SystemSettingsRow {
 export type Project = ProjectRow
 export type Roadmap = RoadmapRow
 export type CardCommit = CardCommitRow
+export type CardRun = CardRunRow
 export type Attachment = AttachmentRow
 /** Compat alias from when attachments were card-only. */
 export type CardAttachment = AttachmentRow

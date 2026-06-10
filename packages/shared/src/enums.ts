@@ -31,6 +31,9 @@ export type RepoProvider = (typeof REPO_PROVIDERS)[number]
 export const INTAKE_STATUSES = ['pending', 'enriching', 'enriched', 'planned', 'archived'] as const
 export type IntakeStatus = (typeof INTAKE_STATUSES)[number]
 
+export const CARD_RUN_STATUSES = ['running', 'done', 'failed'] as const
+export type CardRunStatus = (typeof CARD_RUN_STATUSES)[number]
+
 export const USER_ROLES = ['admin', 'user'] as const
 export type UserRole = (typeof USER_ROLES)[number]
 
