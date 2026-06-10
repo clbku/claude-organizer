@@ -70,18 +70,24 @@ overrides below, and points to the docs for the rest.
     to merge** does it run `gh pr merge <n> --squash --admin --delete-branch`
     (the owner override the protection requires), and that approval is **per
     merge**, never standing.
-- **Auth (diff capture)**: auth is **ON** in this deployment — the
-  `attach-commit` / `attach-worktree-diff` scripts need a card-scoped token. Mint
-  `issue_commit_token(<CO-N>)` and pass it as `CO_COMMIT_TOKEN=<token> pnpm
-  attach-… <arg>` (one token per attach).
-  - **Run from the repo root.** `attach-commit` / `attach-worktree-diff` are
-    **root** `package.json` scripts. If the shell's cwd drifted into a package
-    (e.g. a prior `cd packages/core`), `pnpm attach-…` fails with *"Command not
-    found"* (pnpm looks in that package) and the bundled `node …/scripts/*.mjs`
-    path breaks too (it's relative to root). So `cd` back to the repo root first,
-    or prefix the command with the absolute root path — then run
-    `CO_COMMIT_TOKEN=<token> pnpm attach-commit <sha>` /
-    `pnpm attach-worktree-diff <CO-N>`.
+- **Proof-of-work upload**: a card needs at least one **attachment** before it
+  can move to `done` (`PROOF_OF_WORK_REQUIRED` — a committed diff does **not**
+  count). Attach an evidence file with `pnpm attach-file <CO-N> <path>` — it POSTs
+  the file multipart straight to the API, so the bytes never pass through the AI
+  context (there is **no** MCP upload tool — the old base64 one was removed). Same
+  token rule as below.
+- **Auth (capture scripts)**: auth is **ON** in this deployment — the
+  `attach-commit` / `attach-worktree-diff` / `attach-file` scripts need a
+  card-scoped token. Mint `issue_commit_token(<CO-N>)` and pass it as
+  `CO_COMMIT_TOKEN=<token> pnpm attach-… <arg>` (one token per attach).
+  - **Run from the repo root.** `attach-commit` / `attach-worktree-diff` /
+    `attach-file` are **root** `package.json` scripts. If the shell's cwd drifted
+    into a package (e.g. a prior `cd packages/core`), `pnpm attach-…` fails with
+    *"Command not found"* (pnpm looks in that package) and the bundled
+    `node …/scripts/*.mjs` path breaks too (it's relative to root). So `cd` back to
+    the repo root first, or prefix the command with the absolute root path — then
+    run `CO_COMMIT_TOKEN=<token> pnpm attach-commit <sha>` /
+    `pnpm attach-worktree-diff <CO-N>` / `pnpm attach-file <CO-N> <path>`.
 - **Versioning**: every version (each `package.json`, the plugin manifests and
   the MCP server) stays in sync — to set it, run `pnpm bump <version>` (the
   unified bump script); never edit version fields by hand.

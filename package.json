@@ -22,6 +22,7 @@
     "build": "pnpm -r build",
     "attach-commit": "node plugins/claude-organizer/skills/implement/scripts/attach-commit.mjs",
     "attach-worktree-diff": "node plugins/claude-organizer/skills/implement/scripts/attach-worktree-diff.mjs",
+    "attach-file": "node plugins/claude-organizer/skills/implement/scripts/attach-file.mjs",
     "bump": "node scripts/bump-version.mjs",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm --filter @claude-organizer/core test",

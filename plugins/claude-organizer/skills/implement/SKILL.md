@@ -93,7 +93,7 @@ As you work, **`add_comment(cardId, …)`** for what carries **signal** — deci
 
 - **`set_card_status(id, "review")` the instant you stop and the user takes over** to validate. Status reflects **who holds the ball**, not whether a commit exists — so move it even though the commit lands only after the user confirms (steps 7–10).
 - On the **same move**, post **one** comment with the **test plan**: what to open, what to do, what to expect, and briefly what you already checked. Console scrollback is ephemeral; this comment is where the user (and a future session) sees how to validate what's in review. It follows the same signal-vs-noise rule as any comment.
-- Then **capture the working-tree diff onto the card** with this skill's bundled `attach-worktree-diff` script (see _Diff-capture scripts — they ship inside this skill_ for where it lives and how to run it). The diff goes straight to the API **outside your context** — **never read or paste it**. This lets the user see what will land before any commit exists. (Token only when auth is on — see _Auth flag for diff capture_.)
+- Then **capture the working-tree diff onto the card** with this skill's bundled `attach-worktree-diff` script (see _Bundled capture scripts — they ship inside this skill_ for where it lives and how to run it). The diff goes straight to the API **outside your context** — **never read or paste it**. This lets the user see what will land before any commit exists. (Token only when auth is on — see _Auth flag for capture scripts_.)
 - Then **wait for the user to validate**. Do **not** self-approve and do **not** jump ahead to commit or `done`.
 
 ### 7. Per-task review gate — a fresh subagent, **before commit** (skip only if trivial)
@@ -118,32 +118,40 @@ Before committing, ask once: **did a decision, a standardization, or long-lived 
 
   CO: CO-N
   ```
-- **Always attach the commit's diff** right after it lands with this skill's bundled `attach-commit` script (see _Diff-capture scripts — they ship inside this skill_). It runs `git show` and POSTs the diff to the API (`CO_API_URL`, default `http://127.0.0.1:4400`), so the card's **Changes** section shows what the commit produced. (Token only when auth is on — see _Auth flag for diff capture_.)
+- **Always attach the commit's diff** right after it lands with this skill's bundled `attach-commit` script (see _Bundled capture scripts — they ship inside this skill_). It runs `git show` and POSTs the diff to the API (`CO_API_URL`, default `http://127.0.0.1:4400`), so the card's **Changes** section shows what the commit produced. (Token only when auth is on — see _Auth flag for capture scripts_.)
 - The diff is captured **outside your context on purpose** — **never read it or paste it into a comment** (it burns tokens and adds noise).
 - Attaching the real commit **clears the pending working-tree diff** automatically (the `__working__` sentinel row is dropped), so the card swaps from "uncommitted" to the committed diff with no manual cleanup on the happy path.
 
-### 11. Move to `done` — **always**, only after the user confirms
+### 11. Attach proof-of-work, then move to `done` — **always**, only after the user confirms
 
-**`set_card_status(id, "done")`** once the user has confirmed it works. Don't leave a validated card sitting in `review`, and never mark `done` before validation.
+- **Attach a proof-of-work file first.** The board blocks `done` until a card has at least one **attachment** (the `PROOF_OF_WORK_REQUIRED` gate) — a committed diff does **not** count. Upload an artifact that evidences the work (a screenshot, a test-run log, the built output) with this skill's bundled **`attach-file`** script (see _Bundled capture scripts — they ship inside this skill_). You pass a **path**; its bytes go to the API **outside your context** — never inline the file. (Token only when auth is on — see _Auth flag for capture scripts_.)
+- **`set_card_status(id, "done")`** once the user has confirmed it works. Don't leave a validated card sitting in `review`, and never mark `done` before validation.
 
 If this is the **last child of a story**, the **story-level review gate** fires **before** the story closes: an additional `review`-skill pass over the **whole story** (≈ one PR, `git diff <base>...HEAD`), scoped to what a single task can't see — the **story's acceptance criteria**, **duplication across tasks**, **coherence of the PR**; it does not re-review each task line-by-line (the per-task gates already did). Only then move the history to `done` too (see _History status_).
 
 At this story boundary — and before advancing to the next card/story or ending the session — re-check the inbox **fresh**: call **`list_inbox` (pending)** again (don't trust the orientation snapshot — the user may have dropped demands while you worked). If it surfaces pending demands the work didn't cover, **stop and ask** whether to review/plan them now (a decision gate — they may **reshape the upcoming stories**). The criterion and wording live in the **`claude-organizer`** skill (_Inbox_).
 
-## Diff-capture scripts — they ship inside this skill
+## Bundled capture scripts — they ship inside this skill
 
-`attach-commit` and `attach-worktree-diff` are **not** an npm package and **not** guaranteed to be a `package.json` script in the repo you're working in. They are **bundled in this skill**, at `scripts/attach-commit.mjs` and `scripts/attach-worktree-diff.mjs` (Python twins `.py` for hosts without Node) — the path is **relative to this skill's own base directory**, not the project's working dir. So locate them under the directory this `SKILL.md` was loaded from and run that copy **by its absolute path**:
+`attach-commit`, `attach-worktree-diff` and `attach-file` are **not** an npm package and **not** guaranteed to be a `package.json` script in the repo you're working in. They are **bundled in this skill**, under `scripts/` (Python twins `.py` for hosts without Node) — the path is **relative to this skill's own base directory**, not the project's working dir. Each pushes its payload straight to the API **outside your context** (no MCP, no tokens spent on the bytes):
+
+- **`attach-commit.mjs <sha>`** — a landed commit's diff (step 10).
+- **`attach-worktree-diff.mjs <CO-N>`** — the pending working-tree diff (step 6).
+- **`attach-file.mjs <CO-N> <path>`** — a proof-of-work file, by **card key** + a local **path** (step 11); it POSTs multipart to `/cards/by-key/:key/attachments`, so the file's bytes never enter an AI context.
+
+Locate them under the directory this `SKILL.md` was loaded from and run that copy **by its absolute path**:
 
 ```bash
 node "<this skill's directory>/scripts/attach-commit.mjs" <sha>
 node "<this skill's directory>/scripts/attach-worktree-diff.mjs" <CO-N>
+node "<this skill's directory>/scripts/attach-file.mjs" <CO-N> <path>
 ```
 
-`pnpm attach-commit <sha>` / `pnpm attach-worktree-diff <CO-N>` are a convenience **only in the claude-organizer dev repo** (where those `package.json` scripts exist). Anywhere else, call the bundled script by its path — **don't** `pnpm`-run a script that isn't there, and **don't** try to install anything from npm.
+`pnpm attach-commit <sha>` / `pnpm attach-worktree-diff <CO-N>` / `pnpm attach-file <CO-N> <path>` are a convenience **only in the claude-organizer dev repo** (where those `package.json` scripts exist). Anywhere else, call the bundled script by its path — **don't** `pnpm`-run a script that isn't there, and **don't** try to install anything from npm.
 
-## Auth flag for diff capture — read it from CLAUDE.md
+## Auth flag for capture scripts — read it from CLAUDE.md
 
-The diff-capture scripts (`attach-worktree-diff`, `attach-commit`) need a card-scoped token **only when auth is on**. Don't probe the server before every attach — read the flag the project's **`CLAUDE.md`** records, and act on it:
+The capture scripts (`attach-worktree-diff`, `attach-commit`, `attach-file`) need a card-scoped token **only when auth is on**. Don't probe the server before every attach — read the flag the project's **`CLAUDE.md`** records, and act on it:
 
 - **Auth on** → mint `issue_commit_token(<CO-N>)` and pass it in `CO_COMMIT_TOKEN` (e.g. `CO_COMMIT_TOKEN=<token> node "<this skill's directory>/scripts/attach-commit.mjs" <sha>`); the token is short-lived and card-scoped, so mint one per attach.
 - **Auth off, or no flag yet** → run the script tokenless.
@@ -185,4 +193,4 @@ Per card, in order — no step skipped. **Standing rule: never assume — any am
 8. Let the user review the diff.
 9. Capture durable knowledge in the docs.
 10. Commit (one per card, key in subject + `CO: <key>` trailer) → `attach-commit`.
-11. `done` after the user confirms — story's last child → story-level review gate first, then close the history; re-check the inbox fresh at the boundary.
+11. Attach proof-of-work (`attach-file <CO-N> <path>` — the `done` gate needs an attachment) → `done` after the user confirms — story's last child → story-level review gate first, then close the history; re-check the inbox fresh at the boundary.
