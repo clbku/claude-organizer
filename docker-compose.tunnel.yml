@@ -1,0 +1,49 @@
+# Cloudflare Tunnel overlay: cloudflared is the public edge (TLS at Cloudflare),
+# replacing Caddy. The three services stay on the base compose; this overlay only
+# adds the tunnel container and the cross-subdomain auth env the public URLs need.
+#
+# Wired into plain `docker compose` via COMPOSE_FILE in .env, so the usual
+#   docker compose up -d --build
+# brings the tunnel up alongside the stack. To run it explicitly:
+#   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build
+#
+# The credentials file (secret) is mounted from the host ~/.cloudflared via
+# CLOUDFLARED_CREDS in .env — it never lives in the repo.
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: claude-organizer-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./deploy/cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+      - ${CLOUDFLARED_CREDS:?set CLOUDFLARED_CREDS in .env}:/etc/cloudflared/credentials.json:ro
+    depends_on:
+      - api
+      - web
+      - mcp
+
+  # Public traffic arrives through cloudflared (which reaches the services by their
+  # compose-network name), so the host port publishings are rebound to 127.0.0.1:
+  # no LAN exposure, while localhost stays open for dev/debug and `pnpm dev:*`/db.
+  # !override replaces the base list instead of appending (which would double-bind).
+  postgres:
+    ports: !override
+      - "127.0.0.1:${POSTGRES_PORT:-5544}:5432"
+
+  # The base compose already forwards BETTER_AUTH_URL / AUTH_TRUSTED_ORIGINS /
+  # MCP_PUBLIC_URL from .env; only AUTH_COOKIE_DOMAIN is missing there, and it is
+  # what shares the session cookie across app./api. — add it here.
+  api:
+    ports: !override
+      - "127.0.0.1:4400:4400"
+    environment:
+      AUTH_COOKIE_DOMAIN: ${AUTH_COOKIE_DOMAIN}
+
+  web:
+    ports: !override
+      - "127.0.0.1:4401:4401"
+
+  mcp:
+    ports: !override
+      - "127.0.0.1:4402:4402"

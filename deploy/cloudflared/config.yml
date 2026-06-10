@@ -1,0 +1,19 @@
+# Cloudflare Tunnel ingress for claude-organizer.
+# cloudflared runs inside the compose network and reaches the services by their
+# service name (web/api/mcp), so no host ports are required. TLS is terminated at
+# Cloudflare's edge; these origins stay plain HTTP inside the Docker network.
+#
+# Routed via `cloudflared tunnel route dns claude-organizer <sub>.lyhc.io.vn`
+# (CNAME -> <tunnel-id>.cfargotunnel.com).
+tunnel: 0dd7413e-a92e-4eb4-bbd6-0c867756d418
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  - hostname: organizer.lyhc.io.vn
+    service: http://web:4401
+  - hostname: organizer-api.lyhc.io.vn
+    service: http://api:4400
+  - hostname: organizer-mcp.lyhc.io.vn
+    service: http://mcp:4402
+  # Anything else returns 404 at the edge.
+  - service: http_status:404
