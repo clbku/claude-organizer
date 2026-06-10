@@ -8,6 +8,7 @@ export const idPrefixes = {
   roadmap: 'rdm',
   sprint: 'spr',
   card: 'crd',
+  cardRun: 'run',
   comment: 'cmt',
   commit: 'ccm',
   attachment: 'att',

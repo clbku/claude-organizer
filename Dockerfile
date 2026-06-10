@@ -8,6 +8,9 @@
 # musl. Slim keeps the image lean while staying glibc.
 FROM node:20-slim AS base
 RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
+# git: the auto-implement runner (CO-26) opens an isolated `git worktree` per run.
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 FROM base AS build

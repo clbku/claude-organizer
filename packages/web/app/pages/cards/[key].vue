@@ -27,6 +27,17 @@ const allCards = ref<Card[]>([])
 const cardLoading = ref(true)
 const cardError = ref<unknown>(null)
 
+// Auto-implement runner (CO-31). Declared before loadCard/useProjectData so the
+// immediate load can call refreshRun() without hitting its temporal dead zone.
+const {
+  run: cardRun,
+  triggering: runTriggering,
+  cancelling: runCancelling,
+  refresh: refreshRun,
+  trigger: triggerRun,
+  cancel: cancelRun
+} = useCardRun(cardKey)
+
 async function fetchCard(): Promise<Card | null> {
   try {
     return await api<Card>(`/cards/by-key/${cardKey.value}`)
@@ -69,6 +80,7 @@ async function loadCard() {
         fetchSprints(fresh.projectId),
         fetchProjectCards(fresh.projectId)
       ])
+    void refreshRun()
   }
   cardLoading.value = false
 }
@@ -100,6 +112,7 @@ useProjectData(() => card.value?.projectId ?? null, loadCard, {
       && event.cardId === card.value.id
     ) {
       refreshCard()
+      void refreshRun()
     } else if (
       (event.type === 'comment.added'
         || event.type === 'comment.updated'
@@ -441,6 +454,57 @@ const providerIcon = computed(() =>
     ? 'i-mdi-gitlab'
     : 'i-mdi-github'
 )
+
+// Mirror the engine's leaf-task eligibility so the button can explain (tooltip)
+// why it's disabled; the server stays authoritative and re-checks on trigger.
+const runEligibility = computed<{ ok: boolean, reason: string }>(() => {
+  const c = card.value
+  if (!c) return { ok: false, reason: '' }
+  if (c.subtasks?.length) {
+    return { ok: false, reason: 'A story (has sub-tasks) can\'t auto-run — only a leaf task.' }
+  }
+  if (c.status !== 'todo') {
+    return { ok: false, reason: `Only a "todo" card can auto-run (this is "${c.status}").` }
+  }
+  const pending = (c.blockedBy ?? []).filter(b => b.status !== 'done')
+  if (pending.length) {
+    return { ok: false, reason: `Blocked by ${pending.map(b => b.key).join(', ')}.` }
+  }
+  const desc = c.descriptionMd ?? ''
+  if (!/accept/i.test(desc) && !/tiêu chí/i.test(desc)) {
+    return { ok: false, reason: 'No acceptance criteria in the description to verify against.' }
+  }
+  return { ok: true, reason: '' }
+})
+
+function apiErrorMessage(err: unknown, fallback: string): string {
+  return (err as { data?: { error?: string } })?.data?.error ?? fallback
+}
+
+async function onTriggerRun() {
+  try {
+    await triggerRun()
+  } catch (err) {
+    toast.add({
+      title: 'Auto-run rejected',
+      description: apiErrorMessage(err, 'Could not start the run.'),
+      color: 'error',
+      icon: 'i-lucide-bot'
+    })
+  }
+}
+
+async function onCancelRun() {
+  try {
+    await cancelRun()
+  } catch (err) {
+    toast.add({
+      title: 'Cancel failed',
+      description: apiErrorMessage(err, 'Could not cancel the run.'),
+      color: 'error'
+    })
+  }
+}
 </script>
 
 <template>
@@ -900,6 +964,72 @@ const providerIcon = computed(() =>
         </main>
 
         <aside class="space-y-4">
+          <div class="border border-default rounded-md p-3 space-y-2">
+            <label class="text-xs font-semibold text-muted uppercase tracking-wide block">
+              Automation
+            </label>
+
+            <template v-if="cardRun?.status === 'running'">
+              <div class="flex items-center gap-1.5 text-info text-sm">
+                <UIcon name="i-lucide-loader-2" class="animate-spin size-4 shrink-0" />
+                Auto-run in progress…
+              </div>
+              <UButton
+                block
+                color="error"
+                variant="soft"
+                icon="i-lucide-x"
+                label="Cancel run"
+                :loading="runCancelling"
+                @click="onCancelRun"
+              />
+            </template>
+
+            <template v-else>
+              <UButton
+                block
+                color="primary"
+                icon="i-lucide-bot"
+                label="Auto-run"
+                :loading="runTriggering"
+                :disabled="!runEligibility.ok"
+                @click="onTriggerRun"
+              />
+              <div
+                v-if="cardRun?.status === 'done'"
+                class="flex items-start gap-1.5 text-success text-xs"
+              >
+                <UIcon name="i-lucide-check" class="size-3.5 shrink-0 mt-0.5" />
+                <span>Last auto-run finished — review the diff, then commit.</span>
+              </div>
+              <div
+                v-else-if="cardRun?.status === 'failed'"
+                class="text-xs text-error space-y-0.5"
+              >
+                <div class="flex items-center gap-1.5">
+                  <UIcon name="i-lucide-x" class="size-3.5 shrink-0" />
+                  Last auto-run failed.
+                </div>
+                <p v-if="cardRun.error" class="text-muted break-words">
+                  {{ cardRun.error }}
+                </p>
+              </div>
+              <p
+                v-else-if="!runEligibility.ok"
+                class="text-xs text-muted leading-snug"
+              >
+                {{ runEligibility.reason }}
+              </p>
+            </template>
+
+            <p
+              v-if="cardRun && cardRun.status !== 'failed' && cardRun.worktreePath"
+              class="text-[11px] text-muted/70 font-mono break-all"
+            >
+              {{ cardRun.branch }} · {{ cardRun.worktreePath }}
+            </p>
+          </div>
+
           <div class="border border-default rounded-md p-3 space-y-3">
             <div>
               <label class="text-xs font-semibold text-muted uppercase tracking-wide block mb-1.5">

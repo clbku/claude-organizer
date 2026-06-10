@@ -111,6 +111,7 @@ async function resolveToolProjectIds(
     case 'claim_task':
     case 'release_task':
     case 'take_over_task':
+    case 'auto_run_card':
       return entity('cardKey', str(input.cardKey))
 
     case 'move_card_to_sprint': {

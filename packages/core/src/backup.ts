@@ -54,6 +54,9 @@ export const NON_BACKUP_TABLE_NAMES = [
   'user_authz',
   'user_project_access',
   'card_claims',
+  // Auto-implement run state is operational and host-local (pids, on-disk
+  // worktree paths) — meaningless in a fresh imported copy, so never backed up.
+  'card_runs',
   'system_settings',
   'embedding_runtime',
   // Attachment bytes live on disk (storagePath), not in the row — a DB-row

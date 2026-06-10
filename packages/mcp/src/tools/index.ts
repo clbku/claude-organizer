@@ -7,6 +7,7 @@ import type { McpScope } from '../scope'
 import { registerBlockerTools } from './blockers'
 import { registerCardAttachmentTools } from './cardAttachments'
 import { registerCardClaimTools } from './cardClaims'
+import { registerCardRunTools } from './cardRuns'
 import { registerCardTools } from './cards'
 import { registerCommentTools } from './comments'
 import { registerCommitTools } from './commits'
@@ -29,6 +30,7 @@ export function registerTools(
   registerCardTools(server, db)
   registerCardAttachmentTools(server, db)
   registerCardClaimTools(server, db)
+  registerCardRunTools(server, db)
   registerCommentTools(server, db)
   registerCommitTools(server)
   registerTagTools(server, db)
