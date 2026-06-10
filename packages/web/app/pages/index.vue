@@ -14,26 +14,19 @@ const { data: activeSprint, refresh: refreshSprint } = useActiveSprint(
   () => currentProjectId.value
 )
 
+const { sprintCards, looseCards, cards: boardCards, load: loadCards }
+  = useBoardCards(currentProjectId, activeSprint)
 const sprints = ref<Sprint[]>([])
-const sprintCards = ref<Card[]>([])
 
 async function loadDashboard() {
   const projectId = currentProjectId.value
-  if (!projectId) {
-    sprints.value = []
-    sprintCards.value = []
-    return
-  }
-  const [sprintList, cardList] = await Promise.all([
-    api<Sprint[]>('/sprints', { query: { projectId } }),
-    activeSprint.value
-      ? api<Card[]>('/cards', {
-          query: { projectId, sprintId: activeSprint.value.id }
-        })
-      : Promise.resolve<Card[]>([])
+  const [sprintList] = await Promise.all([
+    projectId
+      ? api<Sprint[]>('/sprints', { query: { projectId } })
+      : Promise.resolve<Sprint[]>([]),
+    loadCards()
   ])
   sprints.value = sprintList
-  sprintCards.value = cardList
 }
 
 useProjectData(currentProjectId, loadDashboard, {
@@ -101,6 +94,45 @@ const stats = computed<{ label: string, value: string | number, icon: string }[]
     }
   ]
 )
+
+const HOME_LIST_LIMIT = 5
+
+// review/to-do read the full board scope (`boardCards`); backlog reads only the
+// sprint-less cards — matching where each list's "View more" leads (board vs Tasks).
+const cardLists = computed(() => {
+  const byStatus = (cards: Card[], status: CardStatus) =>
+    cards.filter(c => c.status === status)
+  const sections = [
+    {
+      key: 'review',
+      icon: 'i-lucide-eye',
+      cards: byStatus(boardCards.value, 'review'),
+      to: '/board',
+      empty: 'Nothing in review.'
+    },
+    {
+      key: 'todo',
+      icon: 'i-lucide-circle-dashed',
+      cards: byStatus(boardCards.value, 'todo'),
+      to: '/board',
+      empty: 'Nothing to do.'
+    },
+    {
+      key: 'backlog',
+      icon: 'i-lucide-inbox',
+      cards: byStatus(looseCards.value, 'backlog'),
+      to: '/tasks',
+      empty: 'Backlog is empty.'
+    }
+  ] as const
+  return sections.map(s => ({
+    ...s,
+    label: cardStatusMeta[s.key].label,
+    color: cardStatusMeta[s.key].color,
+    total: s.cards.length,
+    items: s.cards.slice(0, HOME_LIST_LIMIT)
+  }))
+})
 </script>
 
 <template>
@@ -126,22 +158,26 @@ const stats = computed<{ label: string, value: string | number, icon: string }[]
         </div>
         <template v-else>
           <!-- Stat cards -->
-          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <UCard v-for="stat in stats" :key="stat.label">
-              <div class="flex items-center gap-3">
-                <div class="rounded-lg bg-elevated p-2.5">
-                  <UIcon :name="stat.icon" class="text-xl text-primary" />
-                </div>
-                <div class="min-w-0">
-                  <p class="text-2xl font-semibold tabular-nums">
-                    {{ stat.value }}
-                  </p>
-                  <p class="text-sm text-muted truncate">
+          <div class="rounded-lg border border-default bg-elevated/40 overflow-hidden">
+            <div
+              class="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-default"
+            >
+              <div
+                v-for="stat in stats"
+                :key="stat.label"
+                class="flex flex-col gap-2 p-4 sm:p-5"
+              >
+                <div class="flex items-center gap-2 text-muted">
+                  <UIcon :name="stat.icon" class="size-4 shrink-0" />
+                  <span class="text-xs font-medium uppercase tracking-wide truncate">
                     {{ stat.label }}
-                  </p>
+                  </span>
                 </div>
+                <p class="text-2xl font-semibold tabular-nums text-highlighted">
+                  {{ stat.value }}
+                </p>
               </div>
-            </UCard>
+            </div>
           </div>
 
           <div class="grid gap-4 sm:gap-6 lg:grid-cols-3">
@@ -222,6 +258,47 @@ const stats = computed<{ label: string, value: string | number, icon: string }[]
                   </dd>
                 </div>
               </dl>
+            </UCard>
+          </div>
+
+          <div class="grid gap-4 sm:gap-6 lg:grid-cols-3">
+            <UCard v-for="list in cardLists" :key="list.key">
+              <template #header>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-medium flex items-center gap-2 min-w-0">
+                    <UIcon :name="list.icon" class="text-muted shrink-0" />
+                    <span class="truncate">{{ list.label }}</span>
+                    <UBadge :color="list.color" variant="subtle" size="sm">
+                      {{ list.total }}
+                    </UBadge>
+                  </span>
+                  <UButton
+                    :to="list.to"
+                    label="View more"
+                    trailing-icon="i-lucide-arrow-right"
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                  />
+                </div>
+              </template>
+
+              <div v-if="!list.items.length" class="text-sm text-muted py-2">
+                {{ list.empty }}
+              </div>
+              <ul v-else class="-mx-2">
+                <li v-for="card in list.items" :key="card.id">
+                  <NuxtLink
+                    :to="`/cards/${card.key}`"
+                    class="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-elevated/60 transition min-w-0"
+                  >
+                    <span class="font-mono text-xs font-bold text-muted shrink-0">
+                      {{ card.key }}
+                    </span>
+                    <span class="text-sm truncate">{{ card.title }}</span>
+                  </NuxtLink>
+                </li>
+              </ul>
             </UCard>
           </div>
         </template>
