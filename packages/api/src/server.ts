@@ -6,6 +6,7 @@ import Fastify from 'fastify'
 import { createAuth, getTrustedOrigins } from '@claude-organizer/auth'
 import {
   primeEmbeddingRuntime,
+  reconcileStuckCardRuns,
   reconcileStuckEnrichment,
   sweepStagedAttachments
 } from '@claude-organizer/core'
@@ -21,6 +22,7 @@ import { registerBackupRoutes } from './routes/backup'
 import { registerBlockerRoutes } from './routes/blockers'
 import { registerCardClaimRoutes } from './routes/cardClaims'
 import { registerCardCommitRoutes } from './routes/cardCommits'
+import { registerCardRunRoutes } from './routes/cardRuns'
 import { registerCardRoutes } from './routes/cards'
 import { registerCommentRoutes } from './routes/comments'
 import { registerDocRoutes } from './routes/docs'
@@ -96,6 +98,7 @@ registerAdminRoutes(app, db)
 registerProjectRoutes(app, db)
 registerSprintRoutes(app, db)
 registerCardRoutes(app, db)
+registerCardRunRoutes(app, db)
 registerCardClaimRoutes(app, db)
 registerCardCommitRoutes(app, db)
 registerAttachmentRoutes(app, db)
@@ -124,6 +127,15 @@ const sweepEnrichment = () => {
     .catch(err => app.log.error(err, 'enrichment reconcile failed'))
 }
 
+// Recover auto-implement runs stuck in `running` (their process died mid-run):
+// mark failed, reset the card to its un-started status, drop the claim and remove
+// the worktree. Same boot + interval + unref scheme as the enrichment sweep.
+const sweepCardRuns = () => {
+  reconcileStuckCardRuns(db)
+    .then((n) => { if (n > 0) app.log.warn(`reconciled ${n} stuck card run(s)`) })
+    .catch(err => app.log.error(err, 'card run reconcile failed'))
+}
+
 // Staged uploads whose composer was abandoned (tab closed, draft discarded)
 // expire after a TTL; same boot + interval scheme as the enrichment sweep.
 const sweepStaging = () => {
@@ -137,6 +149,8 @@ try {
   app.log.info(`API ready on http://${host}:${port}`)
   sweepEnrichment()
   setInterval(sweepEnrichment, 60_000).unref()
+  sweepCardRuns()
+  setInterval(sweepCardRuns, 60_000).unref()
   sweepStaging()
   setInterval(sweepStaging, 3_600_000).unref()
 } catch (err) {

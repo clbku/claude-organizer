@@ -349,6 +349,17 @@ export async function triggerCardRun(db: Database, input: TriggerCardRunInput) {
   }
 }
 
+/** Latest run for a card identified by key — null if the card or run is absent. */
+export async function getLatestCardRunByKey(db: Database, cardKey: string) {
+  const [card] = await db
+    .select({ id: schema.cards.id })
+    .from(schema.cards)
+    .where(eq(schema.cards.key, cardKey))
+    .limit(1)
+  if (!card) return null
+  return getLatestCardRun(db, card.id)
+}
+
 /** Latest run for a card (wire shape — jobId stays internal), or null. */
 export async function getLatestCardRun(db: Database, cardId: string) {
   const [row] = await db
