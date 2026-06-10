@@ -54,7 +54,12 @@ export const NON_BACKUP_TABLE_NAMES = [
   'user_authz',
   'user_project_access',
   'card_claims',
-  'system_settings'
+  'system_settings',
+  'embedding_runtime',
+  // Attachment bytes live on disk (storagePath), not in the row — a DB-row
+  // backup can't carry them, so exporting the rows alone would restore as
+  // dangling file references. Excluded until the backup can move files too.
+  'attachments'
 ] as const
 
 function envelope(

@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer'
+
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
@@ -7,6 +9,7 @@ import {
   archiveCard,
   archiveSprint,
   completeSprint,
+  createAttachment,
   createCard,
   createIntakeItem,
   createSprint,
@@ -22,6 +25,18 @@ import {
 import { freshProject, useTestDb } from './helpers'
 
 const ctx = useTestDb()
+
+// A card can only reach `done` with proof-of-work attached (CO-7), so the
+// completion tests attach a throwaway file before closing each card.
+async function markCardDone(cardId: string) {
+  await createAttachment(ctx.db, {
+    cardId,
+    filename: 'proof.txt',
+    mimeType: 'text/plain',
+    bytes: Buffer.from('proof')
+  })
+  await updateCard(ctx.db, { id: cardId, status: 'done' })
+}
 
 async function plannedItemWithCards(projectId: string, titles: string[]) {
   const cards = await Promise.all(
@@ -41,14 +56,14 @@ describe('intake completion derived from card status', () => {
   it('is completed when all referenced cards are done', async () => {
     const project = await freshProject(ctx.db)
     const { item, cards } = await plannedItemWithCards(project.id, ['a', 'b'])
-    for (const c of cards) await updateCard(ctx.db, { id: c.id, status: 'done' })
+    for (const c of cards) await markCardDone(c.id)
     expect(await completedFlag(project.id, item.id)).toBe(true)
   })
 
   it('is not completed while any card is still in progress', async () => {
     const project = await freshProject(ctx.db)
     const { item, cards } = await plannedItemWithCards(project.id, ['a', 'b'])
-    await updateCard(ctx.db, { id: cards[0]!.id, status: 'done' })
+    await markCardDone(cards[0]!.id)
     await updateCard(ctx.db, { id: cards[1]!.id, status: 'in_progress' })
     expect(await completedFlag(project.id, item.id)).toBe(false)
   })
@@ -57,7 +72,7 @@ describe('intake completion derived from card status', () => {
     const project = await freshProject(ctx.db)
     const { item, cards } = await plannedItemWithCards(project.id, ['a', 'b'])
     for (const c of cards) {
-      await updateCard(ctx.db, { id: c.id, status: 'done' })
+      await markCardDone(c.id)
       await archiveCard(ctx.db, c.id)
     }
     expect(await completedFlag(project.id, item.id)).toBe(false)
@@ -66,7 +81,7 @@ describe('intake completion derived from card status', () => {
   it('ignores archived cards and counts only the live ones', async () => {
     const project = await freshProject(ctx.db)
     const { item, cards } = await plannedItemWithCards(project.id, ['a', 'b'])
-    await updateCard(ctx.db, { id: cards[0]!.id, status: 'done' })
+    await markCardDone(cards[0]!.id)
     await updateCard(ctx.db, { id: cards[1]!.id, status: 'in_progress' })
     await archiveCard(ctx.db, cards[1]!.id)
     expect(await completedFlag(project.id, item.id)).toBe(true)
@@ -75,7 +90,7 @@ describe('intake completion derived from card status', () => {
   it('ignores destroyed cards when deriving completion', async () => {
     const project = await freshProject(ctx.db)
     const { item, cards } = await plannedItemWithCards(project.id, ['a', 'b'])
-    await updateCard(ctx.db, { id: cards[0]!.id, status: 'done' })
+    await markCardDone(cards[0]!.id)
     await destroyCard(ctx.db, cards[1]!.id)
     expect(await completedFlag(project.id, item.id)).toBe(true)
   })
