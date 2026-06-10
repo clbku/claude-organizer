@@ -9,6 +9,7 @@ import {
   createAttachment,
   deleteAttachment,
   getAttachment,
+  getCardIdByKey,
   InputError,
   listCardAttachments,
   listIntakeAttachments
@@ -69,6 +70,27 @@ export function registerAttachmentRoutes(app: FastifyInstance, db: Database) {
   app.get<{ Params: { cardId: string } }>(
     '/cards/:cardId/attachments',
     async req => listCardAttachments(db, req.params.cardId)
+  )
+
+  // POST by key: the host-side upload script knows only the card key (never the
+  // internal id), and a card-scoped commit token authorizes it without a session
+  // — mirroring POST /cards/:key/commits. A distinct `by-key` path is required:
+  // `/cards/:key/attachments` would collide with the id-keyed route above (same
+  // method + same path shape, only the param name differs).
+  app.post<{ Params: { key: string } }>(
+    '/cards/by-key/:key/attachments',
+    async (req, reply) => {
+      const cardId = await getCardIdByKey(db, req.params.key)
+      if (!cardId) {
+        throw new InputError(`Card ${req.params.key} not found`)
+      }
+      const upload = await readUpload(req)
+      const row = await createAttachment(db, {
+        cardId,
+        ...upload
+      })
+      return reply.code(201).send(row)
+    }
   )
 
   // Staged upload while composing an intake item that doesn't exist yet; the

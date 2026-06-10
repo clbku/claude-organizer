@@ -491,6 +491,20 @@ export async function getCardByKey(db: Database, key: string) {
   return enrichCard(db, row)
 }
 
+// Lean key→id lookup for callers that only need to address the card (e.g. the
+// attachment upload route) — skips the relation enrichment getCardByKey pays for.
+export async function getCardIdByKey(
+  db: Database,
+  key: string
+): Promise<string | null> {
+  const [row] = await db
+    .select({ id: schema.cards.id })
+    .from(schema.cards)
+    .where(eq(schema.cards.key, key))
+    .limit(1)
+  return row?.id ?? null
+}
+
 /**
  * Batch read of full cards (with `descriptionMd`) by id or key — a ref matches
  * either column, so callers can mix `crd_*` ids and `CO-*` keys freely (the two
