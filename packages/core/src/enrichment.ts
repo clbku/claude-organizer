@@ -1,14 +1,11 @@
-import { spawn } from 'child_process'
 import { and, eq, lt, sql } from 'drizzle-orm'
 import { statSync } from 'fs'
 import { tmpdir } from 'os'
 
 import { type Database, schema } from '@claude-organizer/db'
 
+import { getAiExecutionService } from './aiExecution'
 import { notify } from './events'
-
-// In-memory registry: alive within one API process lifetime
-const running = new Map<string, import('child_process').ChildProcess>()
 
 // Items left in `enriching` longer than this — orphaned by a process that died
 // mid-run, or a runaway agent — are swept back to pending. Must comfortably
@@ -93,32 +90,22 @@ async function markFailed(db: Database, id: string, projectId: string) {
   await notify(db, { type: 'inbox.changed', projectId, intakeId: id })
 }
 
+// Cancel a running enrichment by its jobId (the persisted subprocessId). The port
+// owns the live-job registry and the cross-process process.kill(pid) fallback, so
+// this is a thin pass-through; a null id is a no-op.
 export function killEnrichment(subprocessId: string | null) {
-  if (!subprocessId) return
-  const proc = running.get(subprocessId)
-  if (proc) {
-    proc.kill('SIGTERM')
-    running.delete(subprocessId)
-    return
-  }
-  // Fallback for PIDs not in the registry (e.g. after a hot-reload)
-  try {
-    process.kill(parseInt(subprocessId, 10), 'SIGTERM')
-  } catch {
-    // Process already gone — fine
-  }
+  getAiExecutionService().cancel(subprocessId)
 }
 
 export async function spawnEnrichment(
   db: Database,
   item: { id: string, projectId: string, bodyMd: string }
 ) {
-  // Tests must never fork a real `claude -p`: it runs in the background and its
-  // close handler writes the item's status back at a non-deterministic time,
-  // racing assertions (and the 15-min run hangs the suite). The runner sets
-  // ENRICHMENT=off (see vitest.config) to no-op the spawn.
+  // Tests must never start a real `claude -p`: it runs in the background and its
+  // result settles at a non-deterministic time, racing assertions (and the 15-min
+  // run hangs the suite). The runner sets ENRICHMENT=off (see vitest.config).
   if (process.env.ENRICHMENT === 'off') return
-  // Run Claude inside the project's own checkout so it explores the right code;
+  // Run the model inside the project's own checkout so it explores the right code;
   // fall back to a neutral cwd + text-only prompt when no valid path is set.
   const [project] = await db
     .select({ repoLocalPath: schema.projects.repoLocalPath })
@@ -127,99 +114,64 @@ export async function spawnEnrichment(
     .limit(1)
   const { cwd, explore } = resolveEnrichCwd(project?.repoLocalPath ?? null)
 
-  // Prompt via stdin: avoids process-table exposure and OS arg-length limits.
-  // --disallowed-tools blocks subagent spawning (Agent/Workflow) while keeping
-  // bash/file tools, so Claude explores directly instead of fanning out.
-  const proc = spawn(
-    'claude',
-    ['-p', '--disallowed-tools', ...DISALLOWED_TOOLS, '--model', 'claude-sonnet-4-6'],
-    { cwd, stdio: ['pipe', 'pipe', 'inherit'] }
-  )
-
-  // A spawn failure (e.g. the claude binary is missing) surfaces as an async
-  // 'error' event on the child and its stdin pipe. An unhandled one is rethrown
-  // by Node and crashes the whole API; catch both and just mark the item failed.
-  proc.on('error', () => {
-    void markFailed(db, item.id, item.projectId)
+  // Hand the run to the AI execution port. The adapter owns spawn/stdin, the
+  // running-job registry, the watchdog, and the cancel/kill fallback; enrichment
+  // keeps only its own concerns — the prompt, persisting the jobId, and parsing
+  // the three-field JSON out of the model's output.
+  const handle = await getAiExecutionService().start({
+    prompt: buildPrompt(item.bodyMd, explore),
+    cwd,
+    disallowedTools: DISALLOWED_TOOLS,
+    timeoutMs: ENRICHMENT_TIMEOUT_MS
   })
-  proc.stdin?.on('error', () => {})
 
-  proc.stdin?.end(buildPrompt(item.bodyMd, explore))
-
-  if (!proc.pid) {
+  if (!handle.jobId) {
     await markFailed(db, item.id, item.projectId)
     return
   }
 
-  const subprocessId = String(proc.pid)
-  running.set(subprocessId, proc)
-
-  // Watchdog: if the run hangs or runs away, terminate it; the 'close' handler
-  // then marks the item failed. Cleared on a normal close.
-  const watchdog = setTimeout(() => proc.kill('SIGTERM'), ENRICHMENT_TIMEOUT_MS)
-
-  let stdout = ''
-  proc.stdout?.on('data', (chunk: Buffer) => {
-    stdout += chunk.toString()
-  })
-
-  // Buffer the close event so it can't fire before the DB write below completes.
-  // If the process exits instantly (e.g. spawn error), we replay it after the write.
-  let pendingCloseCode: number | null | undefined
-  proc.on('close', (code) => {
-    pendingCloseCode = code ?? null
-  })
-
+  // Persist the jobId so a re-edit, archive, or boot-time sweep can cancel or
+  // reconcile this run — the port's jobId is the OS pid, valid across processes.
+  const subprocessId = handle.jobId
   await db
     .update(schema.intakeItems)
     .set({ subprocessId, updatedAt: sql`now()` })
     .where(eq(schema.intakeItems.id, item.id))
 
-  const handleClose = async (code: number | null) => {
-    clearTimeout(watchdog)
-    running.delete(subprocessId)
+  const result = await handle.result
 
-    const [current] = await db
-      .select({ subprocessId: schema.intakeItems.subprocessId })
-      .from(schema.intakeItems)
-      .where(eq(schema.intakeItems.id, item.id))
-      .limit(1)
+  // Bail if superseded by a newer spawn (a re-edit cleared/replaced subprocessId)
+  // or the item was deleted — never write a stale run's output over current state.
+  const [current] = await db
+    .select({ subprocessId: schema.intakeItems.subprocessId })
+    .from(schema.intakeItems)
+    .where(eq(schema.intakeItems.id, item.id))
+    .limit(1)
+  if (!current || current.subprocessId !== subprocessId) return
 
-    // Bail if superseded by a newer spawn (re-edit) or item was deleted
-    if (!current || current.subprocessId !== subprocessId) return
-
-    if (code === 0) {
-      try {
-        const text = stdout.trim()
-        // The agentic CLI often wraps the JSON in prose ("Now I have enough
-        // context…") or markdown fences despite the prompt, so extract the
-        // outermost { … } object instead of requiring the whole output to parse.
-        const start = text.indexOf('{')
-        const end = text.lastIndexOf('}')
-        const jsonText = start !== -1 && end > start ? text.slice(start, end + 1) : text
-        const parsed = JSON.parse(jsonText)
-        if (typeof parsed.enrichedBodyMd === 'string') {
-          await markEnriched(db, item.id, item.projectId, {
-            enrichedBodyMd: parsed.enrichedBodyMd,
-            contextNotesMd: String(parsed.contextNotesMd ?? ''),
-            draftPlanMd: String(parsed.draftPlanMd ?? '')
-          })
-          return
-        }
-      } catch {
-        // fall through to markFailed
+  if (result.status === 'ok') {
+    try {
+      // The agentic CLI often wraps the JSON in prose ("Now I have enough
+      // context…") or markdown fences despite the prompt, so extract the
+      // outermost { … } object instead of requiring the whole output to parse.
+      const text = result.text
+      const start = text.indexOf('{')
+      const end = text.lastIndexOf('}')
+      const jsonText = start !== -1 && end > start ? text.slice(start, end + 1) : text
+      const parsed = JSON.parse(jsonText)
+      if (typeof parsed.enrichedBodyMd === 'string') {
+        await markEnriched(db, item.id, item.projectId, {
+          enrichedBodyMd: parsed.enrichedBodyMd,
+          contextNotesMd: String(parsed.contextNotesMd ?? ''),
+          draftPlanMd: String(parsed.draftPlanMd ?? '')
+        })
+        return
       }
+    } catch {
+      // fall through to markFailed
     }
-    await markFailed(db, item.id, item.projectId)
   }
-
-  if (pendingCloseCode !== undefined) {
-    // Already closed before the DB write finished — replay now
-    await handleClose(pendingCloseCode)
-  } else {
-    proc.removeAllListeners('close')
-    proc.on('close', handleClose)
-  }
+  await markFailed(db, item.id, item.projectId)
 }
 
 /**
