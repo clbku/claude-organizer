@@ -8,7 +8,8 @@ import {
   primeEmbeddingRuntime,
   reconcileStuckCardRuns,
   reconcileStuckEnrichment,
-  sweepStagedAttachments
+  sweepStagedAttachments,
+  warmupEmbedder
 } from '@claude-organizer/core'
 import { createDb } from '@claude-organizer/db'
 
@@ -153,6 +154,11 @@ try {
   setInterval(sweepCardRuns, 60_000).unref()
   sweepStaging()
   setInterval(sweepStaging, 3_600_000).unref()
+  // Fire-and-forget after listen: warm the embedding model in the background so
+  // the first search doesn't pay the cold-start load, without delaying readiness.
+  void warmupEmbedder().catch((err) => {
+    app.log.warn({ err }, 'embedding warm-up failed; first search will load lazily')
+  })
 } catch (err) {
   app.log.error(err)
   process.exit(1)

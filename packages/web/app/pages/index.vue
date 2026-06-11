@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { Project } from '@claude-organizer/shared'
-
 import { useProjectStore } from '~/stores/project'
 import type { Card, CardStatus } from '~/types/card'
 import { cardStatusMeta, cardStatusOrder } from '~/types/card'
@@ -16,26 +14,19 @@ const { data: activeSprint, refresh: refreshSprint } = useActiveSprint(
   () => currentProjectId.value
 )
 
+const { sprintCards, looseCards, cards: boardCards, load: loadCards }
+  = useBoardCards(currentProjectId, activeSprint)
 const sprints = ref<Sprint[]>([])
-const sprintCards = ref<Card[]>([])
 
 async function loadDashboard() {
   const projectId = currentProjectId.value
-  if (!projectId) {
-    sprints.value = []
-    sprintCards.value = []
-    return
-  }
-  const [sprintList, cardList] = await Promise.all([
-    api<Sprint[]>('/sprints', { query: { projectId } }),
-    activeSprint.value
-      ? api<Card[]>('/cards', {
-          query: { projectId, sprintId: activeSprint.value.id }
-        })
-      : Promise.resolve<Card[]>([])
+  const [sprintList] = await Promise.all([
+    projectId
+      ? api<Sprint[]>('/sprints', { query: { projectId } })
+      : Promise.resolve<Sprint[]>([]),
+    loadCards()
   ])
   sprints.value = sprintList
-  sprintCards.value = cardList
 }
 
 useProjectData(currentProjectId, loadDashboard, {
@@ -52,70 +43,13 @@ useProjectData(currentProjectId, loadDashboard, {
       event.type === 'project.changed'
       || event.type === 'project.deleted'
     ) {
-      // a project was renamed, archived or destroyed — refresh both lists (the
-      // store falls back to another project if the current one is gone).
-      refreshProjectLists()
+      // a project was renamed, archived or destroyed — reload the list (the store
+      // falls back to another project if the current one is gone) and the stats.
+      store.loadAndRepoint()
       loadDashboard()
     }
   }
 })
-
-// --- Project management (archive / restore / destroy) ---
-
-const archivedProjects = ref<Project[]>([])
-
-async function loadArchivedProjects() {
-  archivedProjects.value = await api<Project[]>('/projects', {
-    query: { archivedOnly: 'true' }
-  })
-}
-
-async function refreshProjectLists() {
-  await Promise.all([store.loadProjects(), loadArchivedProjects()])
-  // If the current project was archived/destroyed, repoint to another one.
-  if (!currentProject.value && projects.value[0]) {
-    store.setCurrent(projects.value[0].slug)
-  }
-}
-
-onMounted(loadArchivedProjects)
-
-async function archiveProject(id: string) {
-  await api(`/projects/${id}/archive`, { method: 'POST' })
-  await refreshProjectLists()
-}
-
-async function restoreProject(id: string) {
-  await api(`/projects/${id}/restore`, { method: 'POST' })
-  await refreshProjectLists()
-}
-
-const destroyOpen = ref(false)
-const destroyTarget = ref<Project | null>(null)
-const destroyConfirm = ref('')
-
-const destroyArmed = computed(
-  () => !!destroyTarget.value && destroyConfirm.value === destroyTarget.value.slug
-)
-
-function openDestroy(project: Project) {
-  destroyTarget.value = project
-  destroyConfirm.value = ''
-  destroyOpen.value = true
-}
-
-async function confirmDestroy() {
-  const target = destroyTarget.value
-  if (!target || !destroyArmed.value) return
-  await api(`/projects/${target.id}`, {
-    method: 'DELETE',
-    body: { confirmSlug: destroyConfirm.value }
-  })
-  destroyOpen.value = false
-  destroyTarget.value = null
-  destroyConfirm.value = ''
-  await refreshProjectLists()
-}
 
 const statusCounts = computed<Record<CardStatus, number>>(() => {
   const counts: Record<CardStatus, number> = {
@@ -160,6 +94,45 @@ const stats = computed<{ label: string, value: string | number, icon: string }[]
     }
   ]
 )
+
+const HOME_LIST_LIMIT = 5
+
+// review/to-do read the full board scope (`boardCards`); backlog reads only the
+// sprint-less cards — matching where each list's "View more" leads (board vs Tasks).
+const cardLists = computed(() => {
+  const byStatus = (cards: Card[], status: CardStatus) =>
+    cards.filter(c => c.status === status)
+  const sections = [
+    {
+      key: 'review',
+      icon: 'i-lucide-eye',
+      cards: byStatus(boardCards.value, 'review'),
+      to: '/board',
+      empty: 'Nothing in review.'
+    },
+    {
+      key: 'todo',
+      icon: 'i-lucide-circle-dashed',
+      cards: byStatus(boardCards.value, 'todo'),
+      to: '/board',
+      empty: 'Nothing to do.'
+    },
+    {
+      key: 'backlog',
+      icon: 'i-lucide-inbox',
+      cards: byStatus(looseCards.value, 'backlog'),
+      to: '/tasks',
+      empty: 'Backlog is empty.'
+    }
+  ] as const
+  return sections.map(s => ({
+    ...s,
+    label: cardStatusMeta[s.key].label,
+    color: cardStatusMeta[s.key].color,
+    total: s.cards.length,
+    items: s.cards.slice(0, HOME_LIST_LIMIT)
+  }))
+})
 </script>
 
 <template>
@@ -184,22 +157,26 @@ const stats = computed<{ label: string, value: string | number, icon: string }[]
         </div>
         <template v-else>
           <!-- Stat cards -->
-          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <UCard v-for="stat in stats" :key="stat.label">
-              <div class="flex items-center gap-3">
-                <div class="rounded-lg bg-elevated p-2.5">
-                  <UIcon :name="stat.icon" class="text-xl text-primary" />
-                </div>
-                <div class="min-w-0">
-                  <p class="text-2xl font-semibold tabular-nums">
-                    {{ stat.value }}
-                  </p>
-                  <p class="text-sm text-muted truncate">
+          <div class="rounded-lg border border-default bg-elevated/40 overflow-hidden">
+            <div
+              class="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-default"
+            >
+              <div
+                v-for="stat in stats"
+                :key="stat.label"
+                class="flex flex-col gap-2 p-4 sm:p-5"
+              >
+                <div class="flex items-center gap-2 text-muted">
+                  <UIcon :name="stat.icon" class="size-4 shrink-0" />
+                  <span class="text-xs font-medium uppercase tracking-wide truncate">
                     {{ stat.label }}
-                  </p>
+                  </span>
                 </div>
+                <p class="text-2xl font-semibold tabular-nums text-highlighted">
+                  {{ stat.value }}
+                </p>
               </div>
-            </UCard>
+            </div>
           </div>
 
           <div class="grid gap-4 sm:gap-6 lg:grid-cols-3">
@@ -282,130 +259,49 @@ const stats = computed<{ label: string, value: string | number, icon: string }[]
               </dl>
             </UCard>
           </div>
-        </template>
 
-        <!-- Projects management -->
-        <UCard>
-          <template #header>
-            <div class="flex items-center gap-2">
-              <UIcon name="i-lucide-folders" class="text-primary" />
-              <span class="font-medium">Projects</span>
-            </div>
-          </template>
-
-          <div class="space-y-2">
-            <div
-              v-for="p in projects"
-              :key="p.id"
-              class="border border-default rounded-md px-3 py-2 flex items-center gap-3"
-            >
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2">
-                  <span class="font-medium text-sm truncate">{{ p.name }}</span>
-                  <UBadge
-                    v-if="p.id === currentProjectId"
+          <div class="grid gap-4 sm:gap-6 lg:grid-cols-3">
+            <UCard v-for="list in cardLists" :key="list.key">
+              <template #header>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-medium flex items-center gap-2 min-w-0">
+                    <UIcon :name="list.icon" class="text-muted shrink-0" />
+                    <span class="truncate">{{ list.label }}</span>
+                    <UBadge :color="list.color" variant="subtle" size="sm">
+                      {{ list.total }}
+                    </UBadge>
+                  </span>
+                  <UButton
+                    :to="list.to"
+                    label="View more"
+                    trailing-icon="i-lucide-arrow-right"
                     size="xs"
-                    variant="subtle"
-                    color="primary"
-                  >
-                    current
-                  </UBadge>
+                    color="neutral"
+                    variant="ghost"
+                  />
                 </div>
-                <p class="text-xs text-muted font-mono truncate">
-                  {{ p.slug }}
-                </p>
-              </div>
-              <UButton
-                icon="i-lucide-archive"
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                label="Archive"
-                @click="archiveProject(p.id)"
-              />
-              <UButton
-                icon="i-lucide-trash-2"
-                size="xs"
-                color="error"
-                variant="ghost"
-                label="Destroy"
-                @click="openDestroy(p)"
-              />
-            </div>
-          </div>
+              </template>
 
-          <ArchivedDisclosure
-            v-if="archivedProjects.length"
-            :count="archivedProjects.length"
-            label="Archived projects"
-            class="mt-3"
-          >
-            <div class="space-y-2">
-              <div
-                v-for="p in archivedProjects"
-                :key="p.id"
-                class="border border-dashed border-default rounded-md px-3 py-2 flex items-center gap-3"
-              >
-                <div class="flex-1 min-w-0">
-                  <span class="font-medium text-sm text-muted">{{ p.name }}</span>
-                  <span class="text-xs text-muted font-mono ml-2">{{ p.slug }}</span>
-                </div>
-                <UButton
-                  icon="i-lucide-archive-restore"
-                  size="xs"
-                  color="neutral"
-                  variant="soft"
-                  label="Restore"
-                  @click="restoreProject(p.id)"
-                />
-                <UButton
-                  icon="i-lucide-trash-2"
-                  size="xs"
-                  color="error"
-                  variant="ghost"
-                  label="Destroy"
-                  @click="openDestroy(p)"
-                />
+              <div v-if="!list.items.length" class="text-sm text-muted py-2">
+                {{ list.empty }}
               </div>
-            </div>
-          </ArchivedDisclosure>
-        </UCard>
+              <ul v-else class="-mx-2">
+                <li v-for="card in list.items" :key="card.id">
+                  <NuxtLink
+                    :to="`/cards/${card.key}`"
+                    class="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-elevated/60 transition min-w-0"
+                  >
+                    <span class="font-mono text-xs font-bold text-muted shrink-0">
+                      {{ card.key }}
+                    </span>
+                    <span class="text-sm truncate">{{ card.title }}</span>
+                  </NuxtLink>
+                </li>
+              </ul>
+            </UCard>
+          </div>
+        </template>
       </div>
     </template>
   </UDashboardPanel>
-
-  <UModal
-    v-model:open="destroyOpen"
-    :title="`Destroy ${destroyTarget?.name ?? 'project'}`"
-  >
-    <template #body>
-      <div class="space-y-3">
-        <p class="text-sm">
-          This permanently deletes
-          <strong>{{ destroyTarget?.name }}</strong> and everything in it —
-          sprints, cards, docs, tags and comments. This cannot be undone.
-        </p>
-        <UFormField
-          :label="`Type the slug to confirm: ${destroyTarget?.slug ?? ''}`"
-        >
-          <UInput
-            v-model="destroyConfirm"
-            :placeholder="destroyTarget?.slug"
-            autocomplete="off"
-          />
-        </UFormField>
-      </div>
-    </template>
-    <template #footer>
-      <div class="flex justify-end gap-2 w-full">
-        <UButton variant="ghost" label="Cancel" @click="destroyOpen = false" />
-        <UButton
-          color="error"
-          label="Destroy"
-          :disabled="!destroyArmed"
-          @click="confirmDestroy"
-        />
-      </div>
-    </template>
-  </UModal>
 </template>

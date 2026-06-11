@@ -18,6 +18,14 @@ x-db-env: &db-env
   # the host. Defaults to a temp dir (container-only) when unset.
   CO_RUNNER_WORKTREE_DIR: ${HOME}/.co-worktrees
 
+# Stable cache dir for the embedding model weights (Transformers.js ignores
+# HF_HOME, so the code reads EMBEDDING_CACHE_DIR). Backed by one shared volume on
+# api/mcp so the ~470MB weights survive a rebuild instead of re-downloading.
+# Sharing is safe: Transformers.js writes to a per-process temp file and renames
+# atomically, so the two services racing on an empty volume never corrupt it.
+x-embedding-cache-env: &embedding-cache-env
+  EMBEDDING_CACHE_DIR: /cache/transformers
+
 services:
   postgres:
     # pgvector overlay on postgres:16 — adds the `vector` extension for semantic
@@ -54,7 +62,7 @@ services:
     <<: *app
     command: pnpm --filter @claude-organizer/api exec tsx src/server.ts
     environment:
-      <<: *db-env
+      <<: [*db-env, *embedding-cache-env]
       API_HOST: 0.0.0.0
       API_PORT: 4400
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
@@ -77,6 +85,7 @@ services:
     # the SAME path as on the host, so a project's stored repoLocalPath resolves
     # verbatim and Claude explores the right checkout. Only works on this host.
     volumes:
+      - model-cache:/cache/transformers
       - ${HOME}/.claude/.credentials.json:/root/.claude/.credentials.json
       - ${HOME}/Documents:${HOME}/Documents:ro
       # The auto-implement runner writes the repo's .git (worktree refs + auto/*
@@ -97,7 +106,7 @@ services:
     <<: *app
     command: node packages/mcp/dist/server.mjs
     environment:
-      <<: *db-env
+      <<: [*db-env, *embedding-cache-env]
       MCP_HTTP_PORT: 4402
       # Resource server: validates OAuth bearers against the same better-auth
       # store as the API, so it needs the matching secret + the authz-server URL.
@@ -112,6 +121,7 @@ services:
     # create_inbox runs createIntakeItem here, which spawns `claude -p` in THIS
     # container — so it needs the host login + workspaces mount too (see api).
     volumes:
+      - model-cache:/cache/transformers
       - ${HOME}/.claude/.credentials.json:/root/.claude/.credentials.json
       - ${HOME}/Documents:${HOME}/Documents:ro
       # The auto-implement runner writes the repo's .git (worktree refs + auto/*
@@ -139,3 +149,6 @@ services:
     depends_on:
       api:
         condition: service_started
+
+volumes:
+  model-cache:
