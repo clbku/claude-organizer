@@ -346,9 +346,21 @@ describe('embedding runtime apply', () => {
     await recordRuntimeEmbeddingConfig(ctx.db, EMBEDDING_RUNTIME_SERVICE, {
       model: 'Xenova/multilingual-e5-large',
       dim: 1024,
-      e5Prefix: true
+      e5Prefix: true,
+      dtype: 'fp16'
     })
-    expect((await getEmbeddingStatus(ctx.db)).serviceModel).toBe('Xenova/multilingual-e5-large')
+    const status = await getEmbeddingStatus(ctx.db)
+    expect(status.serviceModel).toBe('Xenova/multilingual-e5-large')
+    expect(status.serviceDtype).toBe('fp16')
+
+    // A disabled config loads no pipeline ⇒ serviceDtype recorded as null.
+    await recordRuntimeEmbeddingConfig(ctx.db, EMBEDDING_RUNTIME_SERVICE, {
+      model: null,
+      dim: 384,
+      e5Prefix: false,
+      dtype: 'q8'
+    })
+    expect((await getEmbeddingStatus(ctx.db)).serviceDtype).toBeNull()
 
     await ctx.db.delete(schema.embeddingRuntime)
   })

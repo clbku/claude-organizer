@@ -46,6 +46,8 @@ export async function getEmbeddingStatus(db: Database): Promise<EmbeddingRuntime
     enabled: cfg.model !== null,
     dimChanged: progress?.dimChanged ?? false,
     serviceModel: service?.model ?? null,
+    dtype: cfg.dtype,
+    serviceDtype: service?.dtype ?? null,
     backfill: progress?.backfill ?? { docs: 0, cards: 0, comments: 0 },
     error: progress?.error ?? null
   }

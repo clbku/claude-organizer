@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Embedder, EmbedderStatus } from '../src/embedder'
 import { createEmbeddingHttpServer } from '../src/http'
 
-const readyStatus: EmbedderStatus = { state: 'ready', model: 'm', dim: 3 }
+const readyStatus: EmbedderStatus = { state: 'ready', model: 'm', dim: 3, dtype: 'q8' }
 
 function fakeEmbedder(overrides: Partial<Embedder> = {}): Embedder {
   return {
@@ -77,14 +77,14 @@ describe('embedding http server', () => {
     expect(await ok.json()).toMatchObject({ state: 'ready' })
 
     server.close()
-    await start(fakeEmbedder({ status: () => ({ state: 'loading', model: 'm', dim: 3 }) }))
+    await start(fakeEmbedder({ status: () => ({ state: 'loading', model: 'm', dim: 3, dtype: 'q8' }) }))
     const loading = await fetch(`${base}/health`)
     expect(loading.status).toBe(503)
   })
 
   it('GET /health is 200 when disabled (no model on purpose)', async () => {
     server.close()
-    await start(fakeEmbedder({ status: () => ({ state: 'disabled', model: null, dim: 384 }) }))
+    await start(fakeEmbedder({ status: () => ({ state: 'disabled', model: null, dim: 384, dtype: 'q8' }) }))
     const res = await fetch(`${base}/health`)
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({ state: 'disabled' })
@@ -93,7 +93,7 @@ describe('embedding http server', () => {
   it('POST /reload triggers a reload and returns the new status', async () => {
     const reload = vi.fn(async () => {})
     server.close()
-    await start(fakeEmbedder({ reload, status: () => ({ state: 'ready', model: 'm2', dim: 3 }) }))
+    await start(fakeEmbedder({ reload, status: () => ({ state: 'ready', model: 'm2', dim: 3, dtype: 'q8' }) }))
     const res = await fetch(`${base}/reload`, { method: 'POST' })
     expect(res.status).toBe(200)
     expect(reload).toHaveBeenCalledOnce()

@@ -7,10 +7,11 @@ import { createEmbedder, type PipelineLoader } from '../src/embedder'
 const e5Config: EmbeddingConfig = {
   model: 'Xenova/multilingual-e5-small',
   dim: 384,
-  e5Prefix: true
+  e5Prefix: true,
+  dtype: 'q8'
 }
-const plainConfig: EmbeddingConfig = { model: 'custom/model', dim: 8, e5Prefix: false }
-const disabledConfig: EmbeddingConfig = { model: null, dim: 384, e5Prefix: false }
+const plainConfig: EmbeddingConfig = { model: 'custom/model', dim: 8, e5Prefix: false, dtype: 'q8' }
+const disabledConfig: EmbeddingConfig = { model: null, dim: 384, e5Prefix: false, dtype: 'q8' }
 
 // A deterministic stand-in for the real pipeline: echoes a vector encoding each
 // input text's length, so a test can assert exactly which strings reached it.
@@ -92,7 +93,7 @@ describe('createEmbedder', () => {
     await embedder.init()
     expect(dispose).not.toHaveBeenCalled()
 
-    cfg = { model: 'Xenova/multilingual-e5-base', dim: 768, e5Prefix: true }
+    cfg = { model: 'Xenova/multilingual-e5-base', dim: 768, e5Prefix: true, dtype: 'q8' }
     await embedder.reload()
     expect(dispose).toHaveBeenCalledOnce()
   })

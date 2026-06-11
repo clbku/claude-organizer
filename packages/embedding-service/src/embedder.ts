@@ -1,5 +1,5 @@
-import type { EmbeddingConfig } from '@claude-organizer/shared'
-import { DEFAULT_EMBEDDING_DIM } from '@claude-organizer/shared'
+import type { EmbeddingConfig, EmbeddingDtype } from '@claude-organizer/shared'
+import { DEFAULT_EMBEDDING_DIM, DEFAULT_EMBEDDING_DTYPE } from '@claude-organizer/shared'
 
 export type EmbeddingKind = 'query' | 'passage'
 
@@ -9,6 +9,7 @@ export interface EmbedderStatus {
   state: EmbedderState
   model: string | null
   dim: number
+  dtype: EmbeddingDtype
 }
 
 /** Runs the loaded pipeline over already-prefixed texts, returning unit-normalized vectors. */
@@ -45,9 +46,8 @@ const defaultLoadPipeline: PipelineLoader = async (cfg) => {
   // volume in Docker) so the weights survive a rebuild instead of re-downloading.
   const cacheDir = process.env.EMBEDDING_CACHE_DIR?.trim()
   if (cacheDir) env.cacheDir = cacheDir
-  const dtype = process.env.EMBEDDING_DTYPE?.trim() || 'fp32'
   const pipe = await pipeline('feature-extraction', cfg.model!, {
-    dtype
+    dtype: cfg.dtype
   } as Record<string, unknown>)
   return {
     run: async (texts) => {
@@ -118,7 +118,8 @@ export function createEmbedder({
     status: () => ({
       state,
       model: cfg?.model ?? null,
-      dim: cfg?.dim ?? DEFAULT_EMBEDDING_DIM
+      dim: cfg?.dim ?? DEFAULT_EMBEDDING_DIM,
+      dtype: cfg?.dtype ?? DEFAULT_EMBEDDING_DTYPE
     }),
     embed: async (texts, kind) => {
       if (texts.length === 0) return []

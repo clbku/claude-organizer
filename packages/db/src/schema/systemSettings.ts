@@ -10,6 +10,9 @@ import { boolean, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 // `embeddingModel` is tri-state: null = unset (fall back to env/default), 'none' =
 // semantic search off, otherwise a model id; it takes precedence over env in
 // resolveEmbeddingConfig.
+// `embeddingDtype` is tri-state: null = unset (fall back to EMBEDDING_DTYPE/default
+// q8), otherwise a fixed-list dtype (fp32/fp16/q8); same precedence as the model.
+// A dtype change is lazy — the dim is identical, so no reconcile/re-embed.
 // `includeAttachmentsInBackup=true` (default) exports attachment bytes in the
 // backup envelope; OFF keeps the metadata rows but drops `data` so the envelope
 // stays small.
@@ -21,6 +24,7 @@ export const systemSettings = pgTable('system_settings', {
   authEnabled: boolean('auth_enabled').notNull().default(true),
   keepDiffsOnArchive: boolean('keep_diffs_on_archive').notNull().default(false),
   embeddingModel: text('embedding_model'),
+  embeddingDtype: text('embedding_dtype'),
   includeAttachmentsInBackup: boolean('include_attachments_in_backup')
     .notNull()
     .default(true),

@@ -199,6 +199,7 @@ const DEFAULT_SYSTEM_SETTINGS = {
   authEnabled: true,
   keepDiffsOnArchive: false,
   embeddingModel: null,
+  embeddingDtype: null,
   includeAttachmentsInBackup: true,
   keepAttachmentsOnArchive: false
 } as const
@@ -211,6 +212,7 @@ export async function getSystemSettings(
     | 'authEnabled'
     | 'keepDiffsOnArchive'
     | 'embeddingModel'
+    | 'embeddingDtype'
     | 'includeAttachmentsInBackup'
     | 'keepAttachmentsOnArchive'
   >
@@ -220,6 +222,7 @@ export async function getSystemSettings(
       authEnabled: schema.systemSettings.authEnabled,
       keepDiffsOnArchive: schema.systemSettings.keepDiffsOnArchive,
       embeddingModel: schema.systemSettings.embeddingModel,
+      embeddingDtype: schema.systemSettings.embeddingDtype,
       includeAttachmentsInBackup: schema.systemSettings.includeAttachmentsInBackup,
       keepAttachmentsOnArchive: schema.systemSettings.keepAttachmentsOnArchive
     })

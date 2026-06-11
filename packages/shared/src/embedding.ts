@@ -35,12 +35,24 @@ export const DEFAULT_EMBEDDING_DIM = EMBEDDING_MODELS[DEFAULT_EMBEDDING_MODEL]!.
 /** pgvector's hnsw/ivfflat indexes top out at 2000 dims. */
 const MAX_EMBEDDING_DIM = 2000
 
+// The quantized weight variants every Xenova/* mirror publishes (model_quantized
+// = q8). Fixed list — not per-model — since all three e5 sizes ship the same set.
+// q8 (~118MB) over fp32 (~470MB) is the factory default; the dim is identical
+// across dtypes, so switching is lazy (no re-embed — see EmbeddingConfig.dtype).
+export const EMBEDDING_DTYPES = ['fp32', 'fp16', 'q8'] as const
+export type EmbeddingDtype = (typeof EMBEDDING_DTYPES)[number]
+
+export const DEFAULT_EMBEDDING_DTYPE: EmbeddingDtype = 'q8'
+
 export interface EmbeddingConfig {
   /** The model id to load, or `null` when embeddings are disabled. */
   model: string | null
   /** Vector dimension of the column (always set, even when disabled). */
   dim: number
   e5Prefix: boolean
+  /** Quantization variant the pipeline loads (same dim across dtypes, so a change
+   *  is lazy: reload only, no re-embed). Always set, even when disabled. */
+  dtype: EmbeddingDtype
 }
 
 /** Key the embedding service records its loaded model under (writer + reader). */
@@ -65,6 +77,12 @@ export interface EmbeddingRuntimeStatus {
   /** The model the embedding service reports having actually loaded (null = unknown/
    *  disabled). Differs from `model` only briefly while a reload is settling. */
   serviceModel: string | null
+  /** Effective quantization the config resolves to (always set). */
+  dtype: EmbeddingDtype
+  /** The dtype the embedding service reports having loaded (null = unknown/never
+   *  recorded, or embeddings disabled — no pipeline loaded a dtype). Otherwise
+   *  differs from `dtype` only briefly while a reload is settling. */
+  serviceDtype: EmbeddingDtype | null
   backfill: { docs: number, cards: number, comments: number }
   error: string | null
 }
@@ -78,24 +96,45 @@ function readProcessEnv(): Env {
 }
 
 /**
+ * Resolve the quantization variant. Precedence: a persisted `overrideDtype` (the
+ * UI choice in `systemSettings`) wins over `EMBEDDING_DTYPE`, which wins over the
+ * default (`q8`). Throws on a value outside the fixed list so a typo fails fast.
+ * The dim is identical across dtypes, so this never affects the column shape.
+ */
+function resolveEmbeddingDtype(env: Env, overrideDtype?: string | null): EmbeddingDtype {
+  const raw = overrideDtype?.trim() || env.EMBEDDING_DTYPE?.trim()
+  if (!raw) return DEFAULT_EMBEDDING_DTYPE
+  if (!(EMBEDDING_DTYPES as readonly string[]).includes(raw)) {
+    throw new Error(
+      `Unknown EMBEDDING_DTYPE "${raw}". Use one of: ${EMBEDDING_DTYPES.join(', ')}.`
+    )
+  }
+  return raw as EmbeddingDtype
+}
+
+/**
  * Resolve the active embedding config. Precedence: a persisted `overrideModel`
  * (the UI choice in `systemSettings`) wins over `EMBEDDING_MODEL`, which wins over
  * the default. `overrideModel` carries only the model id (`'none'`, a registry id,
  * or a custom id); the dim of a custom override still comes from `EMBEDDING_DIM`.
- * Throws on a bad config (unknown model with no `EMBEDDING_DIM`, or an out-of-range
- * dim) so a typo fails fast instead of silently embedding into the wrong space.
+ * The dtype resolves independently (`overrideDtype` > env > default) and is set
+ * even when embeddings are disabled. Throws on a bad config (unknown model with no
+ * `EMBEDDING_DIM`, an out-of-range dim, or an unknown dtype) so a typo fails fast
+ * instead of silently embedding into the wrong space.
  */
 export function resolveEmbeddingConfig(
   env: Env = readProcessEnv(),
-  overrideModel?: string | null
+  overrideModel?: string | null,
+  overrideDtype?: string | null
 ): EmbeddingConfig {
+  const dtype = resolveEmbeddingDtype(env, overrideDtype)
   const raw = overrideModel?.trim() || env.EMBEDDING_MODEL?.trim()
   if (raw === 'none') {
-    return { model: null, dim: DEFAULT_EMBEDDING_DIM, e5Prefix: false }
+    return { model: null, dim: DEFAULT_EMBEDDING_DIM, e5Prefix: false, dtype }
   }
   const model = raw || DEFAULT_EMBEDDING_MODEL
   const known = EMBEDDING_MODELS[model]
-  if (known) return { model, dim: known.dim, e5Prefix: known.e5Prefix }
+  if (known) return { model, dim: known.dim, e5Prefix: known.e5Prefix, dtype }
 
   const dimRaw = env.EMBEDDING_DIM?.trim()
   if (!dimRaw) {
@@ -107,5 +146,5 @@ export function resolveEmbeddingConfig(
   if (!Number.isInteger(dim) || dim < 1 || dim > MAX_EMBEDDING_DIM) {
     throw new Error(`EMBEDDING_DIM must be an integer in 1..${MAX_EMBEDDING_DIM}, got "${dimRaw}".`)
   }
-  return { model, dim, e5Prefix: false }
+  return { model, dim, e5Prefix: false, dtype }
 }

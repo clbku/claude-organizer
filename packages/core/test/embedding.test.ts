@@ -75,6 +75,35 @@ describe('resolveEmbeddingConfig precedence', () => {
   })
 })
 
+describe('resolveEmbeddingConfig dtype precedence', () => {
+  it('defaults to q8 when neither override nor env is set', () => {
+    expect(resolveEmbeddingConfig({}).dtype).toBe('q8')
+  })
+
+  it('reads EMBEDDING_DTYPE from env when no override', () => {
+    expect(resolveEmbeddingConfig({ EMBEDDING_DTYPE: 'fp16' }).dtype).toBe('fp16')
+  })
+
+  it('a persisted override wins over EMBEDDING_DTYPE', () => {
+    expect(resolveEmbeddingConfig({ EMBEDDING_DTYPE: 'fp16' }, null, 'fp32').dtype).toBe('fp32')
+  })
+
+  it('falls back to env when the dtype override is empty', () => {
+    expect(resolveEmbeddingConfig({ EMBEDDING_DTYPE: 'fp16' }, null, '  ').dtype).toBe('fp16')
+  })
+
+  it('keeps a dtype even when embeddings are disabled', () => {
+    const cfg = resolveEmbeddingConfig({ EMBEDDING_DTYPE: 'fp32' }, 'none')
+    expect(cfg.model).toBeNull()
+    expect(cfg.dtype).toBe('fp32')
+  })
+
+  it('throws on an unknown dtype', () => {
+    expect(() => resolveEmbeddingConfig({ EMBEDDING_DTYPE: 'int4' })).toThrow(/Unknown EMBEDDING_DTYPE/)
+    expect(() => resolveEmbeddingConfig({}, null, 'bogus')).toThrow(/Unknown EMBEDDING_DTYPE/)
+  })
+})
+
 describe('reciprocalRankFusion', () => {
   it('ranks an id that tops both lists first', () => {
     const fused = reciprocalRankFusion([

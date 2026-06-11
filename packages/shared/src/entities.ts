@@ -177,6 +177,7 @@ export interface SystemSettingsRow {
   authEnabled: boolean
   keepDiffsOnArchive: boolean
   embeddingModel: string | null
+  embeddingDtype: string | null
   includeAttachmentsInBackup: boolean
   keepAttachmentsOnArchive: boolean
   createdAt: string

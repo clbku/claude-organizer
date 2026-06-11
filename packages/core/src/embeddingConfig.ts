@@ -1,8 +1,8 @@
 import { eq, sql } from 'drizzle-orm'
 
 import { type Database, schema } from '@claude-organizer/db'
-import type { EmbeddingConfig } from '@claude-organizer/shared'
-import { resolveEmbeddingConfig } from '@claude-organizer/shared'
+import type { EmbeddingConfig, EmbeddingDtype } from '@claude-organizer/shared'
+import { EMBEDDING_DTYPES, resolveEmbeddingConfig } from '@claude-organizer/shared'
 
 import { getSystemSettings } from './authz'
 
@@ -15,43 +15,53 @@ import { getSystemSettings } from './authz'
 export async function resolveEffectiveEmbeddingConfig(
   db: Database
 ): Promise<EmbeddingConfig> {
-  const { embeddingModel } = await getSystemSettings(db)
-  return resolveEmbeddingConfig(undefined, embeddingModel)
+  const { embeddingModel, embeddingDtype } = await getSystemSettings(db)
+  return resolveEmbeddingConfig(undefined, embeddingModel, embeddingDtype)
 }
 
 /**
- * Record the model/dim a long-lived process actually loaded, so the live status
- * can tell whether it still matches the persisted choice (it can't reset its own
- * singleton mid-run). Call after priming, once per boot.
+ * Record the model/dim/dtype a long-lived process actually loaded, so the live
+ * status can tell whether it still matches the persisted choice (it can't reset
+ * its own singleton mid-run). Call after priming, once per boot.
  */
 export async function recordRuntimeEmbeddingConfig(
   db: Database,
   service: string,
   cfg: EmbeddingConfig
 ): Promise<void> {
+  // A disabled config loads no pipeline, so the dtype it would have used is moot
+  // — record null to match `model`, keeping serviceDtype honest about "no model".
+  const dtype = cfg.model ? cfg.dtype : null
   await db
     .insert(schema.embeddingRuntime)
-    .values({ service, model: cfg.model, dim: cfg.dim })
+    .values({ service, model: cfg.model, dim: cfg.dim, dtype })
     .onConflictDoUpdate({
       target: schema.embeddingRuntime.service,
-      set: { model: cfg.model, dim: cfg.dim, updatedAt: sql`now()` }
+      set: { model: cfg.model, dim: cfg.dim, dtype, updatedAt: sql`now()` }
     })
 }
 
-/** The model/dim a process last recorded loading, or null if it never recorded. */
+/** The model/dim/dtype a process last recorded loading, or null if it never recorded. */
 export async function getRuntimeEmbeddingConfig(
   db: Database,
   service: string
-): Promise<{ model: string | null, dim: number } | null> {
+): Promise<{ model: string | null, dim: number, dtype: EmbeddingDtype | null } | null> {
   const [row] = await db
     .select({
       model: schema.embeddingRuntime.model,
-      dim: schema.embeddingRuntime.dim
+      dim: schema.embeddingRuntime.dim,
+      dtype: schema.embeddingRuntime.dtype
     })
     .from(schema.embeddingRuntime)
     .where(eq(schema.embeddingRuntime.service, service))
     .limit(1)
-  return row ?? null
+  if (!row) return null
+  // The column is plain `text`; coerce an out-of-list value (stale/out-of-band
+  // writer) to null rather than surfacing a bogus serviceDtype past the resolver.
+  const dtype = (EMBEDDING_DTYPES as readonly string[]).includes(row.dtype ?? '')
+    ? (row.dtype as EmbeddingDtype)
+    : null
+  return { ...row, dtype }
 }
 
 /** Drop a process's marker on graceful shutdown, so a decommissioned process

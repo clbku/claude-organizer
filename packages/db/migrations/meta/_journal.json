@@ -204,6 +204,13 @@
       "when": 1781183446718,
       "tag": "0028_drop_mcp_embedding_runtime",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1781185108545,
+      "tag": "0029_abandoned_shadow_king",
+      "breakpoints": true
     }
   ]
 }
