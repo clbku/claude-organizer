@@ -18,6 +18,7 @@
     "dev:api": "pnpm --filter @claude-organizer/api dev",
     "dev:web": "pnpm --filter @claude-organizer/web dev",
     "dev:mcp": "pnpm --filter @claude-organizer/mcp dev",
+    "dev:embedding": "pnpm --filter @claude-organizer/embedding-service dev",
     "dev": "pnpm db:up && pnpm -r --parallel --filter './packages/*' dev",
     "build": "pnpm -r build",
     "attach-commit": "node plugins/claude-organizer/skills/implement/scripts/attach-commit.mjs",

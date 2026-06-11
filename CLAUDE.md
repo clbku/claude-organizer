@@ -38,22 +38,26 @@ Architecture, data model, decisions (ADRs), code/UI patterns and per-module deta
 
 ## Day to day
 
-To test a **new version of api / web / mcp**, rebuild and restart them in Docker — preferred, since it mirrors how they actually run (notably the MCP over HTTP, the same transport the plugin connects to):
+To test a **new version of api / web / mcp / embedding**, rebuild and restart them in Docker — preferred, since it mirrors how they actually run (notably the MCP over HTTP, the same transport the plugin connects to):
 
 ```bash
-docker compose up -d --build   # rebuild + restart api(4400) web(4401) mcp(4402)
+docker compose up -d --build   # rebuild + restart api(4400) web(4401) mcp(4402) embedding(4403)
 ```
+
+The embedding model runs in its own service (`embedding`, port 4403); api/mcp are thin HTTP clients via `EMBEDDING_SERVICE_URL`. With the service down or still warming, search degrades gracefully to lexical-only.
 
 `pnpm dev:*` still works for fast local iteration:
 
 ```bash
-pnpm db:up        # Postgres (after reboot)
-pnpm dev:api      # http://127.0.0.1:4400
-pnpm dev:web      # http://127.0.0.1:4401
-pnpm typecheck    # all packages (root -r)
-pnpm lint         # all packages (root -r)
-pnpm db:generate  # after schema changes
-pnpm db:migrate   # apply
+pnpm db:up         # Postgres (after reboot)
+pnpm dev:api       # http://127.0.0.1:4400
+pnpm dev:web       # http://127.0.0.1:4401
+pnpm dev:mcp       # http://127.0.0.1:4402/mcp
+pnpm dev:embedding # http://127.0.0.1:4403 (semantic search; without it, search is lexical-only)
+pnpm typecheck     # all packages (root -r)
+pnpm lint          # all packages (root -r)
+pnpm db:generate   # after schema changes
+pnpm db:migrate    # apply
 ```
 
 Always run `pnpm typecheck` **and** `pnpm lint` from the **repo root** (the `-r` scripts hit every package) before closing a card — never scope them to a single package. A story routinely edits more than one package, and a per-package check silently goes stale the moment another package is touched.

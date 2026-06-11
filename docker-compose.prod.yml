@@ -33,6 +33,11 @@ services:
   postgres:
     ports: !reset []
 
+  # Internal-only on the compose network (api/mcp reach it at embedding:4403); no
+  # public edge, so just drop the host port mapping.
+  embedding:
+    ports: !reset []
+
   # environment maps merge with the base; only the public-edge values change.
   api:
     ports: !reset []

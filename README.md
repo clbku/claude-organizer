@@ -71,8 +71,9 @@ docker compose up -d --build
 | **Web UI** | http://localhost:4401 |
 | **API** | http://localhost:4400 |
 | **MCP** (Streamable HTTP) | http://localhost:4402/mcp |
+| **Embedding service** | http://localhost:4403 |
 
-Migrations run automatically before the API and MCP start. Postgres data persists under `./docker/data/postgres`. Out of the box the board is **open** (no login) — see [Run modes](#run-modes) to turn auth on or to go remote.
+The embedding model loads in its own `embedding` service; the API and MCP call it over HTTP and fall back to lexical search if it's down. Migrations run automatically before the API and MCP start. Postgres data persists under `./docker/data/postgres`. Out of the box the board is **open** (no login) — see [Run modes](#run-modes) to turn auth on or to go remote.
 
 ### 2. Configure the environment
 
@@ -214,6 +215,7 @@ Got an idea mid-flight but don't want to plan it yet? Drop it in the **inbox** �
 Claude Code ──HTTP──▶ MCP (:4402/mcp) ─┐
                                        ├─▶ core ──▶ Postgres 16
 Browser (SPA) ──HTTP──▶ API (:4400) ───┘   (+ WebSocket /ws for real-time)
+                            └─ core ──HTTP──▶ Embedding service (:4403) ──▶ model
 ```
 
 A pnpm monorepo under `packages/`:
@@ -226,6 +228,7 @@ A pnpm monorepo under `packages/`:
 | `auth` | better-auth setup (email+password, GitHub, OAuth for the MCP). |
 | `mcp` | The MCP server (Streamable HTTP). |
 | `api` | Fastify REST + WebSocket. |
+| `embedding-service` | Loads the embedding model once and serves it over HTTP (api/mcp are thin clients). |
 | `web` | Nuxt 4 SPA (the UI talks only to the API, never the MCP). |
 
 Prefixed nanoid IDs (`prj_`, `crd_`, `spr_`…) let the agent recognize an entity's type from the ID alone.
@@ -239,6 +242,7 @@ pnpm db:migrate
 pnpm dev:api                     # :4400
 pnpm dev:web                     # :4401
 pnpm dev:mcp                     # :4402/mcp
+pnpm dev:embedding               # :4403 (semantic search; omit for lexical-only)
 ```
 
 Also handy: `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm db:generate` after schema changes.

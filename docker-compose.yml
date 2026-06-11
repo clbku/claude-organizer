@@ -15,15 +15,18 @@ x-db-env: &db-env
   DATABASE_URL: postgres://${POSTGRES_USER:-organizer}:${POSTGRES_PASSWORD:-organizer}@postgres:5432/${POSTGRES_DB:-organizer}
 
 # Stable cache dir for the embedding model weights (Transformers.js ignores
-# HF_HOME, so the code reads EMBEDDING_CACHE_DIR). Backed by one shared volume on
-# api/mcp so the ~470MB weights survive a rebuild instead of re-downloading.
-# Sharing is safe: Transformers.js writes to a per-process temp file and renames
-# atomically, so the two services racing on an empty volume never corrupt it.
+# HF_HOME, so the code reads EMBEDDING_CACHE_DIR). Lives ONLY on the embedding
+# service now — it's the single process that loads the model, so the weights are
+# cached once (no more shared volume / no double-load across api+mcp).
 x-embedding-cache-env: &embedding-cache-env
   EMBEDDING_CACHE_DIR: /cache/transformers
   # int8-quantized model weights instead of fp32 — ~4x less RAM for the loaded
-  # embedding pipeline (api and mcp each load their own copy).
+  # embedding pipeline.
   EMBEDDING_DTYPE: q8
+
+# api/mcp are thin clients of the embedding service; they carry no model.
+x-embedding-client-env: &embedding-client-env
+  EMBEDDING_SERVICE_URL: http://embedding:4403
 
 services:
   postgres:
@@ -57,13 +60,38 @@ services:
       postgres:
         condition: service_healthy
 
-  api:
+  # The only process that loads the embedding model. api/mcp call it over HTTP;
+  # if it's down/still warming, they fall back to lexical search (graceful).
+  embedding:
     <<: *app
-    command: node packages/api/dist/server.mjs
+    command: node packages/embedding-service/dist/server.mjs
     volumes:
       - model-cache:/cache/transformers
     environment:
       <<: [*db-env, *embedding-cache-env]
+      EMBEDDING_SERVICE_PORT: 4403
+    ports:
+      - "4403:4403"
+    healthcheck:
+      # node has global fetch (Node 24); the slim image ships no curl/wget. /health
+      # is 503 until the model finishes loading, so the start_period covers the
+      # cold download + load before the first failing probe counts.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4403/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 180s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    <<: *app
+    command: node packages/api/dist/server.mjs
+    environment:
+      <<: [*db-env, *embedding-client-env]
       API_HOST: 0.0.0.0
       API_PORT: 4400
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
@@ -84,14 +112,16 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      # Optional: only needs the service to have started — the lexical fallback
+      # covers the window while the model is still loading.
+      embedding:
+        condition: service_started
 
   mcp:
     <<: *app
     command: node packages/mcp/dist/server.mjs
-    volumes:
-      - model-cache:/cache/transformers
     environment:
-      <<: [*db-env, *embedding-cache-env]
+      <<: [*db-env, *embedding-client-env]
       MCP_HTTP_PORT: 4402
       # Resource server: validates OAuth bearers against the same better-auth
       # store as the API, so it needs the matching secret + the authz-server URL.
@@ -108,6 +138,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      embedding:
+        condition: service_started
 
   web:
     <<: *app
