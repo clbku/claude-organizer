@@ -1,28 +1,21 @@
 <script setup lang="ts">
 import type { EditorToolbarItem } from '@nuxt/ui'
 
-import type { AttachmentOwner } from '~/composables/useAttachments'
-
 // Reusable markdown editor (TipTap via UEditor): the standard toolbar + shared
 // PROSE typography, so the editor matches the rendered <AppMarkdown> preview.
 // Toggle/save behavior (click-to-edit, pencil, Save/Cancel) lives in the consumer.
 //
 // Paste/drop of an image file uploads it (CO-258) and inserts an image node whose
-// `src` is the portable `/attachments/att_X` path. `owner` binds the upload to its
-// entity (card/doc); an absent owner uploads unowned.
-const props = withDefaults(
+// `src` is the portable `/attachments/att_X` path. The upload is born orphan;
+// saving the body reconciles its link on the backend (links-only model — CO-310).
+withDefaults(
   defineProps<{
     placeholder?: string
     autofocus?: boolean
     minHeight?: string
-    owner?: AttachmentOwner | null
   }>(),
-  { placeholder: '', autofocus: false, minHeight: '120px', owner: undefined }
+  { placeholder: '', autofocus: false, minHeight: '120px' }
 )
-
-// Emitted with the uploaded attachment id so a composer without an entity id yet
-// (new comment / inbox) can bind the owner on submit or discard it on abandon.
-const emit = defineEmits<{ (e: 'uploaded', id: string): void }>()
 
 const model = defineModel<string>({ default: '' })
 
@@ -76,9 +69,8 @@ function insertImage(view: PmView, src: string, pos?: number) {
 async function uploadAndInsert(view: PmView, files: File[], pos?: number) {
   for (const file of files) {
     try {
-      const { id, url } = await uploadImage(file, props.owner ?? null)
+      const { url } = await uploadImage(file)
       insertImage(view, url, pos)
-      emit('uploaded', id)
     } catch (e) {
       toast.add({
         title: 'Image upload failed',

@@ -1,19 +1,4 @@
-import type { AttachmentOwnerType } from '@claude-organizer/shared'
-
 import { useProjectStore } from '~/stores/project'
-
-export interface AttachmentOwner {
-  type: AttachmentOwnerType
-  id: string
-}
-
-interface UploadedAttachment {
-  id: string
-  url: string
-  width: number
-  height: number
-  mime: string
-}
 
 const ATTACHMENT_ID = /att_[0-9a-z]{12}/
 
@@ -22,19 +7,14 @@ export function useAttachments() {
   const store = useProjectStore()
   const base = useRuntimeConfig().public.apiUrl
 
-  async function uploadImage(
-    file: File,
-    owner: AttachmentOwner | null
-  ): Promise<UploadedAttachment> {
+  // The editor only needs the portable `/attachments/att_X` path to insert the
+  // image node; the rest of the upload response (id, dims, mime) goes unread.
+  async function uploadImage(file: File): Promise<{ url: string }> {
     const projectId = store.currentProject?.id
     if (!projectId) throw new Error('No project selected')
     const form = new FormData()
     form.append('file', file)
-    if (owner) {
-      form.append('ownerType', owner.type)
-      form.append('ownerId', owner.id)
-    }
-    return api<UploadedAttachment>(`/attachments?projectId=${projectId}`, {
+    return api<{ url: string }>(`/attachments?projectId=${projectId}`, {
       method: 'POST',
       body: form
     })
@@ -51,16 +31,5 @@ export function useAttachments() {
     return `${base}${url}`
   }
 
-  async function bindAttachmentOwner(id: string, owner: AttachmentOwner): Promise<void> {
-    await api(`/attachments/${id}`, {
-      method: 'PATCH',
-      body: { ownerType: owner.type, ownerId: owner.id }
-    })
-  }
-
-  async function removeAttachment(id: string): Promise<void> {
-    await api(`/attachments/${id}`, { method: 'DELETE' })
-  }
-
-  return { uploadImage, resolveDisplaySrc, bindAttachmentOwner, removeAttachment }
+  return { uploadImage, resolveDisplaySrc }
 }
