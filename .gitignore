@@ -28,3 +28,6 @@ Thumbs.db
 
 # Docker volumes
 docker/data
+
+# Local, non-committed project memory (board binding, deployment-specific config)
+CLAUDE.local.md
