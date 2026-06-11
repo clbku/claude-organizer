@@ -22,6 +22,10 @@ export interface AuthCapabilities {
   authEnabled: boolean
   // true = preserve attached diffs when archiving a card/sprint.
   keepDiffsOnArchive: boolean
+  // true = preserve attached image bytes when archiving a card/sprint.
+  keepAttachmentsOnArchive: boolean
+  // true (default) = include attached image bytes in a backup envelope.
+  includeAttachmentsInBackup: boolean
   // Effective embedding config (persisted choice > env > default). `model: null`
   // ⇒ semantic search off (lexical-only); `dim` is always set.
   embedding: {

@@ -10,6 +10,8 @@ import {
   getSystemSettings,
   listAllUsers,
   setAuthEnabled,
+  setIncludeAttachmentsInBackup,
+  setKeepAttachmentsOnArchive,
   setKeepDiffsOnArchive
 } from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
@@ -25,9 +27,11 @@ const approveBody = z.object({
 const settingsBody = z
   .object({
     authEnabled: z.boolean().optional(),
-    keepDiffsOnArchive: z.boolean().optional()
+    keepDiffsOnArchive: z.boolean().optional(),
+    keepAttachmentsOnArchive: z.boolean().optional(),
+    includeAttachmentsInBackup: z.boolean().optional()
   })
-  .refine(b => b.authEnabled !== undefined || b.keepDiffsOnArchive !== undefined, {
+  .refine(b => Object.values(b).some(v => v !== undefined), {
     message: 'No setting to update'
   })
 
@@ -66,6 +70,12 @@ export function registerAdminRoutes(app: FastifyInstance, db: Database) {
     if (body.authEnabled !== undefined) await setAuthEnabled(db, body.authEnabled)
     if (body.keepDiffsOnArchive !== undefined) {
       await setKeepDiffsOnArchive(db, body.keepDiffsOnArchive)
+    }
+    if (body.keepAttachmentsOnArchive !== undefined) {
+      await setKeepAttachmentsOnArchive(db, body.keepAttachmentsOnArchive)
+    }
+    if (body.includeAttachmentsInBackup !== undefined) {
+      await setIncludeAttachmentsInBackup(db, body.includeAttachmentsInBackup)
     }
     return getSystemSettings(db)
   })

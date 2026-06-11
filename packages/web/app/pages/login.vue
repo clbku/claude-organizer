@@ -137,24 +137,40 @@ async function onSubmit(_event: FormSubmitEvent<typeof state>) {
   }
 }
 
-// Setup-only system preference; persisted before any admin exists via the
+// Setup-only system preferences; persisted before any admin exists via the
 // hasAnyUser-guarded /setup/settings (mirrors /admin/settings once set up).
 const keepDiffsOnArchive = computed(() => caps.value?.keepDiffsOnArchive ?? false)
+const keepAttachmentsOnArchive = computed(
+  () => caps.value?.keepAttachmentsOnArchive ?? false
+)
+const includeAttachmentsInBackup = computed(
+  () => caps.value?.includeAttachmentsInBackup ?? true
+)
 const togglingDiffs = ref(false)
-async function onToggleKeepDiffs(next: boolean) {
-  togglingDiffs.value = true
+const togglingImages = ref(false)
+const togglingBackup = ref(false)
+
+async function onToggleSetting(
+  key: 'keepDiffsOnArchive' | 'keepAttachmentsOnArchive' | 'includeAttachmentsInBackup',
+  next: boolean,
+  loading: Ref<boolean>
+) {
+  loading.value = true
   try {
-    await api('/setup/settings', {
-      method: 'POST',
-      body: { keepDiffsOnArchive: next }
-    })
-    if (caps.value) caps.value.keepDiffsOnArchive = next
+    await api('/setup/settings', { method: 'POST', body: { [key]: next } })
+    if (caps.value) caps.value[key] = next
   } catch (e) {
     error.value = resolveError(e)
   } finally {
-    togglingDiffs.value = false
+    loading.value = false
   }
 }
+const onToggleKeepDiffs = (next: boolean) =>
+  onToggleSetting('keepDiffsOnArchive', next, togglingDiffs)
+const onToggleKeepImages = (next: boolean) =>
+  onToggleSetting('keepAttachmentsOnArchive', next, togglingImages)
+const onToggleIncludeImages = (next: boolean) =>
+  onToggleSetting('includeAttachmentsInBackup', next, togglingBackup)
 
 // Setup-only "run without login" choice. A full reload re-resolves capabilities
 // and the auth middleware, which then sees sem-auth and stops gating.
@@ -251,14 +267,45 @@ function resolveError(e: unknown): string {
               Keep diffs on archive
             </p>
             <p class="text-xs text-muted">
-              By default, archiving a card/sprint discards the attached diffs
-              (the commit metadata stays). Enable this to keep them.
+              Keep attached diffs when a card or sprint is archived.
             </p>
           </div>
           <USwitch
             :model-value="keepDiffsOnArchive"
             :loading="togglingDiffs"
             @update:model-value="onToggleKeepDiffs"
+          />
+        </div>
+
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-sm font-medium">
+              Keep images on archive
+            </p>
+            <p class="text-xs text-muted">
+              Keep attached images when a card or sprint is archived.
+            </p>
+          </div>
+          <USwitch
+            :model-value="keepAttachmentsOnArchive"
+            :loading="togglingImages"
+            @update:model-value="onToggleKeepImages"
+          />
+        </div>
+
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-sm font-medium">
+              Include images in backup
+            </p>
+            <p class="text-xs text-muted">
+              Include attached images in a backup envelope.
+            </p>
+          </div>
+          <USwitch
+            :model-value="includeAttachmentsInBackup"
+            :loading="togglingBackup"
+            @update:model-value="onToggleIncludeImages"
           />
         </div>
 

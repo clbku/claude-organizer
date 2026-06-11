@@ -38,25 +38,43 @@ async function toggleAuth(next: boolean) {
 const keepDiffsOnArchive = computed(
   () => capabilities.value?.keepDiffsOnArchive ?? false
 )
+const keepAttachmentsOnArchive = computed(
+  () => capabilities.value?.keepAttachmentsOnArchive ?? false
+)
+const includeAttachmentsInBackup = computed(
+  () => capabilities.value?.includeAttachmentsInBackup ?? true
+)
 const togglingDiffs = ref(false)
-async function toggleKeepDiffs(next: boolean) {
-  togglingDiffs.value = true
+const togglingImages = ref(false)
+const togglingBackup = ref(false)
+
+async function updateSetting(
+  body: Record<string, boolean>,
+  loading: Ref<boolean>,
+  failTitle: string
+) {
+  loading.value = true
   try {
-    await api('/admin/settings', {
-      method: 'POST',
-      body: { keepDiffsOnArchive: next }
-    })
+    await api('/admin/settings', { method: 'POST', body })
     capabilities.value = await fetchCapabilities()
   } catch (e) {
-    toast.add({
-      title: 'Failed to update archiving setting',
-      description: resolveError(e),
-      color: 'error'
-    })
+    toast.add({ title: failTitle, description: resolveError(e), color: 'error' })
   } finally {
-    togglingDiffs.value = false
+    loading.value = false
   }
 }
+
+const archiveFail = 'Failed to update archiving setting'
+const toggleKeepDiffs = (next: boolean) =>
+  updateSetting({ keepDiffsOnArchive: next }, togglingDiffs, archiveFail)
+const toggleKeepImages = (next: boolean) =>
+  updateSetting({ keepAttachmentsOnArchive: next }, togglingImages, archiveFail)
+const toggleIncludeImages = (next: boolean) =>
+  updateSetting(
+    { includeAttachmentsInBackup: next },
+    togglingBackup,
+    'Failed to update backup setting'
+  )
 
 const embedding = computed(() => capabilities.value?.embedding ?? null)
 const embeddingModelItems = [
@@ -181,7 +199,7 @@ onUnmounted(() => {
                   Require login
                 </p>
                 <p class="mt-0.5 text-xs text-muted">
-                  On: login required, the admin approves new users. Off: open mode — anyone with network access uses the board without logging in.
+                  Require a login to access the board; new users are approved by the admin.
                 </p>
               </div>
               <USwitch
@@ -197,7 +215,7 @@ onUnmounted(() => {
         <div v-if="adminOrOpenMode">
           <UPageCard
             title="Archiving"
-            description="What happens to attached diffs when a card or sprint is archived."
+            description="What happens to attached diffs and images when a card or sprint is archived."
             variant="naked"
             class="mb-4"
           />
@@ -211,7 +229,7 @@ onUnmounted(() => {
                   Keep diffs on archive
                 </p>
                 <p class="mt-0.5 text-xs text-muted">
-                  On: attached diffs are kept when archiving a card or sprint. Off (default): diffs are dropped; re-run attach-commit to restore one.
+                  Keep attached diffs when a card or sprint is archived.
                 </p>
               </div>
               <USwitch
@@ -219,6 +237,52 @@ onUnmounted(() => {
                 :loading="togglingDiffs"
                 class="shrink-0"
                 @update:model-value="toggleKeepDiffs"
+              />
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm font-medium">
+                  Keep images on archive
+                </p>
+                <p class="mt-0.5 text-xs text-muted">
+                  Keep attached images when a card or sprint is archived.
+                </p>
+              </div>
+              <USwitch
+                :model-value="keepAttachmentsOnArchive"
+                :loading="togglingImages"
+                class="shrink-0"
+                @update:model-value="toggleKeepImages"
+              />
+            </div>
+          </UPageCard>
+        </div>
+
+        <div v-if="adminOrOpenMode">
+          <UPageCard
+            title="Backup"
+            description="What a backup envelope includes when you export the board."
+            variant="naked"
+            class="mb-4"
+          />
+          <UPageCard
+            variant="subtle"
+            :ui="{ container: 'gap-4', wrapper: 'mb-0' }"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm font-medium">
+                  Include images in backup
+                </p>
+                <p class="mt-0.5 text-xs text-muted">
+                  Include attached images in a backup envelope.
+                </p>
+              </div>
+              <USwitch
+                :model-value="includeAttachmentsInBackup"
+                :loading="togglingBackup"
+                class="shrink-0"
+                @update:model-value="toggleIncludeImages"
               />
             </div>
           </UPageCard>

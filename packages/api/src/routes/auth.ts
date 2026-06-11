@@ -17,6 +17,8 @@ import {
   getSystemSettings,
   getUserAuthz,
   setAuthEnabled,
+  setIncludeAttachmentsInBackup,
+  setKeepAttachmentsOnArchive,
   setKeepDiffsOnArchive
 } from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
@@ -101,6 +103,8 @@ export function registerAuthRoutes(
       hasUsers: await hasAnyUser(db),
       authEnabled: settings.authEnabled,
       keepDiffsOnArchive: settings.keepDiffsOnArchive,
+      keepAttachmentsOnArchive: settings.keepAttachmentsOnArchive,
+      includeAttachmentsInBackup: settings.includeAttachmentsInBackup,
       embedding: {
         model: embedding.model,
         dim: embedding.dim,
@@ -125,10 +129,23 @@ export function registerAuthRoutes(
     if (await hasAnyUser(db)) {
       return reply.code(409).send({ error: 'already_setup' })
     }
-    const { keepDiffsOnArchive } = z
-      .object({ keepDiffsOnArchive: z.boolean() })
+    const body = z
+      .object({
+        keepDiffsOnArchive: z.boolean().optional(),
+        keepAttachmentsOnArchive: z.boolean().optional(),
+        includeAttachmentsInBackup: z.boolean().optional()
+      })
       .parse(request.body)
-    return setKeepDiffsOnArchive(db, keepDiffsOnArchive)
+    if (body.keepDiffsOnArchive !== undefined) {
+      await setKeepDiffsOnArchive(db, body.keepDiffsOnArchive)
+    }
+    if (body.keepAttachmentsOnArchive !== undefined) {
+      await setKeepAttachmentsOnArchive(db, body.keepAttachmentsOnArchive)
+    }
+    if (body.includeAttachmentsInBackup !== undefined) {
+      await setIncludeAttachmentsInBackup(db, body.includeAttachmentsInBackup)
+    }
+    return getSystemSettings(db)
   })
 
   app.get('/auth/me', async (request): Promise<SessionUser | null> => {
