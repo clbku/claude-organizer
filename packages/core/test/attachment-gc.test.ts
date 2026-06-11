@@ -23,7 +23,7 @@ const ctx = useTestDb()
 const bytes = () => Buffer.from('img', 'utf8')
 const ref = (id: string) => `body ![pic](/attachments/${id}) more`
 
-async function ownedImageCard(
+async function cardWithImage(
   projectId: string,
   opts: { sprintId?: string } = {}
 ) {
@@ -37,8 +37,7 @@ async function ownedImageCard(
     mime: 'image/png',
     data: bytes(),
     width: 1,
-    height: 1,
-    owner: { ownerType: 'card', ownerId: card.id }
+    height: 1
   })
   await updateCard(ctx.db, { id: card.id, descriptionMd: ref(att.id) })
   return { card, att }
@@ -53,7 +52,7 @@ describe('gcAttachmentsOnArchive', () => {
 
   it('clears bytes when the card owner is archived and nothing else refs it', async () => {
     const project = await freshProject(ctx.db)
-    const { card, att } = await ownedImageCard(project.id)
+    const { card, att } = await cardWithImage(project.id)
 
     await archiveCard(ctx.db, card.id)
 
@@ -62,7 +61,7 @@ describe('gcAttachmentsOnArchive', () => {
 
   it('keeps bytes while an active card still refs them, clears on the last archive', async () => {
     const project = await freshProject(ctx.db)
-    const { card: cardA, att } = await ownedImageCard(project.id)
+    const { card: cardA, att } = await cardWithImage(project.id)
     const cardB = await createCard(ctx.db, { projectId: project.id, title: 'B' })
     await updateCard(ctx.db, { id: cardB.id, descriptionMd: ref(att.id) })
 
@@ -86,8 +85,7 @@ describe('gcAttachmentsOnArchive', () => {
       mime: 'image/png',
       data: bytes(),
       width: 1,
-      height: 1,
-      owner: { ownerType: 'comment', ownerId: comment.id }
+      height: 1
     })
     await updateComment(ctx.db, { id: comment.id, bodyMd: ref(att.id) })
 
@@ -98,7 +96,7 @@ describe('gcAttachmentsOnArchive', () => {
 
   it('never clears when the toggle is ON', async () => {
     const project = await freshProject(ctx.db)
-    const { card, att } = await ownedImageCard(project.id)
+    const { card, att } = await cardWithImage(project.id)
 
     await setKeepAttachmentsOnArchive(ctx.db, true)
     try {
@@ -112,7 +110,7 @@ describe('gcAttachmentsOnArchive', () => {
   it('aggressively clears a sprint card image with no out-of-scope ref', async () => {
     const project = await freshProject(ctx.db)
     const sprint = await createSprint(ctx.db, { projectId: project.id, name: 'S' })
-    const { att } = await ownedImageCard(project.id, { sprintId: sprint.id })
+    const { att } = await cardWithImage(project.id, { sprintId: sprint.id })
 
     await archiveSprint(ctx.db, sprint.id)
 
@@ -122,7 +120,7 @@ describe('gcAttachmentsOnArchive', () => {
   it('keeps a sprint card image still referenced by a card outside the sprint', async () => {
     const project = await freshProject(ctx.db)
     const sprint = await createSprint(ctx.db, { projectId: project.id, name: 'S' })
-    const { att } = await ownedImageCard(project.id, { sprintId: sprint.id })
+    const { att } = await cardWithImage(project.id, { sprintId: sprint.id })
     const outsider = await createCard(ctx.db, {
       projectId: project.id,
       title: 'Outsider'
@@ -146,8 +144,7 @@ describe('gcAttachmentsOnArchive', () => {
       mime: 'image/png',
       data: bytes(),
       width: 1,
-      height: 1,
-      owner: { ownerType: 'inbox', ownerId: item.id }
+      height: 1
     })
     const card = await createCard(ctx.db, {
       projectId: project.id,
@@ -174,8 +171,7 @@ describe('gcAttachmentsOnArchive', () => {
       mime: 'image/png',
       data: bytes(),
       width: 1,
-      height: 1,
-      owner: { ownerType: 'inbox', ownerId: item.id }
+      height: 1
     })
     const sprintCard = await createCard(ctx.db, {
       projectId: project.id,
@@ -198,7 +194,7 @@ describe('gcAttachmentsOnArchive', () => {
   it('clears a sprint-card image referenced by an inbox archived in the same cascade', async () => {
     const project = await freshProject(ctx.db)
     const sprint = await createSprint(ctx.db, { projectId: project.id, name: 'S' })
-    const { card, att } = await ownedImageCard(project.id, { sprintId: sprint.id })
+    const { card, att } = await cardWithImage(project.id, { sprintId: sprint.id })
     const item = await createIntakeItem(ctx.db, {
       projectId: project.id,
       bodyMd: ref(att.id)
@@ -221,8 +217,7 @@ describe('gcAttachmentsOnArchive', () => {
       mime: 'image/png',
       data: bytes(),
       width: 1,
-      height: 1,
-      owner: { ownerType: 'inbox', ownerId: item.id }
+      height: 1
     })
     await updateIntakeItem(ctx.db, { id: item.id, bodyMd: ref(att.id) })
 

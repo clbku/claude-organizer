@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 
 import { type Database, schema } from '@claude-organizer/db'
 import type { AttachmentOwnerType } from '@claude-organizer/shared'
@@ -7,6 +7,38 @@ import { attachmentIdsInBody } from './attachments'
 
 // item_type reuses the attachment owner types (card|comment|doc|inbox).
 export type AttachmentItemType = AttachmentOwnerType
+
+// The attachments referenced in a set of same-type items' bodies, via the link
+// index. One query for a whole list (a comment/inbox page) instead of N; each row
+// carries its `itemId` so the caller can group them back. Metadata only — no bytes.
+export async function listAttachmentsByItems(
+  db: Database,
+  itemType: AttachmentItemType,
+  itemIds: string[]
+) {
+  if (!itemIds.length) return []
+  return db
+    .select({
+      itemId: schema.attachmentLinks.itemId,
+      id: schema.attachments.id,
+      mime: schema.attachments.mime,
+      width: schema.attachments.width,
+      height: schema.attachments.height,
+      description: schema.attachments.description
+    })
+    .from(schema.attachmentLinks)
+    .innerJoin(
+      schema.attachments,
+      eq(schema.attachmentLinks.attachmentId, schema.attachments.id)
+    )
+    .where(
+      and(
+        eq(schema.attachmentLinks.itemType, itemType),
+        inArray(schema.attachmentLinks.itemId, itemIds)
+      )
+    )
+    .orderBy(desc(schema.attachments.createdAt))
+}
 
 // Reconciles the derived link index for one item against its markdown: the body
 // is the source of truth, so we insert the tokens it now cites and delete the

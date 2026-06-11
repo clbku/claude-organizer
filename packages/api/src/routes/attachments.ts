@@ -10,11 +10,10 @@ import {
   getSystemSettings,
   InputError,
   resolveCommitTokenSecret,
-  setAttachmentOwner,
   signAttachmentToken
 } from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
-import { ATTACHMENT_MIME_TYPES, ATTACHMENT_OWNER_TYPES } from '@claude-organizer/shared'
+import { ATTACHMENT_MIME_TYPES } from '@claude-organizer/shared'
 
 // Accept ceiling before optimization; the route's multipart fileSize limit
 // mirrors the elevated bodyLimit the backup import uses.
@@ -25,7 +24,6 @@ const MAX_EDGE = 1568
 const WEBP_QUALITY = 80
 
 const uploadQuery = z.object({ projectId: z.string().min(1) })
-const ownerTypeSchema = z.enum(ATTACHMENT_OWNER_TYPES)
 
 interface ParsedUpload {
   file?: { mime: string, filename: string | null, data: Buffer }
@@ -107,19 +105,6 @@ export function registerAttachmentRoutes(app: FastifyInstance, db: Database) {
       }
       const { data, width, height } = optimized
 
-      // Owner is all-or-nothing: a type without an id is a malformed payload, so
-      // surface it as a clear 400 instead of a raw core ZodError on `ownerId`.
-      let owner: { ownerType: (typeof ATTACHMENT_OWNER_TYPES)[number], ownerId: string } | undefined
-      if (upload.fields.ownerType) {
-        if (!upload.fields.ownerId) {
-          throw new InputError('ownerId is required when ownerType is set')
-        }
-        owner = {
-          ownerType: ownerTypeSchema.parse(upload.fields.ownerType),
-          ownerId: upload.fields.ownerId
-        }
-      }
-
       const row = await createAttachment(db, {
         projectId,
         mime: 'image/webp',
@@ -127,8 +112,7 @@ export function registerAttachmentRoutes(app: FastifyInstance, db: Database) {
         width,
         height,
         filename: file.filename,
-        description: upload.fields.description ?? null,
-        owner
+        description: upload.fields.description ?? null
       })
 
       return {
@@ -165,20 +149,6 @@ export function registerAttachmentRoutes(app: FastifyInstance, db: Database) {
     const signed = signAttachmentToken(id, secret)
     return { url: `/attachments/${id}?sig=${signed.token}`, expiresAt: signed.expiresAt }
   })
-
-  // Bind an unowned (tmp) attachment to its entity once it exists (new comment /
-  // inbox composer uploads before it has an id).
-  app.patch<{ Params: { id: string }, Body: unknown }>(
-    '/attachments/:id',
-    async (req, reply) => {
-      const owner = z
-        .object({ ownerType: ownerTypeSchema, ownerId: z.string().min(1) })
-        .parse(req.body)
-      const row = await setAttachmentOwner(db, req.params.id, owner)
-      if (!row) return reply.code(404).send({ error: 'not_found' })
-      return { id: row.id, ownerType: row.ownerType, ownerId: row.ownerId }
-    }
-  )
 
   app.delete<{ Params: { id: string } }>('/attachments/:id', async (req, reply) => {
     const row = await deleteAttachment(db, req.params.id)

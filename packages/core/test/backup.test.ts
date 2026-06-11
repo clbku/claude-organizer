@@ -68,8 +68,7 @@ async function seedProject(db: typeof ctx.db) {
     mime: 'image/png',
     data: Buffer.alloc(8, 1),
     width: 4,
-    height: 4,
-    owner: { ownerType: 'card', ownerId: card.id }
+    height: 4
   })
   const tag = await createTag(db, { projectId: project.id, name: 'area' })
   await addTagToCard(db, card.id, tag.id)

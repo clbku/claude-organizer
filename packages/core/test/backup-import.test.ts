@@ -18,7 +18,8 @@ import {
   importBackup,
   listAttachments,
   serializeBackup,
-  setIncludeAttachmentsInBackup
+  setIncludeAttachmentsInBackup,
+  updateCard
 } from '../src/index'
 import { freshProject, useTestDb } from './helpers'
 
@@ -172,6 +173,38 @@ describe('importBackup — restore as new', () => {
     expect(projectIds).toHaveLength(1)
   })
 
+  it('migrates a v2 backup (attachments still carrying owner) by ignoring the owner', async () => {
+    const project = await freshProject(ctx.db)
+    const card = await createCard(ctx.db, { projectId: project.id, title: 'C' })
+    const att = await createAttachment(ctx.db, {
+      projectId: project.id,
+      mime: 'image/png',
+      data: Buffer.from('x'),
+      width: 1,
+      height: 1
+    })
+    await updateCard(ctx.db, {
+      id: card.id,
+      descriptionMd: `![p](/attachments/${att.id})`
+    })
+    const env = await exportProject(ctx.db, project.id)
+    // Forge a v2 envelope: older servers still wrote ownerType/ownerId on each row.
+    const attachments = (env.data.attachments as Record<string, unknown>[]).map(
+      a => ({ ...a, ownerType: 'card', ownerId: card.id })
+    )
+    const v2 = serializeBackup({
+      ...env,
+      version: 2,
+      data: { ...env.data, attachments }
+    })
+
+    const { projectIds } = await importBackup(ctx.db, v2)
+    const list = await listAttachments(ctx.db, { projectId: projectIds[0]! })
+    expect(list).toHaveLength(1)
+    const restored = (await getAttachment(ctx.db, list[0]!.id))!
+    expect(restored.orphanedAt).toBeNull()
+  })
+
   it('rejects a backup from a newer format version', async () => {
     const { project } = await seedProject()
     const env = await exportProject(ctx.db, project.id)
@@ -180,17 +213,20 @@ describe('importBackup — restore as new', () => {
     await expect(importBackup(ctx.db, future)).rejects.toThrow()
   })
 
-  it('round-trips an attachment with bytes and remaps its owner (toggle ON)', async () => {
+  it('round-trips an attachment with bytes and rebuilds its link (toggle ON)', async () => {
     await setIncludeAttachmentsInBackup(ctx.db, true)
     const { project, card } = await seedProject()
     const bytes = Buffer.from('hello-bytes', 'utf8')
-    await createAttachment(ctx.db, {
+    const att = await createAttachment(ctx.db, {
       projectId: project.id,
       mime: 'image/png',
       data: bytes,
       width: 3,
-      height: 3,
-      owner: { ownerType: 'card', ownerId: card.id }
+      height: 3
+    })
+    await updateCard(ctx.db, {
+      id: card.id,
+      descriptionMd: `see ![pic](/attachments/${att.id})`
     })
 
     const env = await exportProject(ctx.db, project.id)
@@ -201,10 +237,8 @@ describe('importBackup — restore as new', () => {
     expect(list).toHaveLength(1)
     const restored = (await getAttachment(ctx.db, list[0]!.id))!
     expect(restored.data).toEqual(bytes)
-
-    const [newCard] = await cardsOf(newId)
-    expect(restored.ownerType).toBe('card')
-    expect(restored.ownerId).toBe(newCard!.id)
+    // Referenced in the imported card body → its link is rebuilt, not orphaned.
+    expect(restored.orphanedAt).toBeNull()
   })
 
   it('rewrites att_ refs in card/doc/comment/inbox bodies to the new ids', async () => {

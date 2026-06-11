@@ -7,12 +7,11 @@ import {
   listComments,
   listUnreadCommentsForProject,
   markCommentsAsRead,
-  resolveEntityProjectId,
   updateComment
 } from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
 
-import { attachmentsByOwner } from '../attachments'
+import { attachmentsByItem } from '../attachments'
 import { asJson, pageEnvelope, pageInputs } from './index'
 
 export function registerCommentTools(server: McpServer, db: Database) {
@@ -28,18 +27,13 @@ export function registerCommentTools(server: McpServer, db: Database) {
     },
     async ({ cardId, limit, offset }) => {
       const rows = await listComments(db, cardId, { limit: limit + 1, offset })
-      // A comment's images carry ownerType 'comment'; one batch query for the
-      // page (not the limit+1 probe row), grouped per comment — all share the
-      // card's project.
-      const projectId = await resolveEntityProjectId(db, 'card', cardId)
-      const byComment = projectId
-        ? await attachmentsByOwner(
-            db,
-            projectId,
-            'comment',
-            rows.slice(0, limit).map(r => r.id)
-          )
-        : new Map()
+      // Images referenced in each comment's body, via the link index; one batch
+      // query for the page (not the limit+1 probe row), grouped per comment.
+      const byComment = await attachmentsByItem(
+        db,
+        'comment',
+        rows.slice(0, limit).map(r => r.id)
+      )
       const enriched = rows.map(r => ({
         ...r,
         attachments: byComment.get(r.id) ?? []

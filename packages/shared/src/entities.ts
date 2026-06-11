@@ -1,5 +1,4 @@
 import type {
-  AttachmentOwnerType,
   CardStatus,
   CommentAuthor,
   DocKind,
@@ -146,8 +145,6 @@ export interface IntakeItemRow {
 export interface AttachmentRow {
   id: string
   projectId: string
-  ownerType: AttachmentOwnerType | null
-  ownerId: string | null
   mime: string
   filename: string | null
   byteSize: number

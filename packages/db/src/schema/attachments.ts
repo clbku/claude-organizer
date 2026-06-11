@@ -2,14 +2,13 @@ import { relations, sql } from 'drizzle-orm'
 import { index, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 
 import { bytea } from './columns'
-import { attachmentOwnerTypeEnum } from './enums'
 import { projects } from './projects'
 
-// Owner link (ownerType/ownerId) is optional and polymorphic across
-// card/comment/doc/inbox, so ownerId is a plain column with no FK; the markdown
-// reference is the source of truth. projectId scopes the row (and the backup).
-// `data` is nullable so a backup exported with includeAttachmentsInBackup OFF
-// can round-trip the metadata while leaving the bytes out.
+// An attachment belongs to its project (FK cascade); where it's referenced is
+// tracked by the derived `attachment_links` index, the single source of truth for
+// the attachment↔item relation. The markdown reference in a body is what a link
+// reflects. `data` is nullable so a backup exported with includeAttachmentsInBackup
+// OFF can round-trip the metadata while leaving the bytes out.
 export const attachments = pgTable(
   'attachments',
   {
@@ -17,8 +16,6 @@ export const attachments = pgTable(
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id, { onDelete: 'cascade' }),
-    ownerType: attachmentOwnerTypeEnum('owner_type'),
-    ownerId: text('owner_id'),
     mime: text('mime').notNull(),
     filename: text('filename'),
     byteSize: integer('byte_size').notNull(),
@@ -35,7 +32,6 @@ export const attachments = pgTable(
   },
   t => [
     index('attachments_project_idx').on(t.projectId),
-    index('attachments_owner_idx').on(t.ownerType, t.ownerId),
     // Partial — the sweep only ever scans orphaned rows (orphaned_at < now() -
     // grace), so the NULL majority (every linked attachment) stays out of the index.
     index('attachments_orphaned_idx')

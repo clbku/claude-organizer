@@ -13,7 +13,7 @@ import {
 } from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
 
-import { attachmentsForOwner } from '../attachments'
+import { attachmentsForItem } from '../attachments'
 import { asJson, pageEnvelope, pageInputs } from './index'
 
 const docKind = z.enum(['module', 'adr', 'guide', 'note'])
@@ -60,7 +60,7 @@ export function registerDocTools(server: McpServer, db: Database) {
     async ({ id }) => {
       const doc = await getDoc(db, id)
       if (!doc) return asJson(doc)
-      const attachments = await attachmentsForOwner(db, doc.projectId, 'doc', doc.id)
+      const attachments = await attachmentsForItem(db, 'doc', doc.id)
       return asJson({ ...doc, attachments })
     }
   )

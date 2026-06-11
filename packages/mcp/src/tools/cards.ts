@@ -20,7 +20,7 @@ import {
 } from '@claude-organizer/core'
 import type { Database } from '@claude-organizer/db'
 
-import { attachmentsForOwner } from '../attachments'
+import { attachmentsForItem } from '../attachments'
 import { asJson, pageEnvelope, pageInputs } from './index'
 
 // search_cards returns enriched cards + matchedComment (heavier than list_cards),
@@ -54,7 +54,7 @@ async function withCommitsAndAttachments(
     authorName: c.authorName,
     createdAt: c.createdAt
   }))
-  const attachments = await attachmentsForOwner(db, card.projectId, 'card', card.id)
+  const attachments = await attachmentsForItem(db, 'card', card.id)
   return { ...card, commits, attachments }
 }
 

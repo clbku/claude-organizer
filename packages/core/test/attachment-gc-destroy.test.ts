@@ -25,17 +25,13 @@ const ctx = useTestDb()
 const bytes = () => Buffer.from('img', 'utf8')
 const ref = (id: string) => `body ![pic](/attachments/${id}) more`
 
-async function image(
-  projectId: string,
-  owner: { ownerType: 'card' | 'comment' | 'doc' | 'inbox', ownerId: string }
-) {
+async function image(projectId: string) {
   return createAttachment(ctx.db, {
     projectId,
     mime: 'image/png',
     data: bytes(),
     width: 1,
-    height: 1,
-    owner
+    height: 1
   })
 }
 
@@ -45,7 +41,7 @@ describe('gcAttachmentsOnDestroy', () => {
   it('hard-deletes an owner-only card image when the card is destroyed', async () => {
     const project = await freshProject(ctx.db)
     const card = await createCard(ctx.db, { projectId: project.id, title: 'C' })
-    const att = await image(project.id, { ownerType: 'card', ownerId: card.id })
+    const att = await image(project.id)
     await updateCard(ctx.db, { id: card.id, descriptionMd: ref(att.id) })
 
     await destroyCard(ctx.db, card.id)
@@ -56,7 +52,7 @@ describe('gcAttachmentsOnDestroy', () => {
   it('keeps a shared image until the last referencing entity is destroyed', async () => {
     const project = await freshProject(ctx.db)
     const cardA = await createCard(ctx.db, { projectId: project.id, title: 'A' })
-    const att = await image(project.id, { ownerType: 'card', ownerId: cardA.id })
+    const att = await image(project.id)
     await updateCard(ctx.db, { id: cardA.id, descriptionMd: ref(att.id) })
     const cardB = await createCard(ctx.db, { projectId: project.id, title: 'B' })
     await updateCard(ctx.db, { id: cardB.id, descriptionMd: ref(att.id) })
@@ -76,10 +72,7 @@ describe('gcAttachmentsOnDestroy', () => {
       author: 'user',
       bodyMd: 'placeholder'
     })
-    const att = await image(project.id, {
-      ownerType: 'comment',
-      ownerId: comment.id
-    })
+    const att = await image(project.id)
     await updateComment(ctx.db, { id: comment.id, bodyMd: ref(att.id) })
 
     await destroyCard(ctx.db, card.id)
@@ -95,7 +88,7 @@ describe('gcAttachmentsOnDestroy', () => {
       title: 'Child',
       parentId: parent.id
     })
-    const att = await image(project.id, { ownerType: 'card', ownerId: child.id })
+    const att = await image(project.id)
     await updateCard(ctx.db, { id: child.id, descriptionMd: ref(att.id) })
 
     await destroyCard(ctx.db, parent.id)
@@ -111,7 +104,7 @@ describe('gcAttachmentsOnDestroy', () => {
       sprintId: sprint.id,
       title: 'C'
     })
-    const att = await image(project.id, { ownerType: 'card', ownerId: card.id })
+    const att = await image(project.id)
     await updateCard(ctx.db, { id: card.id, descriptionMd: ref(att.id) })
 
     await destroySprint(ctx.db, sprint.id)
@@ -127,7 +120,7 @@ describe('gcAttachmentsOnDestroy', () => {
       sprintId: sprint.id,
       title: 'C'
     })
-    const att = await image(project.id, { ownerType: 'card', ownerId: card.id })
+    const att = await image(project.id)
     await updateCard(ctx.db, { id: card.id, descriptionMd: ref(att.id) })
     const outsider = await createCard(ctx.db, {
       projectId: project.id,
@@ -143,7 +136,7 @@ describe('gcAttachmentsOnDestroy', () => {
   it('keeps an image still referenced by a living out-of-scope card when a referrer is destroyed', async () => {
     const project = await freshProject(ctx.db)
     const owner = await createCard(ctx.db, { projectId: project.id, title: 'Owner' })
-    const att = await image(project.id, { ownerType: 'card', ownerId: owner.id })
+    const att = await image(project.id)
     await updateCard(ctx.db, { id: owner.id, descriptionMd: ref(att.id) })
     const referrer = await createCard(ctx.db, { projectId: project.id, title: 'Ref' })
     await updateCard(ctx.db, { id: referrer.id, descriptionMd: ref(att.id) })
@@ -164,7 +157,7 @@ describe('gcAttachmentsOnDestroy', () => {
       projectId: project.id,
       bodyMd: 'placeholder'
     })
-    const att = await image(project.id, { ownerType: 'inbox', ownerId: item.id })
+    const att = await image(project.id)
     await updateIntakeItem(ctx.db, { id: item.id, bodyMd: ref(att.id) })
     const card = await createCard(ctx.db, {
       projectId: project.id,
@@ -187,14 +180,8 @@ describe('gcAttachmentsOnDestroy', () => {
       title: 'Child',
       parentId: parent.id
     })
-    const parentAtt = await image(project.id, {
-      ownerType: 'doc',
-      ownerId: parent.id
-    })
-    const childAtt = await image(project.id, {
-      ownerType: 'doc',
-      ownerId: child.id
-    })
+    const parentAtt = await image(project.id)
+    const childAtt = await image(project.id)
     await updateDoc(ctx.db, { id: parent.id, bodyMd: ref(parentAtt.id) })
     await updateDoc(ctx.db, { id: child.id, bodyMd: ref(childAtt.id) })
 
@@ -210,7 +197,7 @@ describe('gcAttachmentsOnDestroy', () => {
       projectId: project.id,
       bodyMd: 'placeholder'
     })
-    const att = await image(project.id, { ownerType: 'inbox', ownerId: item.id })
+    const att = await image(project.id)
     await updateIntakeItem(ctx.db, { id: item.id, bodyMd: ref(att.id) })
 
     await destroyIntakeItem(ctx.db, item.id)

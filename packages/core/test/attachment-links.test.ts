@@ -13,6 +13,7 @@ import {
   createDoc,
   createIntakeItem,
   createSprint,
+  listAttachmentsByItems,
   reconcileAttachmentLinks,
   reopenSprint,
   restoreCard,
@@ -299,5 +300,45 @@ describe('reconcileAttachmentLinks via write paths', () => {
       .from(schema.attachmentLinks)
       .where(eq(schema.attachmentLinks.itemId, card.id))
     expect(links).toHaveLength(0)
+  })
+})
+
+describe('listAttachmentsByItems (MCP array by link)', () => {
+  it('returns images referenced in an item body, nothing for an item that references none', async () => {
+    const project = await freshProject(ctx.db)
+    const att = await mkAtt(project.id)
+    const withImg = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'A',
+      descriptionMd: ref(att.id)
+    })
+    const without = await createCard(ctx.db, { projectId: project.id, title: 'B' })
+
+    const rows = await listAttachmentsByItems(ctx.db, 'card', [
+      withImg.id,
+      without.id
+    ])
+    expect(rows.map(r => r.id)).toEqual([att.id])
+    expect(rows[0]!.itemId).toBe(withImg.id)
+  })
+
+  it('lists an image referenced by two items under each item', async () => {
+    const project = await freshProject(ctx.db)
+    const att = await mkAtt(project.id)
+    const card = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'C',
+      descriptionMd: ref(att.id)
+    })
+    const doc = await createDoc(ctx.db, {
+      projectId: project.id,
+      title: 'D',
+      bodyMd: ref(att.id)
+    })
+
+    const forCard = await listAttachmentsByItems(ctx.db, 'card', [card.id])
+    const forDoc = await listAttachmentsByItems(ctx.db, 'doc', [doc!.id])
+    expect(forCard.map(r => r.id)).toEqual([att.id])
+    expect(forDoc.map(r => r.id)).toEqual([att.id])
   })
 })

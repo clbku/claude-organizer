@@ -264,7 +264,18 @@ const MIGRATORS: Array<(data: BackupData) => BackupData> = [
   // v0 → v1: `intake_items` joined the schema; older backups lack the table.
   data => ({ ...data, intake_items: data.intake_items ?? [] }),
   // v1 → v2: `attachments` joined the schema; older backups lack the table.
-  data => ({ ...data, attachments: data.attachments ?? [] })
+  data => ({ ...data, attachments: data.attachments ?? [] }),
+  // v2 → v3: the owner-link was dropped (links-only model — CO-310); strip the
+  // now-defunct ownerType/ownerId an older envelope still carries on each row.
+  data => ({
+    ...data,
+    attachments: (data.attachments ?? []).map((a) => {
+      const row = { ...(a as Record<string, unknown>) }
+      delete row.ownerType
+      delete row.ownerId
+      return row
+    })
+  })
 ]
 
 const backupEnvelopeSchema = z
@@ -571,22 +582,18 @@ async function restoreAsNew(db: Database, data: BackupData): Promise<string[]> {
       })
     }
 
-    // Owner link is polymorphic/optional; remap it via the matching id-map and
-    // drop a dangling owner to null (the markdown reference is the real link).
-    // `data` rode in as base64 (or is absent when exported with the toggle OFF).
-    const ownerMaps = { card: C, comment: CM, doc: D, inbox: IT } as const
+    // Links-only model: an attachment belongs to its project, and where it's
+    // referenced is rebuilt below from the rewritten bodies (reconcile) — no owner
+    // to remap. `data` rode in as base64 (or is absent when exported with the
+    // toggle OFF).
     for (const a of rows<AttachmentRow & { data?: string | null }>(
       'attachments'
     )) {
-      const mappedOwner
-        = a.ownerType && a.ownerId ? ownerMaps[a.ownerType][a.ownerId] : undefined
       const newId = createId('att')
       A[a.id] = newId
       await tx.insert(schema.attachments).values({
         id: newId,
         projectId: P[a.projectId]!,
-        ownerType: mappedOwner ? a.ownerType : null,
-        ownerId: mappedOwner ?? null,
         mime: a.mime,
         filename: a.filename,
         byteSize: a.byteSize,
