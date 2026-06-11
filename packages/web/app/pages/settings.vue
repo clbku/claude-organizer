@@ -346,7 +346,7 @@ onUnmounted(() => {
                 variant="soft"
                 icon="i-lucide-alert-triangle"
                 title="Changing the model can re-index embeddings"
-                description="A model with a different dimension drops the existing vectors and rebuilds the index — search stays lexical-only until the backfill finishes. The embedding service reloads automatically; no restart needed."
+                description="A model with a different dimension drops the existing vectors and rebuilds the index — search stays lexical-only until the backfill finishes."
               />
 
               <div
