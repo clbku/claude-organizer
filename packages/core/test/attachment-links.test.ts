@@ -14,6 +14,7 @@ import {
   createIntakeItem,
   createSprint,
   reconcileAttachmentLinks,
+  reopenSprint,
   restoreCard,
   restoreIntakeItem,
   restoreSprint,
@@ -226,6 +227,34 @@ describe('reconcileAttachmentLinks via write paths', () => {
     await archiveSprint(ctx.db, sprint.id)
     expect(await linkCount(att.id)).toBe(1)
     await restoreSprint(ctx.db, sprint.id)
+    expect(await linkCount(att.id)).toBe(2)
+
+    await updateCard(ctx.db, { id: outsider.id, descriptionMd: 'gone' })
+    expect(await linkCount(att.id)).toBe(1)
+    expect(await orphanedAt(att.id)).toBeNull()
+  })
+
+  it('reopen re-links a sprint card (un-archive path) so the index does not drift', async () => {
+    await setKeepAttachmentsOnArchive(ctx.db, false)
+    const project = await freshProject(ctx.db)
+    const sprint = await createSprint(ctx.db, { projectId: project.id, name: 'S' })
+    const att = await mkAtt(project.id)
+    await createCard(ctx.db, {
+      projectId: project.id,
+      sprintId: sprint.id,
+      title: 'C',
+      descriptionMd: ref(att.id)
+    })
+    const outsider = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'O',
+      descriptionMd: ref(att.id)
+    })
+    expect(await linkCount(att.id)).toBe(2)
+
+    await archiveSprint(ctx.db, sprint.id)
+    expect(await linkCount(att.id)).toBe(1)
+    await reopenSprint(ctx.db, sprint.id)
     expect(await linkCount(att.id)).toBe(2)
 
     await updateCard(ctx.db, { id: outsider.id, descriptionMd: 'gone' })

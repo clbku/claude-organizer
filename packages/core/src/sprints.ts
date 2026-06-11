@@ -289,6 +289,15 @@ export async function reopenSprint(db: Database, sprintId: string) {
     .where(eq(schema.sprints.id, sprintId))
     .returning(sprintColumns)
   if (row) {
+    // Reopen un-archives (archivedAt → null), so re-link the cards just like
+    // restoreSprint — archiveSprint unlinked them and the index would drift.
+    const sprintCardIds = (
+      await db
+        .select({ id: schema.cards.id })
+        .from(schema.cards)
+        .where(eq(schema.cards.sprintId, sprintId))
+    ).map(c => c.id)
+    await relinkCardsAndComments(db, sprintCardIds)
     await syncIntakeForSprint(db, row.projectId, row.id)
     await notify(db, {
       type: 'sprint.changed',
