@@ -5,6 +5,7 @@ import { createId, type Database, schema } from '@claude-organizer/db'
 
 import type { ArchiveFilter } from './archive'
 import { gcAttachmentsOnDestroy } from './attachmentGc'
+import { reconcileAttachmentLinks } from './attachmentLinks'
 import { backfillEmbeddings, embed } from './embedding'
 import { notify } from './events'
 import { paginate } from './pagination'
@@ -124,20 +125,25 @@ export async function getDoc(db: Database, id: string) {
 export async function createDoc(db: Database, input: CreateDocInput) {
   const parsed = createDocInput.parse(input)
   const embedding = await embed(docContentText(parsed), 'passage')
-  const [row] = await db
-    .insert(schema.docs)
-    .values({
-      id: createId('doc'),
-      projectId: parsed.projectId,
-      parentId: parsed.parentId ?? null,
-      title: parsed.title,
-      summary: parsed.summary,
-      bodyMd: parsed.bodyMd,
-      kind: parsed.kind ?? 'note',
-      position: parsed.position ?? 0,
-      embedding
-    })
-    .returning(docDetailColumns)
+  const [row] = await db.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(schema.docs)
+      .values({
+        id: createId('doc'),
+        projectId: parsed.projectId,
+        parentId: parsed.parentId ?? null,
+        title: parsed.title,
+        summary: parsed.summary,
+        bodyMd: parsed.bodyMd,
+        kind: parsed.kind ?? 'note',
+        position: parsed.position ?? 0,
+        embedding
+      })
+      .returning(docDetailColumns)
+    if (inserted[0])
+      await reconcileAttachmentLinks(tx, 'doc', inserted[0].id, parsed.bodyMd)
+    return inserted
+  })
   if (row) {
     await notify(db, { type: 'doc.changed', projectId: row.projectId, docId: row.id })
   }
@@ -147,11 +153,16 @@ export async function createDoc(db: Database, input: CreateDocInput) {
 export async function updateDoc(db: Database, input: UpdateDocInput) {
   const parsed = updateDocInput.parse(input)
   const { id, ...rest } = parsed
-  const [row] = await db
-    .update(schema.docs)
-    .set({ ...rest, updatedAt: sql`now()` })
-    .where(eq(schema.docs.id, id))
-    .returning(docDetailColumns)
+  const [row] = await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(schema.docs)
+      .set({ ...rest, updatedAt: sql`now()` })
+      .where(eq(schema.docs.id, id))
+      .returning(docDetailColumns)
+    if (updated[0] && rest.bodyMd !== undefined)
+      await reconcileAttachmentLinks(tx, 'doc', updated[0].id, rest.bodyMd)
+    return updated
+  })
   if (row) {
     // Re-embed off the merged row (the patch is partial) only when an embedded
     // field changed; a metadata-only edit keeps the existing vector. Only

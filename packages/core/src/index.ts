@@ -1,5 +1,6 @@
 export * from './archive'
 export * from './attachmentGc'
+export * from './attachmentLinks'
 export * from './attachments'
 export * from './attachmentToken'
 export * from './authz'

@@ -9,6 +9,7 @@ import {
 } from '@claude-organizer/shared'
 
 import { gcAttachmentsOnArchive, gcAttachmentsOnDestroy } from './attachmentGc'
+import { reconcileAttachmentLinks } from './attachmentLinks'
 import { notify } from './events'
 import { paginate } from './pagination'
 
@@ -127,25 +128,35 @@ export async function listIntakeItems(
 
 export async function createIntakeItem(db: Database, input: CreateIntakeItemInput) {
   const parsed = createIntakeItemInput.parse(input)
-  const [row] = await db
-    .insert(schema.intakeItems)
-    .values({
-      id: createId('itk'),
-      projectId: parsed.projectId,
-      bodyMd: parsed.bodyMd
-    })
-    .returning(intakeColumns)
+  const [row] = await db.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(schema.intakeItems)
+      .values({
+        id: createId('itk'),
+        projectId: parsed.projectId,
+        bodyMd: parsed.bodyMd
+      })
+      .returning(intakeColumns)
+    if (inserted[0])
+      await reconcileAttachmentLinks(tx, 'inbox', inserted[0].id, parsed.bodyMd)
+    return inserted
+  })
   if (row) await notifyChanged(db, row)
   return row
 }
 
 export async function updateIntakeItem(db: Database, input: UpdateIntakeItemInput) {
   const parsed = updateIntakeItemInput.parse(input)
-  const [row] = await db
-    .update(schema.intakeItems)
-    .set({ bodyMd: parsed.bodyMd, updatedAt: sql`now()` })
-    .where(eq(schema.intakeItems.id, parsed.id))
-    .returning(intakeColumns)
+  const [row] = await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(schema.intakeItems)
+      .set({ bodyMd: parsed.bodyMd, updatedAt: sql`now()` })
+      .where(eq(schema.intakeItems.id, parsed.id))
+      .returning(intakeColumns)
+    if (updated[0])
+      await reconcileAttachmentLinks(tx, 'inbox', updated[0].id, parsed.bodyMd)
+    return updated
+  })
   if (row) await notifyChanged(db, row)
   return row ?? null
 }

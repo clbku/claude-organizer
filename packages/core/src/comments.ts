@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { createId, type Database, schema } from '@claude-organizer/db'
 
+import { reconcileAttachmentLinks } from './attachmentLinks'
 import { backfillEmbeddings, embed } from './embedding'
 import { notify } from './events'
 import { paginate } from './pagination'
@@ -89,18 +90,23 @@ export async function listComments(
 export async function addComment(db: Database, input: AddCommentInput) {
   const parsed = addCommentInput.parse(input)
   const embedding = await embed(parsed.bodyMd, 'passage')
-  const [row] = await db
-    .insert(schema.comments)
-    .values({
-      id: createId('cmt'),
-      cardId: parsed.cardId,
-      author: parsed.author,
-      userId: parsed.userId ?? null,
-      bodyMd: parsed.bodyMd,
-      readByAi: parsed.author === 'ai',
-      embedding
-    })
-    .returning(commentReturnColumns)
+  const [row] = await db.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(schema.comments)
+      .values({
+        id: createId('cmt'),
+        cardId: parsed.cardId,
+        author: parsed.author,
+        userId: parsed.userId ?? null,
+        bodyMd: parsed.bodyMd,
+        readByAi: parsed.author === 'ai',
+        embedding
+      })
+      .returning(commentReturnColumns)
+    if (inserted[0])
+      await reconcileAttachmentLinks(tx, 'comment', inserted[0].id, parsed.bodyMd)
+    return inserted
+  })
   if (row) {
     const [card] = await db
       .select({ projectId: schema.cards.projectId })
@@ -136,11 +142,16 @@ export async function updateComment(db: Database, input: UpdateCommentInput) {
   // Re-embed the body; only overwrite on a successful embed so a transient
   // failure doesn't wipe a valid vector.
   const embedding = await embed(parsed.bodyMd, 'passage')
-  const [row] = await db
-    .update(schema.comments)
-    .set(embedding ? { bodyMd: parsed.bodyMd, embedding } : { bodyMd: parsed.bodyMd })
-    .where(eq(schema.comments.id, parsed.id))
-    .returning(commentReturnColumns)
+  const [row] = await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(schema.comments)
+      .set(embedding ? { bodyMd: parsed.bodyMd, embedding } : { bodyMd: parsed.bodyMd })
+      .where(eq(schema.comments.id, parsed.id))
+      .returning(commentReturnColumns)
+    if (updated[0])
+      await reconcileAttachmentLinks(tx, 'comment', updated[0].id, parsed.bodyMd)
+    return updated
+  })
   if (row) {
     const [card] = await db
       .select({ projectId: schema.cards.projectId })

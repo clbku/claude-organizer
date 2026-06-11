@@ -17,6 +17,7 @@ import { createId, type Database, schema } from '@claude-organizer/db'
 
 import { archivedCondition, type ArchiveFilter } from './archive'
 import { gcAttachmentsOnArchive, gcAttachmentsOnDestroy } from './attachmentGc'
+import { reconcileAttachmentLinks } from './attachmentLinks'
 import { getSystemSettings } from './authz'
 import { listBlockedBy, listBlocking, pendingBlockerCounts } from './blockers'
 import { claimsByCardIds, getClaim, releaseClaimOnDone } from './cardClaims'
@@ -544,6 +545,8 @@ export async function createCard(db: Database, input: CreateCardInput) {
         dueDate: parsed.dueDate
       })
       .returning(cardDetailColumns)
+    if (created)
+      await reconcileAttachmentLinks(tx, 'card', created.id, parsed.descriptionMd)
     return created
   })
   if (row) {
@@ -579,6 +582,8 @@ export async function updateCard(db: Database, input: UpdateCardInput) {
     if (updated[0] && rest.status === 'done') {
       await releaseClaimOnDone(tx, updated[0].id)
     }
+    if (updated[0] && rest.descriptionMd !== undefined)
+      await reconcileAttachmentLinks(tx, 'card', updated[0].id, rest.descriptionMd)
     return updated
   })
   if (row) {
