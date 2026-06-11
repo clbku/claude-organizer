@@ -43,8 +43,8 @@ export interface EmbeddingConfig {
   e5Prefix: boolean
 }
 
-/** Key the MCP records its loaded model under (shared by the writer and reader). */
-export const MCP_RUNTIME_SERVICE = 'mcp'
+/** Key the embedding service records its loaded model under (writer + reader). */
+export const EMBEDDING_RUNTIME_SERVICE = 'embedding'
 
 /** State of an in-flight (or last) runtime model swap; `idle` ⇒ none this process. */
 export type EmbeddingRuntimeState
@@ -62,8 +62,9 @@ export interface EmbeddingRuntimeStatus {
   enabled: boolean
   /** A dim change dropped the old vectors → search is lexical-only until backfill ends. */
   dimChanged: boolean
-  /** The MCP is a separate process/bundle — restart it to use the new model. */
-  mcpRestartRequired: boolean
+  /** The model the embedding service reports having actually loaded (null = unknown/
+   *  disabled). Differs from `model` only briefly while a reload is settling. */
+  serviceModel: string | null
   backfill: { docs: number, cards: number, comments: number }
   error: string | null
 }

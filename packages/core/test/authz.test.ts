@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { schema } from '@claude-organizer/db'
-import { MCP_RUNTIME_SERVICE } from '@claude-organizer/shared'
+import { EMBEDDING_RUNTIME_SERVICE } from '@claude-organizer/shared'
 
 import {
   addComment,
@@ -335,21 +335,20 @@ describe('embedding runtime apply', () => {
     await setEmbeddingModel(ctx.db, null)
   })
 
-  it('flags mcpRestartRequired durably when the MCP loaded a stale model', async () => {
+  it('reports the model the embedding service recorded loading (serviceModel)', async () => {
     await setEmbeddingModel(ctx.db, null)
-    const eff = await resolveEffectiveEmbeddingConfig(ctx.db)
 
-    // MCP recorded a different model than the persisted/effective one ⇒ stale.
-    await recordRuntimeEmbeddingConfig(ctx.db, MCP_RUNTIME_SERVICE, {
+    // No row yet ⇒ unknown.
+    await ctx.db.delete(schema.embeddingRuntime)
+    expect((await getEmbeddingStatus(ctx.db)).serviceModel).toBeNull()
+
+    // The service records what it loaded; the status surfaces it.
+    await recordRuntimeEmbeddingConfig(ctx.db, EMBEDDING_RUNTIME_SERVICE, {
       model: 'Xenova/multilingual-e5-large',
       dim: 1024,
       e5Prefix: true
     })
-    expect((await getEmbeddingStatus(ctx.db)).mcpRestartRequired).toBe(true)
-
-    // MCP matches the effective config ⇒ no restart needed.
-    await recordRuntimeEmbeddingConfig(ctx.db, MCP_RUNTIME_SERVICE, eff)
-    expect((await getEmbeddingStatus(ctx.db)).mcpRestartRequired).toBe(false)
+    expect((await getEmbeddingStatus(ctx.db)).serviceModel).toBe('Xenova/multilingual-e5-large')
 
     await ctx.db.delete(schema.embeddingRuntime)
   })

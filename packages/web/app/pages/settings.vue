@@ -328,7 +328,7 @@ onUnmounted(() => {
                 variant="soft"
                 icon="i-lucide-alert-triangle"
                 title="Changing the model can re-index embeddings"
-                description="A model with a different dimension drops the existing vectors and rebuilds the index — search stays lexical-only until the backfill finishes. The MCP runs as a separate process; restart it (docker compose restart mcp) to use the new model there."
+                description="A model with a different dimension drops the existing vectors and rebuilds the index — search stays lexical-only until the backfill finishes. The embedding service reloads automatically; no restart needed."
               />
 
               <div
@@ -369,14 +369,6 @@ onUnmounted(() => {
                   :disabled="!canApplyEmbedding"
                   @click="applyEmbedding"
                 />
-              </div>
-
-              <div
-                v-if="embeddingStatus?.mcpRestartRequired"
-                class="flex items-center gap-2 text-xs text-warning"
-              >
-                <UIcon name="i-lucide-info" class="shrink-0" />
-                <span>Restart the MCP to use the new model there: <code>docker compose restart mcp</code>.</span>
               </div>
             </div>
           </UPageCard>

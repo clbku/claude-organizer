@@ -197,6 +197,13 @@
       "when": 1781178384640,
       "tag": "0027_embedding_model_intfloat_to_xenova",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1781183446718,
+      "tag": "0028_drop_mcp_embedding_runtime",
+      "breakpoints": true
     }
   ]
 }
