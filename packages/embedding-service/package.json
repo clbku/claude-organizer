@@ -1,14 +1,13 @@
 {
-  "name": "@claude-organizer/core",
+  "name": "@claude-organizer/embedding-service",
   "version": "0.18.1",
   "private": true,
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
-  "exports": {
-    ".": "./src/index.ts"
-  },
+  "main": "./dist/server.mjs",
   "scripts": {
+    "dev": "tsx watch --env-file=../../.env src/server.ts",
+    "build": "tsup",
+    "start": "node --env-file=../../.env dist/server.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -16,15 +15,15 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
+    "@claude-organizer/core": "workspace:*",
     "@claude-organizer/db": "workspace:*",
     "@claude-organizer/shared": "workspace:*",
-    "drizzle-orm": "0.45.2",
-    "zod": "4.4.3"
+    "@huggingface/transformers": "4.2.0"
   },
   "devDependencies": {
-    "@testcontainers/postgresql": "12.0.0",
     "@types/node": "25.9.1",
-    "testcontainers": "12.0.0",
+    "tsup": "8.5.1",
+    "tsx": "4.22.3",
     "typescript": "6.0.3",
     "vitest": "4.1.7"
   }

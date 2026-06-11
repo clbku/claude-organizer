@@ -2,23 +2,20 @@ import { defineConfig } from 'tsup'
 
 // Bundle the API server into a single dist/server.mjs that runs with `node`
 // alone (no tsx). Mirrors the mcp build: workspace and third-party deps are
-// inlined; only Node built-ins and the embedding runtime stay external.
+// inlined; only Node built-ins and sharp's native binary stay external.
 export default defineConfig({
   entry: { server: 'src/server.ts' },
   format: ['esm'],
   platform: 'node',
   target: 'node24',
   bundle: true,
-  // Inline everything EXCEPT the embedding runtime. The negative lookahead is
-  // required: a bare `noExternal: [/.*/]` would force-bundle them back in even
-  // when listed in `external` (noExternal wins in tsup).
-  noExternal: [/^(?!@huggingface\/transformers|onnxruntime-node|sharp)/],
-  // The embedding runtime can't be inlined: bundling onnxruntime-node breaks its
-  // native backend registration, and sharp ships platform binaries. `core` loads
-  // `@huggingface/transformers` via a dynamic import at runtime, resolved from
-  // node_modules (a direct dep of this package, so reachable from dist/), only
-  // when embeddings are enabled.
-  external: ['@huggingface/transformers', 'onnxruntime-node', 'sharp'],
+  // Inline everything EXCEPT sharp (attachment image processing). The negative
+  // lookahead is required: a bare `noExternal: [/.*/]` would force-bundle it back
+  // in even when listed in `external` (noExternal wins in tsup).
+  noExternal: [/^(?!sharp)/],
+  // sharp ships platform-specific native binaries that can't be inlined. The
+  // embedding runtime no longer lives here — it moved to embedding-service.
+  external: ['sharp'],
   outExtension: () => ({ js: '.mjs' }),
   clean: true,
   shims: true,

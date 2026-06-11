@@ -1,13 +1,13 @@
 import type { Database } from '@claude-organizer/db'
 import { reconcileEmbeddingDim } from '@claude-organizer/db'
 import type { EmbeddingRuntimeState, EmbeddingRuntimeStatus } from '@claude-organizer/shared'
-import { MCP_RUNTIME_SERVICE } from '@claude-organizer/shared'
+import { EMBEDDING_RUNTIME_SERVICE } from '@claude-organizer/shared'
 
 import { getSystemSettings, setEmbeddingModel } from './authz'
 import { backfillCardEmbeddings } from './cards'
 import { backfillCommentEmbeddings } from './comments'
 import { backfillDocEmbeddings } from './docs'
-import { setEmbeddingConfig } from './embedding'
+import { reloadEmbeddingService } from './embedding'
 import { getRuntimeEmbeddingConfig, resolveEffectiveEmbeddingConfig } from './embeddingConfig'
 import { ConflictError } from './errors'
 
@@ -32,23 +32,20 @@ function isApplying(): boolean {
  * model swap in this process. The model/dim always reflect the persisted choice,
  * so the status is correct even after a restart cleared `progress`.
  *
- * `mcpRestartRequired` is derived durably (not from the ephemeral apply flag):
- * the MCP records the model it loaded at boot, so a mismatch with the persisted
- * choice means it is still serving the old model until restarted — surfaced even
- * after the API itself restarted or the apply ran in a prior process.
+ * `serviceModel` is what the embedding service recorded loading — it converges on
+ * `model` automatically (the apply pushes a `/reload`), so a transient mismatch
+ * just means the reload is still settling, not that anything needs a restart.
  */
 export async function getEmbeddingStatus(db: Database): Promise<EmbeddingRuntimeStatus> {
   const cfg = await resolveEffectiveEmbeddingConfig(db)
-  const mcp = await getRuntimeEmbeddingConfig(db, MCP_RUNTIME_SERVICE)
-  const mcpRestartRequired
-    = mcp !== null && (mcp.model !== cfg.model || mcp.dim !== cfg.dim)
+  const service = await getRuntimeEmbeddingConfig(db, EMBEDDING_RUNTIME_SERVICE)
   return {
     state: progress?.state ?? 'idle',
     model: cfg.model,
     dim: cfg.dim,
     enabled: cfg.model !== null,
     dimChanged: progress?.dimChanged ?? false,
-    mcpRestartRequired,
+    serviceModel: service?.model ?? null,
     backfill: progress?.backfill ?? { docs: 0, cards: 0, comments: 0 },
     error: progress?.error ?? null
   }
@@ -56,11 +53,11 @@ export async function getEmbeddingStatus(db: Database): Promise<EmbeddingRuntime
 
 /**
  * Apply a model change: persist (validated) → reconcile the live pgvector dim
- * (drops vectors on a dim change) → swap this process's runtime → kick the
- * backfill in the background. The reconcile is fast (the dropped column re-indexes
- * empty), so it runs inline; only the re-embed is backgrounded. The MCP is a
- * separate process and keeps the old model until restarted — flagged in the
- * status, never silently.
+ * (drops vectors on a dim change) → push a `/reload` to the embedding service and
+ * wait for it to settle → kick the backfill in the background. The reload BEFORE
+ * the backfill guarantees the re-embed runs on the NEW model; a pull/notify would
+ * race it. The service-side dispose frees the old model on the swap — there is no
+ * in-process model to reset here anymore, and nothing to restart manually.
  */
 export async function applyEmbeddingModel(
   db: Database,
@@ -90,7 +87,6 @@ export async function applyEmbeddingModel(
     slot.dimChanged = prev.dim !== next.dim
 
     await reconcileEmbeddingDim(db)
-    setEmbeddingConfig(next)
   } catch (err) {
     // Restore the prior model when we'd already persisted (reconcile failed):
     // otherwise the persisted choice and the live column dim drift apart and
@@ -99,6 +95,11 @@ export async function applyEmbeddingModel(
     progress = null
     throw err
   }
+
+  // Best-effort: if the service is unreachable the persisted choice still wins —
+  // the service loads it on its next boot/reload — so a miss must not abort the
+  // apply. It's awaited so the backfill below embeds in the new model, not the old.
+  await reloadEmbeddingService()
 
   slot.state = 'backfilling'
   void runBackfill(db, slot)

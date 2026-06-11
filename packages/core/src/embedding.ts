@@ -1,123 +1,49 @@
-import type { EmbeddingConfig } from '@claude-organizer/shared'
-import { resolveEmbeddingConfig } from '@claude-organizer/shared'
-
 export type EmbeddingKind = 'query' | 'passage'
 
-interface Embedder {
-  run: (texts: string[]) => Promise<number[][]>
-  e5Prefix: boolean
-}
-
-let cached: Embedder | null = null
-let loading: Promise<Embedder | null> | null = null
-// Bumped on every config swap; an in-flight load tagged with a stale generation
-// must not populate `cached` after a reset (would resurrect the old model).
-let generation = 0
-
-// Effective config primed from the DB (persisted choice > env), set at process
-// boot and on a runtime model swap. `null` ⇒ resolve from env/default.
-let configOverride: EmbeddingConfig | null = null
-
-/**
- * Swap the active embedding config (the persisted DB choice) and drop the loaded
- * pipeline so the next embed reloads with the new model. Pass `null` to revert to
- * env/default resolution.
- */
-export function setEmbeddingConfig(cfg: EmbeddingConfig | null): void {
-  configOverride = cfg
-  cached = null
-  loading = null
-  generation++
-}
-
-function activeConfig(): EmbeddingConfig {
-  return configOverride ?? resolveEmbeddingConfig()
-}
-
-/**
- * Load the feature-extraction pipeline once per process. The transformers lib
- * (and its onnxruntime backend) is imported dynamically, so a deployment with
- * embeddings disabled (`EMBEDDING_MODEL=none`) never pays its load cost. A load
- * failure is logged and degrades to `null` (lexical-only); it isn't cached, so a
- * transient failure can recover on a later call.
- */
-async function loadEmbedder(): Promise<Embedder | null> {
-  const cfg = activeConfig()
-  if (!cfg.model) return null
-  const { pipeline, env } = await import('@huggingface/transformers')
-  // Transformers.js ignores HF_HOME/TRANSFORMERS_CACHE — the weights cache dir is
-  // only overridable programmatically. Point it at a stable path (a mounted volume
-  // in Docker, shared across services) so the weights survive a rebuild instead of
-  // re-downloading. Concurrent writers are safe: FileCache writes a per-process
-  // temp file and renames atomically.
-  const cacheDir = process.env.EMBEDDING_CACHE_DIR?.trim()
-  if (cacheDir) env.cacheDir = cacheDir
-  // fp32 is the variant present in the default model's repo; override with a
-  // quantized one (q8/int8…) via EMBEDDING_DTYPE when the repo ships it.
-  const dtype = process.env.EMBEDDING_DTYPE?.trim() || 'fp32'
-  const pipe = await pipeline('feature-extraction', cfg.model, {
-    dtype
-  } as Record<string, unknown>)
-  return {
-    e5Prefix: cfg.e5Prefix,
-    run: async (texts) => {
-      const out = await pipe(texts, { pooling: 'mean', normalize: true })
-      return out.tolist() as number[][]
-    }
+// The dedicated embedding service holds the model; this module is a thin HTTP
+// client. `null` on any failure (service down, timeout, disabled) so callers fall
+// back to lexical search — the same invariant as when the model failed to load.
+// Env is read per call (not captured at import) so deploys/tests don't need a
+// reload to change it.
+async function requestEmbed(
+  texts: string[],
+  kind: EmbeddingKind
+): Promise<number[][] | null> {
+  const serviceUrl = process.env.EMBEDDING_SERVICE_URL?.trim()
+  // Deploy-level disable: `EMBEDDING_MODEL=none` means the client never calls the
+  // service (a runtime "none" set via the UI is handled service-side instead).
+  const deployDisabled = process.env.EMBEDDING_MODEL?.trim() === 'none'
+  if (deployDisabled || !serviceUrl) return null
+  // Generous: covers a still-warming service and large backfill batches; a true
+  // hang still falls back to lexical instead of stalling the caller forever.
+  const timeoutMs = Number(process.env.EMBEDDING_TIMEOUT_MS ?? 30_000)
+  try {
+    const res = await fetch(`${serviceUrl}/embed`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ texts, kind }),
+      signal: AbortSignal.timeout(timeoutMs)
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as { vectors?: number[][] | null }
+    return data.vectors ?? null
+  } catch (err) {
+    console.error('[embedding] service request failed; falling back to lexical', err)
+    return null
   }
 }
 
-function getEmbedder(): Promise<Embedder | null> {
-  if (cached) return Promise.resolve(cached)
-  if (!loading) {
-    const gen = generation
-    loading = loadEmbedder()
-      .then((e) => {
-        if (gen === generation) {
-          cached = e
-          loading = null
-        }
-        return e
-      })
-      .catch((err) => {
-        if (gen === generation) loading = null
-        console.error('[embedding] model load failed; semantic search off this process', err)
-        return null
-      })
-  }
-  return loading
-}
-
-/** Boot warm-up: prime the model load up front. Safe to fire-and-forget —
- *  `getEmbedder` swallows load failure and a disabled config is a no-op. */
-export async function warmupEmbedder(): Promise<void> {
-  await getEmbedder()
-}
-
-function applyPrefix(text: string, kind: EmbeddingKind, e5Prefix: boolean): string {
-  // e5 models are trained with `query:`/`passage:` prefixes; other families take
-  // the raw text.
-  return e5Prefix ? `${kind}: ${text}` : text
-}
-
 /**
- * Embed many texts in one pass (the e5 prefix is applied per `kind`). Returns the
- * unit-normalized vectors, or `null` when embeddings are disabled/unavailable so
- * callers fall back to lexical search.
+ * Embed many texts in one pass (the e5 prefix is applied service-side per `kind`).
+ * Returns the unit-normalized vectors, or `null` when embeddings are
+ * disabled/unavailable so callers fall back to lexical search.
  */
 export async function embedMany(
   texts: string[],
   kind: EmbeddingKind
 ): Promise<number[][] | null> {
   if (texts.length === 0) return []
-  const embedder = await getEmbedder()
-  if (!embedder) return null
-  try {
-    return await embedder.run(texts.map(t => applyPrefix(t, kind, embedder.e5Prefix)))
-  } catch (err) {
-    console.error('[embedding] inference failed; falling back to lexical', err)
-    return null
-  }
+  return requestEmbed(texts, kind)
 }
 
 /** Embed a single text; `null` when embeddings are disabled/unavailable. */
@@ -127,6 +53,30 @@ export async function embed(
 ): Promise<number[] | null> {
   const vectors = await embedMany([text], kind)
   return vectors ? (vectors[0] ?? null) : null
+}
+
+/**
+ * Ask the embedding service to re-resolve the persisted config and reload its
+ * pipeline (disposing the old one). Awaited by the apply so the subsequent
+ * backfill embeds in the new model. Best-effort: returns `false` (never throws)
+ * when the service is unreachable — the persisted choice still wins and the
+ * service converges on its next boot/reload. The reload load can be slow (cold
+ * download), so the timeout is generous.
+ */
+export async function reloadEmbeddingService(): Promise<boolean> {
+  const serviceUrl = process.env.EMBEDDING_SERVICE_URL?.trim()
+  if (!serviceUrl) return false
+  const timeoutMs = Number(process.env.EMBEDDING_RELOAD_TIMEOUT_MS ?? 300_000)
+  try {
+    const res = await fetch(`${serviceUrl}/reload`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(timeoutMs)
+    })
+    return res.ok
+  } catch (err) {
+    console.error('[embedding] service reload failed; it will converge on the persisted model', err)
+    return false
+  }
 }
 
 /**
