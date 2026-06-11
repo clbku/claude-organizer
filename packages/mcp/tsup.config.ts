@@ -7,7 +7,7 @@ export default defineConfig({
   entry: { server: 'src/server.ts' },
   format: ['esm'],
   platform: 'node',
-  target: 'node20',
+  target: 'node24',
   bundle: true,
   // Inline everything EXCEPT the embedding runtime. The negative lookahead is
   // required: a bare `noExternal: [/.*/]` would force-bundle them back in even

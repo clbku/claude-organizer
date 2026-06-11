@@ -16,13 +16,18 @@ export interface EmbeddingModelInfo {
   e5Prefix: boolean
 }
 
+// Xenova mirrors of the intfloat e5 models: same architecture/dims/prefix, but
+// their onnx/ folder ships standard quantized variants (model_quantized.onnx =
+// int8, ~118MB vs ~470MB fp32) selectable via EMBEDDING_DTYPE. The original
+// intfloat repos only ship fp32 + a CPU-specific avx512-vnni int8, so q8 can't
+// be selected there.
 export const EMBEDDING_MODELS: Record<string, EmbeddingModelInfo> = {
-  'intfloat/multilingual-e5-small': { dim: 384, multilingual: true, e5Prefix: true },
-  'intfloat/multilingual-e5-base': { dim: 768, multilingual: true, e5Prefix: true },
-  'intfloat/multilingual-e5-large': { dim: 1024, multilingual: true, e5Prefix: true }
+  'Xenova/multilingual-e5-small': { dim: 384, multilingual: true, e5Prefix: true },
+  'Xenova/multilingual-e5-base': { dim: 768, multilingual: true, e5Prefix: true },
+  'Xenova/multilingual-e5-large': { dim: 1024, multilingual: true, e5Prefix: true }
 }
 
-export const DEFAULT_EMBEDDING_MODEL = 'intfloat/multilingual-e5-small'
+export const DEFAULT_EMBEDDING_MODEL = 'Xenova/multilingual-e5-small'
 
 /** Baseline column dimension (the default model's), used when embeddings are off. */
 export const DEFAULT_EMBEDDING_DIM = EMBEDDING_MODELS[DEFAULT_EMBEDDING_MODEL]!.dim

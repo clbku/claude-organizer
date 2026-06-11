@@ -249,15 +249,15 @@ describe('system settings', () => {
     expect(await getSystemSettings(ctx.db)).toMatchObject({ embeddingModel: null })
 
     const prevEnv = process.env.EMBEDDING_MODEL
-    process.env.EMBEDDING_MODEL = 'intfloat/multilingual-e5-base'
+    process.env.EMBEDDING_MODEL = 'Xenova/multilingual-e5-base'
     try {
-      await setEmbeddingModel(ctx.db, 'intfloat/multilingual-e5-large')
+      await setEmbeddingModel(ctx.db, 'Xenova/multilingual-e5-large')
       expect(await getSystemSettings(ctx.db)).toMatchObject({
-        embeddingModel: 'intfloat/multilingual-e5-large'
+        embeddingModel: 'Xenova/multilingual-e5-large'
       })
       // Persisted choice wins over EMBEDDING_MODEL=base.
       expect(await resolveEffectiveEmbeddingConfig(ctx.db)).toMatchObject({
-        model: 'intfloat/multilingual-e5-large',
+        model: 'Xenova/multilingual-e5-large',
         dim: 1024
       })
 
@@ -267,7 +267,7 @@ describe('system settings', () => {
       // Unset ⇒ fall back to env (base here).
       await setEmbeddingModel(ctx.db, null)
       expect(await resolveEffectiveEmbeddingConfig(ctx.db)).toMatchObject({
-        model: 'intfloat/multilingual-e5-base'
+        model: 'Xenova/multilingual-e5-base'
       })
 
       // A non-registry id is rejected at the write boundary (can't carry a dim).
@@ -341,7 +341,7 @@ describe('embedding runtime apply', () => {
 
     // MCP recorded a different model than the persisted/effective one ⇒ stale.
     await recordRuntimeEmbeddingConfig(ctx.db, MCP_RUNTIME_SERVICE, {
-      model: 'intfloat/multilingual-e5-large',
+      model: 'Xenova/multilingual-e5-large',
       dim: 1024,
       e5Prefix: true
     })

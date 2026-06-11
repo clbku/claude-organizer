@@ -3,11 +3,11 @@
   "version": "0.18.1",
   "private": true,
   "type": "module",
-  "main": "./dist/server.js",
+  "main": "./dist/server.mjs",
   "scripts": {
     "dev": "tsx watch --env-file=../../.env src/server.ts",
-    "build": "tsc",
-    "start": "node --env-file=../../.env dist/server.js",
+    "build": "tsup",
+    "start": "node --env-file=../../.env dist/server.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
@@ -20,6 +20,7 @@
     "@fastify/cors": "11.2.0",
     "@fastify/multipart": "10.0.0",
     "@fastify/websocket": "11.2.0",
+    "@huggingface/transformers": "4.2.0",
     "better-auth": "1.6.11",
     "fastify": "5.8.5",
     "fastify-plugin": "5.1.0",
@@ -29,6 +30,7 @@
   },
   "devDependencies": {
     "@types/node": "25.9.1",
+    "tsup": "8.5.1",
     "tsx": "4.22.3",
     "typescript": "6.0.3"
   }
