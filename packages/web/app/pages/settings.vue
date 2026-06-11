@@ -323,7 +323,7 @@ onUnmounted(() => {
                 />
               </div>
 
-              <div>
+              <div v-if="selectedModel !== 'none'">
                 <p class="text-sm font-medium">
                   Quantization (dtype)
                 </p>

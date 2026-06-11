@@ -366,7 +366,7 @@ function resolveError(e: unknown): string {
           />
         </div>
 
-        <div>
+        <div v-if="setupModel !== 'none'">
           <p class="text-sm font-medium">
             Quantization (dtype)
           </p>
