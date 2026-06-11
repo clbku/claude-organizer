@@ -14,6 +14,7 @@ import {
   destroySprint,
   getAttachment,
   updateCard,
+  updateComment,
   updateDoc,
   updateIntakeItem
 } from '../src/index'
@@ -73,12 +74,13 @@ describe('gcAttachmentsOnDestroy', () => {
     const comment = await addComment(ctx.db, {
       cardId: card.id,
       author: 'user',
-      bodyMd: 'has an image'
+      bodyMd: 'placeholder'
     })
     const att = await image(project.id, {
       ownerType: 'comment',
       ownerId: comment.id
     })
+    await updateComment(ctx.db, { id: comment.id, bodyMd: ref(att.id) })
 
     await destroyCard(ctx.db, card.id)
 
@@ -138,10 +140,11 @@ describe('gcAttachmentsOnDestroy', () => {
     expect(await exists(att.id)).toBe(true)
   })
 
-  it('keeps an image owned by a living out-of-scope card when only a referrer is destroyed', async () => {
+  it('keeps an image still referenced by a living out-of-scope card when a referrer is destroyed', async () => {
     const project = await freshProject(ctx.db)
     const owner = await createCard(ctx.db, { projectId: project.id, title: 'Owner' })
     const att = await image(project.id, { ownerType: 'card', ownerId: owner.id })
+    await updateCard(ctx.db, { id: owner.id, descriptionMd: ref(att.id) })
     const referrer = await createCard(ctx.db, { projectId: project.id, title: 'Ref' })
     await updateCard(ctx.db, { id: referrer.id, descriptionMd: ref(att.id) })
 
@@ -150,7 +153,11 @@ describe('gcAttachmentsOnDestroy', () => {
     expect(await exists(att.id)).toBe(true)
   })
 
-  it('keeps a destroyed image still referenced by a card in an ARCHIVED sprint (restorable)', async () => {
+  // archivedSprintInert is retired: archiving a sprint UNLINKS its cards, so a
+  // card in an archived sprint no longer protects a shared image from a
+  // co-referencing destroy. Trade-off of the pure-link model (the archived
+  // sprint's images were already byte-degraded by the aggressive drop).
+  it('reclaims an image when its last LIVE link is destroyed, even though an archived-sprint card still cites it', async () => {
     const project = await freshProject(ctx.db)
     const sprint = await createSprint(ctx.db, { projectId: project.id, name: 'S' })
     const item = await createIntakeItem(ctx.db, {
@@ -169,7 +176,7 @@ describe('gcAttachmentsOnDestroy', () => {
     await archiveSprint(ctx.db, sprint.id)
     await destroyIntakeItem(ctx.db, item.id)
 
-    expect(await exists(att.id)).toBe(true)
+    expect(await exists(att.id)).toBe(false)
   })
 
   it('destroyDoc hard-deletes images owned by the doc and its subtree', async () => {

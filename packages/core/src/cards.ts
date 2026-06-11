@@ -17,7 +17,7 @@ import { createId, type Database, schema } from '@claude-organizer/db'
 
 import { archivedCondition, type ArchiveFilter } from './archive'
 import { gcAttachmentsOnArchive, gcAttachmentsOnDestroy } from './attachmentGc'
-import { reconcileAttachmentLinks } from './attachmentLinks'
+import { reconcileAttachmentLinks, relinkCardsAndComments } from './attachmentLinks'
 import { getSystemSettings } from './authz'
 import { listBlockedBy, listBlocking, pendingBlockerCounts } from './blockers'
 import { claimsByCardIds, getClaim, releaseClaimOnDone } from './cardClaims'
@@ -703,6 +703,10 @@ export async function restoreCard(db: Database, id: string) {
     .where(eq(schema.cards.id, id))
     .returning(cardDetailColumns)
   if (row) {
+    // Archive removed this card's links; re-establish them from the live body so
+    // the derived index doesn't drift (and the sweep can't collect an image the
+    // restored card still references). Bytes stay null — restore never recovers them.
+    await relinkCardsAndComments(db, [id])
     await syncIntakeForCard(db, row.projectId, row.key)
     await notify(db, {
       type: 'card.changed',

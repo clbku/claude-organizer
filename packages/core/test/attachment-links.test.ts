@@ -5,11 +5,19 @@ import { schema } from '@claude-organizer/db'
 
 import {
   addComment,
+  archiveCard,
+  archiveIntakeItem,
+  archiveSprint,
   createAttachment,
   createCard,
   createDoc,
   createIntakeItem,
+  createSprint,
   reconcileAttachmentLinks,
+  restoreCard,
+  restoreIntakeItem,
+  restoreSprint,
+  setKeepAttachmentsOnArchive,
   updateCard,
   updateComment,
   updateDoc,
@@ -167,6 +175,87 @@ describe('reconcileAttachmentLinks via write paths', () => {
     expect(await orphanedAt(att.id)).toBeNull()
     expect(item).not.toBeNull()
     expect(card.id).toBeTruthy()
+  })
+
+  it('restore re-links the card so a shared image is not later collected (no drift)', async () => {
+    await setKeepAttachmentsOnArchive(ctx.db, false)
+    const project = await freshProject(ctx.db)
+    const att = await mkAtt(project.id)
+    const a = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'A',
+      descriptionMd: ref(att.id)
+    })
+    const b = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'B',
+      descriptionMd: ref(att.id)
+    })
+    expect(await linkCount(att.id)).toBe(2)
+
+    await archiveCard(ctx.db, a.id)
+    expect(await linkCount(att.id)).toBe(1)
+
+    await restoreCard(ctx.db, a.id)
+    expect(await linkCount(att.id)).toBe(2)
+
+    // B drops its ref; A (restored) still cites the image, so it must survive.
+    await updateCard(ctx.db, { id: b.id, descriptionMd: 'gone' })
+    expect(await linkCount(att.id)).toBe(1)
+    expect(await orphanedAt(att.id)).toBeNull()
+  })
+
+  it('restore re-links a sprint card so a shared image is not later collected', async () => {
+    await setKeepAttachmentsOnArchive(ctx.db, false)
+    const project = await freshProject(ctx.db)
+    const sprint = await createSprint(ctx.db, { projectId: project.id, name: 'S' })
+    const att = await mkAtt(project.id)
+    await createCard(ctx.db, {
+      projectId: project.id,
+      sprintId: sprint.id,
+      title: 'C',
+      descriptionMd: ref(att.id)
+    })
+    const outsider = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'O',
+      descriptionMd: ref(att.id)
+    })
+    expect(await linkCount(att.id)).toBe(2)
+
+    await archiveSprint(ctx.db, sprint.id)
+    expect(await linkCount(att.id)).toBe(1)
+    await restoreSprint(ctx.db, sprint.id)
+    expect(await linkCount(att.id)).toBe(2)
+
+    await updateCard(ctx.db, { id: outsider.id, descriptionMd: 'gone' })
+    expect(await linkCount(att.id)).toBe(1)
+    expect(await orphanedAt(att.id)).toBeNull()
+  })
+
+  it('restore re-links an inbox item so a shared image is not later collected', async () => {
+    await setKeepAttachmentsOnArchive(ctx.db, false)
+    const project = await freshProject(ctx.db)
+    const att = await mkAtt(project.id)
+    const item = await createIntakeItem(ctx.db, {
+      projectId: project.id,
+      bodyMd: ref(att.id)
+    })
+    const card = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'C',
+      descriptionMd: ref(att.id)
+    })
+    expect(await linkCount(att.id)).toBe(2)
+
+    await archiveIntakeItem(ctx.db, item.id)
+    expect(await linkCount(att.id)).toBe(1)
+    await restoreIntakeItem(ctx.db, item.id)
+    expect(await linkCount(att.id)).toBe(2)
+
+    await updateCard(ctx.db, { id: card.id, descriptionMd: 'gone' })
+    expect(await linkCount(att.id)).toBe(1)
+    expect(await orphanedAt(att.id)).toBeNull()
   })
 
   it('skips a dangling token that resolves to no attachment (FK-safe)', async () => {

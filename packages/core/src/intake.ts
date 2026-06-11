@@ -206,7 +206,11 @@ export async function restoreIntakeItem(db: Database, id: string) {
     .set({ status: nextStatus, archivedAt: null, updatedAt: sql`now()` })
     .where(eq(schema.intakeItems.id, id))
     .returning(intakeColumns)
-  if (row) await notifyChanged(db, row)
+  if (row) {
+    // Archive unlinked this item; re-establish its links so the index doesn't drift.
+    await reconcileAttachmentLinks(db, 'inbox', id, current.bodyMd)
+    await notifyChanged(db, row)
+  }
   return row ?? null
 }
 

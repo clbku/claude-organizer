@@ -5,6 +5,7 @@ import { createId, type Database, schema } from '@claude-organizer/db'
 
 import { archivedCondition, type ArchiveFilter } from './archive'
 import { gcAttachmentsOnArchive, gcAttachmentsOnDestroy } from './attachmentGc'
+import { relinkCardsAndComments } from './attachmentLinks'
 import { getSystemSettings } from './authz'
 import { notify } from './events'
 import { syncIntakeForSprint } from './intake'
@@ -177,6 +178,15 @@ export async function restoreSprint(db: Database, id: string) {
     .where(eq(schema.sprints.id, id))
     .returning(sprintColumns)
   if (row) {
+    // Re-link the sprint's cards (archive unlinked them) so the derived index
+    // doesn't drift — same reason as restoreCard.
+    const sprintCardIds = (
+      await db
+        .select({ id: schema.cards.id })
+        .from(schema.cards)
+        .where(eq(schema.cards.sprintId, id))
+    ).map(c => c.id)
+    await relinkCardsAndComments(db, sprintCardIds)
     await syncIntakeForSprint(db, row.projectId, row.id)
     await notify(db, {
       type: 'sprint.changed',

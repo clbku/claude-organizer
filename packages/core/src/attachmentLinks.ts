@@ -68,6 +68,29 @@ export async function reconcileAttachmentLinks(
   await refreshOrphanedAt(db, [...new Set([...toAdd, ...toRemove])])
 }
 
+// Re-establishes links for a set of cards (and their comments) from the current
+// bodies. Archive removes the scope's links directly (not via reconcile), so on
+// restore the derived index would stay stale — and could later collect an
+// attachment the restored card still references. Idempotent: a no-op when the
+// links are already present (e.g. the keep-on-archive toggle never removed them).
+export async function relinkCardsAndComments(
+  db: Database,
+  cardIds: string[]
+): Promise<void> {
+  if (!cardIds.length) return
+  const cards = await db
+    .select({ id: schema.cards.id, body: schema.cards.descriptionMd })
+    .from(schema.cards)
+    .where(inArray(schema.cards.id, cardIds))
+  for (const c of cards) await reconcileAttachmentLinks(db, 'card', c.id, c.body)
+  const comments = await db
+    .select({ id: schema.comments.id, body: schema.comments.bodyMd })
+    .from(schema.comments)
+    .where(inArray(schema.comments.cardId, cardIds))
+  for (const cm of comments)
+    await reconcileAttachmentLinks(db, 'comment', cm.id, cm.body)
+}
+
 // Re-derives `orphaned_at` from the actual current link count for the touched
 // attachments (not from toAdd/toRemove), so it's correct under concurrency: a
 // row that just hit 0 links and has no clock yet starts it; one that has links

@@ -12,7 +12,9 @@ import {
   getAttachment,
   markIntakePlanned,
   setKeepAttachmentsOnArchive,
-  updateCard
+  updateCard,
+  updateComment,
+  updateIntakeItem
 } from '../src/index'
 import { freshProject, useTestDb } from './helpers'
 
@@ -77,7 +79,7 @@ describe('gcAttachmentsOnArchive', () => {
     const comment = await addComment(ctx.db, {
       cardId: card.id,
       author: 'user',
-      bodyMd: 'has an image'
+      bodyMd: 'placeholder'
     })
     const att = await createAttachment(ctx.db, {
       projectId: project.id,
@@ -87,6 +89,7 @@ describe('gcAttachmentsOnArchive', () => {
       height: 1,
       owner: { ownerType: 'comment', ownerId: comment.id }
     })
+    await updateComment(ctx.db, { id: comment.id, bodyMd: ref(att.id) })
 
     await archiveCard(ctx.db, card.id)
 
@@ -221,6 +224,7 @@ describe('gcAttachmentsOnArchive', () => {
       height: 1,
       owner: { ownerType: 'inbox', ownerId: item.id }
     })
+    await updateIntakeItem(ctx.db, { id: item.id, bodyMd: ref(att.id) })
 
     await archiveIntakeItem(ctx.db, item.id)
 
