@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import type { EmbeddingRuntimeStatus } from '@claude-organizer/shared'
-import { EMBEDDING_MODELS } from '@claude-organizer/shared'
+import type { EmbeddingDtype, EmbeddingRuntimeStatus } from '@claude-organizer/shared'
 
 const api = useApi()
 const toast = useToast()
@@ -77,22 +76,22 @@ const toggleIncludeImages = (next: boolean) =>
   )
 
 const embedding = computed(() => capabilities.value?.embedding ?? null)
-const embeddingModelItems = [
-  ...Object.entries(EMBEDDING_MODELS).map(([id, info]) => ({
-    label: `${id} (${info.dim}d)`,
-    value: id
-  })),
-  { label: 'Disabled — lexical search only', value: 'none' }
-]
-// What the current effective config maps to in the select (a disabled deployment
-// shows as 'none'); used to seed the picker and to detect a real change.
+const { modelItems: embeddingModelItems, dtypeItems: embeddingDtypeItems }
+  = useEmbeddingChoices()
+// What the current effective config maps to in the selects (a disabled deployment
+// shows as 'none'); used to seed the pickers and to detect a real change.
 const currentModelChoice = computed(() =>
   embedding.value ? (embedding.value.enabled ? embedding.value.model : 'none') : null
 )
+const currentDtype = computed(() => embedding.value?.dtype ?? null)
 const selectedModel = ref<string | undefined>(undefined)
+const selectedDtype = ref<EmbeddingDtype | undefined>(undefined)
 watchEffect(() => {
   if (selectedModel.value === undefined && currentModelChoice.value !== null) {
     selectedModel.value = currentModelChoice.value
+  }
+  if (selectedDtype.value === undefined && currentDtype.value !== null) {
+    selectedDtype.value = currentDtype.value
   }
 })
 
@@ -110,8 +109,10 @@ const embeddingBusy = computed(
 )
 const pendingChange = computed(
   () =>
-    selectedModel.value !== undefined
-    && selectedModel.value !== currentModelChoice.value
+    (selectedModel.value !== undefined
+      && selectedModel.value !== currentModelChoice.value)
+    || (selectedDtype.value !== undefined
+      && selectedDtype.value !== currentDtype.value)
 )
 const canApplyEmbedding = computed(
   () => pendingChange.value && !embeddingBusy.value
@@ -140,12 +141,12 @@ async function refreshEmbeddingStatus() {
 }
 
 async function applyEmbedding() {
-  if (selectedModel.value === undefined) return
+  if (selectedModel.value === undefined && selectedDtype.value === undefined) return
   applyingEmbedding.value = true
   try {
     embeddingStatus.value = await api<EmbeddingRuntimeStatus>('/admin/embedding', {
       method: 'POST',
-      body: { model: selectedModel.value }
+      body: { model: selectedModel.value, dtype: selectedDtype.value }
     })
     if (embeddingBusy.value) {
       if (!statusTimer) statusTimer = setTimeout(refreshEmbeddingStatus, 1500)
@@ -306,7 +307,7 @@ onUnmounted(() => {
                 </p>
                 <p class="mt-0.5 text-xs text-muted">
                   <template v-if="embedding?.enabled">
-                    Current: {{ embedding.model }} · {{ embedding.dim }}d.
+                    Current: {{ embedding.model }} · {{ embedding.dim }}d · {{ embedding.dtype }}.
                   </template>
                   <template v-else>
                     Semantic search is off — lexical search only.
@@ -315,6 +316,23 @@ onUnmounted(() => {
                 <USelectMenu
                   v-model="selectedModel"
                   :items="embeddingModelItems"
+                  value-key="value"
+                  label-key="label"
+                  :disabled="embeddingBusy"
+                  class="mt-2 w-full"
+                />
+              </div>
+
+              <div>
+                <p class="text-sm font-medium">
+                  Quantization (dtype)
+                </p>
+                <p class="mt-0.5 text-xs text-muted">
+                  Lower precision uses less memory; switching is lazy — existing vectors stay valid, no re-index.
+                </p>
+                <USelectMenu
+                  v-model="selectedDtype"
+                  :items="embeddingDtypeItems"
                   value-key="value"
                   label-key="label"
                   :disabled="embeddingBusy"

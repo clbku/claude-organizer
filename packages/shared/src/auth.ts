@@ -3,6 +3,7 @@
 // that shape. These are only the slices the web consumes. See ADR "Auth:
 // e-mail+senha base + GitHub opcional".
 
+import type { EmbeddingDtype } from './embedding'
 import type { UserRole, UserStatus } from './enums'
 
 export interface SessionUser {
@@ -27,11 +28,12 @@ export interface AuthCapabilities {
   // true (default) = include attached image bytes in a backup envelope.
   includeAttachmentsInBackup: boolean
   // Effective embedding config (persisted choice > env > default). `model: null`
-  // ⇒ semantic search off (lexical-only); `dim` is always set.
+  // ⇒ semantic search off (lexical-only); `dim`/`dtype` are always set.
   embedding: {
     model: string | null
     dim: number
     enabled: boolean
+    dtype: EmbeddingDtype
   }
 }
 

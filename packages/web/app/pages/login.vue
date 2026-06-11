@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { FormError, FormSubmitEvent } from '@nuxt/ui'
 
-import type { AuthCapabilities } from '@claude-organizer/shared'
+import type { AuthCapabilities, EmbeddingDtype } from '@claude-organizer/shared'
 
 definePageMeta({ layout: false })
 
@@ -172,6 +172,45 @@ const onToggleKeepImages = (next: boolean) =>
 const onToggleIncludeImages = (next: boolean) =>
   onToggleSetting('includeAttachmentsInBackup', next, togglingBackup)
 
+// Setup-only embedding choice (model + dtype). The factory default (small + q8)
+// is what capabilities already resolve to at first boot, so seeding from caps
+// pre-selects it — no explicit default here.
+const { modelItems: embeddingModelItems, dtypeItems: embeddingDtypeItems }
+  = useEmbeddingChoices()
+const setupModel = ref<string | undefined>(undefined)
+const setupDtype = ref<EmbeddingDtype | undefined>(undefined)
+watchEffect(() => {
+  const e = caps.value?.embedding
+  if (!e) return
+  if (setupModel.value === undefined) setupModel.value = e.enabled ? e.model! : 'none'
+  if (setupDtype.value === undefined) setupDtype.value = e.dtype
+})
+const savingModel = ref(false)
+const savingDtype = ref(false)
+async function onSelectEmbedding(
+  key: 'embeddingModel' | 'embeddingDtype',
+  next: string,
+  loading: Ref<boolean>
+) {
+  loading.value = true
+  try {
+    await api('/setup/settings', { method: 'POST', body: { [key]: next } })
+    caps.value = await fetchCapabilities()
+  } catch (e) {
+    error.value = resolveError(e)
+  } finally {
+    loading.value = false
+  }
+}
+const onSelectModel = (next: string) => {
+  setupModel.value = next
+  return onSelectEmbedding('embeddingModel', next, savingModel)
+}
+const onSelectDtype = (next: EmbeddingDtype) => {
+  setupDtype.value = next
+  return onSelectEmbedding('embeddingDtype', next, savingDtype)
+}
+
 // Setup-only "run without login" choice. A full reload re-resolves capabilities
 // and the auth middleware, which then sees sem-auth and stops gating.
 async function onDisableAuth() {
@@ -306,6 +345,42 @@ function resolveError(e: unknown): string {
             :model-value="includeAttachmentsInBackup"
             :loading="togglingBackup"
             @update:model-value="onToggleIncludeImages"
+          />
+        </div>
+
+        <div>
+          <p class="text-sm font-medium">
+            Embedding model
+          </p>
+          <p class="text-xs text-muted">
+            Model used for semantic search, or off (lexical only).
+          </p>
+          <USelectMenu
+            :model-value="setupModel"
+            :items="embeddingModelItems"
+            value-key="value"
+            label-key="label"
+            :loading="savingModel"
+            class="mt-2 w-full"
+            @update:model-value="onSelectModel"
+          />
+        </div>
+
+        <div>
+          <p class="text-sm font-medium">
+            Quantization (dtype)
+          </p>
+          <p class="text-xs text-muted">
+            Lower precision uses less memory.
+          </p>
+          <USelectMenu
+            :model-value="setupDtype"
+            :items="embeddingDtypeItems"
+            value-key="value"
+            label-key="label"
+            :loading="savingDtype"
+            class="mt-2 w-full"
+            @update:model-value="onSelectDtype"
           />
         </div>
 

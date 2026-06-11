@@ -98,7 +98,11 @@ export function registerAuthRoutes(
 
   app.get('/auth/capabilities', async (): Promise<AuthCapabilities> => {
     const settings = await getSystemSettings(db)
-    const embedding = resolveEmbeddingConfig(undefined, settings.embeddingModel)
+    const embedding = resolveEmbeddingConfig(
+      undefined,
+      settings.embeddingModel,
+      settings.embeddingDtype
+    )
     return {
       emailPassword: isEmailPasswordEnabled(),
       github: isGithubConfigured(),
@@ -110,7 +114,8 @@ export function registerAuthRoutes(
       embedding: {
         model: embedding.model,
         dim: embedding.dim,
-        enabled: embedding.model !== null
+        enabled: embedding.model !== null,
+        dtype: embedding.dtype
       }
     }
   })
