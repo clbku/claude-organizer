@@ -4,6 +4,7 @@ import websocket from '@fastify/websocket'
 import Fastify from 'fastify'
 
 import { createAuth, getTrustedOrigins } from '@claude-organizer/auth'
+import { sweepOrphanAttachments } from '@claude-organizer/core'
 import { createDb } from '@claude-organizer/db'
 
 import { registerAuthEnforcement } from './plugins/auth-enforcement'
@@ -103,6 +104,12 @@ process.on('SIGTERM', shutdown)
 try {
   await app.listen({ port, host })
   app.log.info(`API ready on http://${host}:${port}`)
+  // Global edit-orphan sweep, once per boot — covers projects that only edit
+  // text (no upload/archive/destroy to fire the opportunistic sweep). Detached
+  // and fault-tolerant: a failure logs but never takes the server down.
+  void sweepOrphanAttachments(db).catch((err) => {
+    app.log.error({ err }, 'boot orphan-attachment sweep failed')
+  })
 } catch (err) {
   app.log.error(err)
   process.exit(1)
