@@ -1,10 +1,10 @@
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { createId, type Database, schema } from '@claude-organizer/db'
 
 import { reconcileAttachmentLinks } from './attachmentLinks'
-import { backfillEmbeddings, embed } from './embedding'
+import { applyChunks, backfillChunks, embedChunks } from './embedding'
 import { notify } from './events'
 import { paginate } from './pagination'
 
@@ -22,8 +22,8 @@ export const updateCommentInput = z.object({
 })
 export type UpdateCommentInput = z.infer<typeof updateCommentInput>
 
-// Allow-list, not a bare `.returning()`: the generated bodyTsv and the embedding
-// vector must not leak into the comment wire response.
+// Allow-list, not a bare `.returning()`: the generated bodyTsv must not leak into
+// the comment wire response.
 const commentReturnColumns = {
   id: schema.comments.id,
   cardId: schema.comments.cardId,
@@ -89,7 +89,7 @@ export async function listComments(
 
 export async function addComment(db: Database, input: AddCommentInput) {
   const parsed = addCommentInput.parse(input)
-  const embedding = await embed(parsed.bodyMd, 'passage')
+  const vectors = await embedChunks(parsed.bodyMd)
   const [row] = await db.transaction(async (tx) => {
     const inserted = await tx
       .insert(schema.comments)
@@ -99,8 +99,7 @@ export async function addComment(db: Database, input: AddCommentInput) {
         author: parsed.author,
         userId: parsed.userId ?? null,
         bodyMd: parsed.bodyMd,
-        readByAi: parsed.author === 'ai',
-        embedding
+        readByAi: parsed.author === 'ai'
       })
       .returning(commentReturnColumns)
     if (inserted[0])
@@ -108,6 +107,7 @@ export async function addComment(db: Database, input: AddCommentInput) {
     return inserted
   })
   if (row) {
+    await writeCommentChunks(db, row.id, vectors)
     const [card] = await db
       .select({ projectId: schema.cards.projectId })
       .from(schema.cards)
@@ -137,15 +137,26 @@ export async function addComment(db: Database, input: AddCommentInput) {
   return { ...row, authorName, authorImage }
 }
 
+/** Replace a comment's chunk rows with `vectors` (no-op when embeddings are off). */
+function writeCommentChunks(db: Database, commentId: string, vectors: number[][] | null) {
+  return applyChunks(
+    db,
+    vectors,
+    tx => tx.delete(schema.commentChunks).where(eq(schema.commentChunks.commentId, commentId)),
+    (tx, rows) =>
+      tx.insert(schema.commentChunks).values(rows.map(r => ({ commentId, idx: r.idx, embedding: r.embedding })))
+  )
+}
+
 export async function updateComment(db: Database, input: UpdateCommentInput) {
   const parsed = updateCommentInput.parse(input)
-  // Re-embed the body; only overwrite on a successful embed so a transient
-  // failure doesn't wipe a valid vector.
-  const embedding = await embed(parsed.bodyMd, 'passage')
+  // Re-chunk the body; a transient failure (null) keeps the valid vectors —
+  // handled inside writeCommentChunks and the conditional set below.
+  const vectors = await embedChunks(parsed.bodyMd)
   const [row] = await db.transaction(async (tx) => {
     const updated = await tx
       .update(schema.comments)
-      .set(embedding ? { bodyMd: parsed.bodyMd, embedding } : { bodyMd: parsed.bodyMd })
+      .set({ bodyMd: parsed.bodyMd })
       .where(eq(schema.comments.id, parsed.id))
       .returning(commentReturnColumns)
     if (updated[0])
@@ -153,6 +164,7 @@ export async function updateComment(db: Database, input: UpdateCommentInput) {
     return updated
   })
   if (row) {
+    await writeCommentChunks(db, row.id, vectors)
     const [card] = await db
       .select({ projectId: schema.cards.projectId })
       .from(schema.cards)
@@ -224,24 +236,27 @@ export async function deleteComment(db: Database, id: string) {
   return row ?? null
 }
 
-/**
- * Backfill embeddings for comments missing one (post-deploy, or after a model/dim
- * change). Idempotent — only fills `embedding is null`, in batches. A no-op when
- * embeddings are disabled. Returns the count embedded.
- */
+/** Backfill chunks for comments that have none yet. See `backfillChunks`. */
 export function backfillCommentEmbeddings(db: Database, batchSize = 50): Promise<number> {
-  return backfillEmbeddings(
+  return backfillChunks(
     batchSize,
-    async (limit) => {
+    async (limit, afterId) => {
       const rows = await db
         .select({ id: schema.comments.id, bodyMd: schema.comments.bodyMd })
         .from(schema.comments)
-        .where(isNull(schema.comments.embedding))
+        .where(
+          and(
+            sql`not exists (select 1 from comment_chunks where comment_id = ${schema.comments.id})`,
+            afterId ? gt(schema.comments.id, afterId) : undefined
+          )
+        )
+        .orderBy(asc(schema.comments.id))
         .limit(limit)
       return rows.map(r => ({ id: r.id, text: r.bodyMd }))
     },
-    text => embed(text, 'passage'),
-    (id, embedding) => db.update(schema.comments).set({ embedding }).where(eq(schema.comments.id, id))
+    embedChunks,
+    (id, vectors) =>
+      db.insert(schema.commentChunks).values(vectors.map((embedding, idx) => ({ commentId: id, idx, embedding })))
   )
 }
 
