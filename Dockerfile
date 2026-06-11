@@ -11,8 +11,13 @@ RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
 WORKDIR /app
 
 FROM base AS build
+# Fetch deps into the pnpm store from the lockfile alone, in its own layer: the
+# expensive download is cached and reused across rebuilds until the lockfile
+# changes — source edits no longer re-download anything.
+COPY pnpm-lock.yaml ./
+RUN pnpm fetch
 COPY . .
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --offline --frozen-lockfile
 
 # Browser-facing API URL is baked into the SPA at build time (ssr: false), so it
 # must be set here, not at runtime. Default works for a browser on the host.
