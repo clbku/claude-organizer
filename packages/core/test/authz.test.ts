@@ -32,7 +32,10 @@ import {
 } from '../src/index'
 import { freshProject, uniqueKeyPrefix, useTestDb } from './helpers'
 
-const ctx = useTestDb()
+// Isolated DB: the system-settings tests below read/write the global
+// `system_settings` singleton, which the suite's by-project isolation doesn't
+// cover — sharing it would race embeddingApply.test.ts across parallel workers.
+const ctx = useTestDb({ isolated: true })
 
 // This is the only suite that touches users/user_authz, so wiping users (which
 // cascades to user_authz) between cases is safe even with the shared ephemeral

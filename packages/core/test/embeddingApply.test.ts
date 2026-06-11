@@ -48,7 +48,9 @@ import {
 } from '../src/index'
 import { useTestDb } from './helpers'
 
-const ctx = useTestDb()
+// Isolated DB: these tests mutate the global `system_settings` singleton, which
+// the suite's by-project isolation doesn't cover (would race authz.test.ts).
+const ctx = useTestDb({ isolated: true })
 
 async function settle(db: Database) {
   for (let i = 0; i < 200; i++) {
