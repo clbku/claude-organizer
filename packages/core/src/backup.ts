@@ -46,7 +46,8 @@ export const BACKUP_TABLE_NAMES = [
 // Identity/system tables deliberately kept OUT of project backups: a backup
 // imports as a brand-new copy, so duplicating users/sessions or system config
 // would be wrong. Listed (not just omitted) so the coverage test forces a
-// conscious choice for every future table.
+// conscious choice for every future table. `attachment_links` is a derived
+// index of the markdown — rebuilt from the imported bodies, never exported.
 export const NON_BACKUP_TABLE_NAMES = [
   'users',
   'sessions',
@@ -59,7 +60,8 @@ export const NON_BACKUP_TABLE_NAMES = [
   'user_project_access',
   'card_claims',
   'system_settings',
-  'embedding_runtime'
+  'embedding_runtime',
+  'attachment_links'
 ] as const
 
 function envelope(

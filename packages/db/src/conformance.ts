@@ -81,7 +81,7 @@ type Assert<T extends true> = T
  * contract, so they are excluded.
  */
 export type SchemaConformance = [
-  Assert<Equal<AttachmentRow, Wire<Omit<InferSelectModel<typeof attachments>, 'data'>>>>,
+  Assert<Equal<AttachmentRow, Wire<Omit<InferSelectModel<typeof attachments>, 'data' | 'orphanedAt'>>>>,
   Assert<Equal<CardRow, Wire<Omit<InferSelectModel<typeof cards>, 'searchTsv' | 'embedding'>>>>,
   Assert<Equal<SprintRow, Wire<InferSelectModel<typeof sprints>>>>,
   Assert<Equal<CommentRow, Wire<Omit<InferSelectModel<typeof comments>, 'bodyTsv' | 'embedding'>>>>,
