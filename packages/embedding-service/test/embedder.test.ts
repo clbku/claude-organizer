@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { EmbeddingConfig } from '@claude-organizer/shared'
 
-import { createEmbedder, type PipelineLoader } from '../src/embedder'
+import { createEmbedder, isTransientDbError, type PipelineLoader, warmUp } from '../src/embedder'
 
 const e5Config: EmbeddingConfig = {
   model: 'Xenova/multilingual-e5-small',
@@ -152,5 +152,79 @@ describe('createEmbedder', () => {
     expect(await embedder.embed(['x'], 'query')).toBeNull()
     expect(embedder.status().state).toBe('error')
     expect(onLoaded).not.toHaveBeenCalled()
+  })
+})
+
+describe('isTransientDbError', () => {
+  it('recognizes ECONNREFUSED through a wrapped cause chain', () => {
+    const drizzleErr = Object.assign(new Error('Failed query: select from system_settings'), {
+      cause: Object.assign(new Error('connect ECONNREFUSED 192.168.97.3:5432'), { code: 'ECONNREFUSED' })
+    })
+    expect(isTransientDbError(drizzleErr)).toBe(true)
+  })
+
+  it('recognizes a postgres.js connection code', () => {
+    expect(isTransientDbError(Object.assign(new Error('write CONNECTION_ENDED'), { code: 'CONNECTION_ENDED' }))).toBe(
+      true
+    )
+  })
+
+  it('does not treat a generic query error as transient', () => {
+    expect(isTransientDbError(Object.assign(new Error('column "foo" does not exist'), { code: '42703' }))).toBe(false)
+  })
+})
+
+describe('warmUp', () => {
+  const transient = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })
+
+  it('retries with backoff through a transient DB outage until the load converges', async () => {
+    let fails = 2
+    const load = vi.fn(fakeLoader())
+    const embedder = createEmbedder({
+      resolveConfig: async () => {
+        if (fails-- > 0) throw transient
+        return e5Config
+      },
+      loadPipeline: load
+    })
+    const slept: number[] = []
+    await warmUp(embedder, { sleep: async ms => void slept.push(ms), baseDelayMs: 10, maxDelayMs: 40 })
+    expect(embedder.status().state).toBe('ready')
+    expect(slept).toEqual([10, 20])
+  })
+
+  it('caps the backoff delay', async () => {
+    let fails = 5
+    const embedder = createEmbedder({
+      resolveConfig: async () => {
+        if (fails-- > 0) throw transient
+        return e5Config
+      },
+      loadPipeline: fakeLoader()
+    })
+    const slept: number[] = []
+    await warmUp(embedder, { sleep: async ms => void slept.push(ms), baseDelayMs: 10, maxDelayMs: 30 })
+    expect(slept).toEqual([10, 20, 30, 30, 30])
+  })
+
+  it('does not retry a non-transient failure', async () => {
+    const resolveConfig = vi.fn(async () => {
+      throw Object.assign(new Error('bad config'), { code: '42703' })
+    })
+    const embedder = createEmbedder({ resolveConfig, loadPipeline: fakeLoader() })
+    const sleep = vi.fn(async () => {})
+    await warmUp(embedder, { sleep })
+    expect(resolveConfig).toHaveBeenCalledTimes(1)
+    expect(sleep).not.toHaveBeenCalled()
+  })
+
+  it('returns after a single successful load (no retry on the happy path)', async () => {
+    const load = vi.fn(fakeLoader())
+    const embedder = createEmbedder({ resolveConfig: async () => e5Config, loadPipeline: load })
+    const sleep = vi.fn(async () => {})
+    await warmUp(embedder, { sleep })
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(sleep).not.toHaveBeenCalled()
+    expect(embedder.status().state).toBe('ready')
   })
 })

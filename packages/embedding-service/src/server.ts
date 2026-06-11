@@ -6,7 +6,7 @@ import {
 import { createDb } from '@claude-organizer/db'
 import { EMBEDDING_RUNTIME_SERVICE } from '@claude-organizer/shared'
 
-import { createEmbedder } from './embedder'
+import { createEmbedder, warmUp } from './embedder'
 import { createEmbeddingHttpServer } from './http'
 
 const databaseUrl = process.env.DATABASE_URL
@@ -37,10 +37,9 @@ const server = createEmbeddingHttpServer({ embedder, port })
 
 // Fire-and-forget after the server is listening: /health reports `loading` until
 // the model is ready (the container healthcheck waits on it), so the boot load
-// never blocks the listener.
-void embedder.init().catch((err: unknown) => {
-  console.error('[embedding-service] model load failed at boot; first embed will retry lazily', err)
-})
+// never blocks the listener. warmUp retries through a transient DB outage so the
+// model converges on its own without a container restart.
+void warmUp(embedder)
 
 const shutdown = async () => {
   server.close()
