@@ -1,6 +1,6 @@
 import { gunzipSync, gzipSync } from 'node:zlib'
 
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { createId, type Database, schema } from '@claude-organizer/db'
@@ -20,6 +20,7 @@ import {
   type TagRow
 } from '@claude-organizer/shared'
 
+import { reconcileAttachmentLinks } from './attachmentLinks'
 import { rewriteAttachmentIds } from './attachments'
 import { getSystemSettings } from './authz'
 import { InputError } from './errors'
@@ -599,7 +600,10 @@ async function restoreAsNew(db: Database, data: BackupData): Promise<string[]> {
 
     // Bodies were inserted with the old `att_` ids still embedded; now that the
     // attachment id-map exists, rewrite the references so imported images keep
-    // resolving. Keyed by id token, not by URL shape.
+    // resolving (keyed by id token, not URL shape), then rebuild the derived
+    // link index (not exported — CO-293) from the rewritten bodies and recompute
+    // orphaned_at. Without the rebuild every imported attachment would have no
+    // link and look orphaned.
     if (Object.keys(A).length) {
       for (const c of cards) {
         const next = rewriteAttachmentIds(c.descriptionMd, A)
@@ -608,6 +612,7 @@ async function restoreAsNew(db: Database, data: BackupData): Promise<string[]> {
             .set({ descriptionMd: next })
             .where(eq(schema.cards.id, C[c.id]!))
         }
+        await reconcileAttachmentLinks(tx, 'card', C[c.id]!, next)
       }
       for (const d of docs) {
         const next = rewriteAttachmentIds(d.bodyMd, A)
@@ -616,6 +621,7 @@ async function restoreAsNew(db: Database, data: BackupData): Promise<string[]> {
             .set({ bodyMd: next })
             .where(eq(schema.docs.id, D[d.id]!))
         }
+        await reconcileAttachmentLinks(tx, 'doc', D[d.id]!, next)
       }
       for (const cm of rows<CommentRow>('comments')) {
         const next = rewriteAttachmentIds(cm.bodyMd, A)
@@ -624,6 +630,7 @@ async function restoreAsNew(db: Database, data: BackupData): Promise<string[]> {
             .set({ bodyMd: next })
             .where(eq(schema.comments.id, CM[cm.id]!))
         }
+        await reconcileAttachmentLinks(tx, 'comment', CM[cm.id]!, next)
       }
       for (const it of rows<IntakeItemRow>('intake_items')) {
         const next = rewriteAttachmentIds(it.bodyMd, A)
@@ -632,7 +639,20 @@ async function restoreAsNew(db: Database, data: BackupData): Promise<string[]> {
             .set({ bodyMd: next })
             .where(eq(schema.intakeItems.id, IT[it.id]!))
         }
+        await reconcileAttachmentLinks(tx, 'inbox', IT[it.id]!, next)
       }
+
+      // Any imported attachment still unreferenced after the rebuild starts its
+      // grace clock, so the sweep eventually collects a genuinely orphaned import.
+      await tx
+        .update(schema.attachments)
+        .set({ orphanedAt: sql`now()` })
+        .where(
+          and(
+            inArray(schema.attachments.id, Object.values(A)),
+            sql`not exists (select 1 from ${schema.attachmentLinks} where ${schema.attachmentLinks.attachmentId} = ${schema.attachments.id})`
+          )
+        )
     }
 
     return projectIds

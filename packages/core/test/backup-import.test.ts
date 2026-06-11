@@ -272,6 +272,60 @@ describe('importBackup — restore as new', () => {
     expect(newCard!.descriptionMd).toContain(stranger)
   })
 
+  it('rebuilds the link index and recomputes orphaned_at on import', async () => {
+    const project = await freshProject(ctx.db)
+    const referenced = await createAttachment(ctx.db, {
+      projectId: project.id,
+      mime: 'image/png',
+      data: Buffer.from('img'),
+      width: 1,
+      height: 1,
+      description: 'referenced'
+    })
+    await createAttachment(ctx.db, {
+      projectId: project.id,
+      mime: 'image/png',
+      data: Buffer.from('img'),
+      width: 1,
+      height: 1,
+      description: 'orphan'
+    })
+    await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'Card A',
+      descriptionMd: `![pic](/attachments/${referenced.id})`
+    })
+
+    const env = await exportProject(ctx.db, project.id)
+    const { projectIds } = await importBackup(ctx.db, serializeBackup(env))
+    const newAtts = await listAttachments(ctx.db, { projectId: projectIds[0]! })
+
+    const newReferenced = newAtts.find(a => a.description === 'referenced')!
+    const newOrphan = newAtts.find(a => a.description === 'orphan')!
+
+    const links = async (id: string) =>
+      (
+        await ctx.db
+          .select()
+          .from(schema.attachmentLinks)
+          .where(eq(schema.attachmentLinks.attachmentId, id))
+      ).length
+    const orphanedAt = async (id: string) =>
+      (
+        await ctx.db
+          .select({ o: schema.attachments.orphanedAt })
+          .from(schema.attachments)
+          .where(eq(schema.attachments.id, id))
+      )[0]?.o ?? null
+
+    // The referenced image got its link rebuilt and is not orphaned…
+    expect(await links(newReferenced.id)).toBe(1)
+    expect(await orphanedAt(newReferenced.id)).toBeNull()
+    // …while the unreferenced one has no link and its grace clock started.
+    expect(await links(newOrphan.id)).toBe(0)
+    expect(await orphanedAt(newOrphan.id)).not.toBeNull()
+  })
+
   it('leaves bodies untouched when the backup has no attachments', async () => {
     const project = await freshProject(ctx.db)
     const body = 'a stray att_abcdef012345 token, no real attachment'

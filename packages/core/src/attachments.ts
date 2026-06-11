@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { createId, type Database, schema } from '@claude-organizer/db'
 import { ATTACHMENT_MIME_TYPES, ATTACHMENT_OWNER_TYPES } from '@claude-organizer/shared'
 
+import { sweepOrphanAttachments } from './attachmentGc'
 import { ConflictError, InputError } from './errors'
 
 const ownerInput = z.object({
@@ -135,6 +136,8 @@ export async function createAttachment(db: Database, input: CreateAttachmentInpu
       data
     })
     .returning(attachmentColumns)
+  // Piggyback the scheduler-less orphan sweep on uploads (a frequent path).
+  await sweepOrphanAttachments(db, { projectId: parsed.projectId })
   return row!
 }
 

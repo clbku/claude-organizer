@@ -21,6 +21,31 @@ const uniq = (ids: string[]): string[] => [...new Set(ids)]
 // An attachment with no remaining link.
 const unreferenced = sql`not exists (select 1 from ${schema.attachmentLinks} where ${schema.attachmentLinks.attachmentId} = ${schema.attachments.id})`
 
+// Edit orphans (a body's ref removed) are reclaimed only after this fixed grace
+// window — an undo (re-adding the ref) inside it re-links and clears the clock
+// (reconcile), cancelling the sweep. A system constant by decision, no toggle.
+export const ORPHAN_GRACE_MINUTES = 60
+
+// Opportunistic, scheduler-less collection of EDIT orphans: hard-deletes the
+// attachments whose grace window elapsed and that still have no link (the item
+// is alive and cites nothing — there's nothing to restore, unlike an archive
+// orphan whose bytes are merely zeroed). Idempotent and concurrency-safe — the
+// predicate re-checks live state, so a concurrent undo (clears orphaned_at, adds
+// a link) drops the row from the match. Piggybacks on frequent paths (upload,
+// archive/destroy) instead of a background job. orphaned_at NULL never matches.
+export async function sweepOrphanAttachments(
+  db: Database,
+  opts: { projectId?: string } = {}
+): Promise<void> {
+  const conds = [
+    sql`${schema.attachments.orphanedAt} < now() - make_interval(mins => ${ORPHAN_GRACE_MINUTES})`,
+    unreferenced
+  ]
+  if (opts.projectId)
+    conds.push(eq(schema.attachments.projectId, opts.projectId))
+  await db.delete(schema.attachments).where(and(...conds))
+}
+
 // The link rows belonging to a scope. A comment has no independent lifecycle —
 // it lives and dies with its card — so the scope's cards drag in their comments'
 // links too. itemId has no FK, so these rows must be removed explicitly (they'd
@@ -97,6 +122,8 @@ export async function gcAttachmentsOnArchive(
   db: Database,
   scope: GcScope
 ): Promise<void> {
+  // Edit-orphan collection is independent of the keep-on-archive toggle below.
+  await sweepOrphanAttachments(db, { projectId: scope.projectId })
   const { keepAttachmentsOnArchive } = await getSystemSettings(db)
   if (keepAttachmentsOnArchive) return
   const affected = await unlinkScope(db, scope)
@@ -121,6 +148,7 @@ export async function gcAttachmentsOnDestroy(
   db: Database,
   scope: GcScope
 ): Promise<void> {
+  await sweepOrphanAttachments(db, { projectId: scope.projectId })
   const affected = await unlinkScope(db, scope)
   if (!affected.length) return
   await db

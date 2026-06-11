@@ -36,8 +36,11 @@ export const attachments = pgTable(
   t => [
     index('attachments_project_idx').on(t.projectId),
     index('attachments_owner_idx').on(t.ownerType, t.ownerId),
-    // Indexes the sweep's hot predicate: orphaned rows past the grace window.
-    index('attachments_orphaned_idx').on(t.orphanedAt)
+    // Partial — the sweep only ever scans orphaned rows (orphaned_at < now() -
+    // grace), so the NULL majority (every linked attachment) stays out of the index.
+    index('attachments_orphaned_idx')
+      .on(t.orphanedAt)
+      .where(sql`${t.orphanedAt} is not null`)
   ]
 )
 
