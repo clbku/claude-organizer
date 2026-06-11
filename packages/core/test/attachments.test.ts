@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import {
   createAttachment,
   createCard,
-  deleteAttachment,
   getAttachment,
   listAttachments,
   updateCard
@@ -66,20 +65,6 @@ describe('attachments CRUD', () => {
 
     const all = await listAttachments(ctx.db, { projectId: project.id })
     expect(all.map(x => x.id).sort()).toEqual([a.id, b.id].sort())
-  })
-
-  it('deletes an attachment', async () => {
-    const project = await freshProject(ctx.db)
-    const created = await createAttachment(ctx.db, {
-      projectId: project.id,
-      mime: 'image/gif',
-      data: png(),
-      width: 1,
-      height: 1
-    })
-    const deleted = await deleteAttachment(ctx.db, created.id)
-    expect(deleted?.id).toBe(created.id)
-    expect(await getAttachment(ctx.db, created.id)).toBeNull()
   })
 
   it('rejects a mime outside the allow-list', async () => {

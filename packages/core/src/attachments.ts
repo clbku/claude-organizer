@@ -106,11 +106,3 @@ export function attachmentIdsInBody(body: string | null | undefined): string[] {
   if (!body) return []
   return [...new Set(body.match(attachmentIdToken) ?? [])]
 }
-
-export async function deleteAttachment(db: Database, id: string) {
-  const [row] = await db
-    .delete(schema.attachments)
-    .where(eq(schema.attachments.id, id))
-    .returning(attachmentColumns)
-  return row ?? null
-}

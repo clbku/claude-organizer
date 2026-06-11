@@ -4,7 +4,6 @@ import { z } from 'zod'
 
 import {
   createAttachment,
-  deleteAttachment,
   getAttachment,
   getAttachmentMeta,
   getSystemSettings,
@@ -148,11 +147,5 @@ export function registerAttachmentRoutes(app: FastifyInstance, db: Database) {
     if (!secret) return { url: `/attachments/${id}`, expiresAt: null }
     const signed = signAttachmentToken(id, secret)
     return { url: `/attachments/${id}?sig=${signed.token}`, expiresAt: signed.expiresAt }
-  })
-
-  app.delete<{ Params: { id: string } }>('/attachments/:id', async (req, reply) => {
-    const row = await deleteAttachment(db, req.params.id)
-    if (!row) return reply.code(404).send({ error: 'not_found' })
-    return { deleted: true }
   })
 }
