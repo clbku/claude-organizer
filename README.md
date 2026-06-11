@@ -10,7 +10,7 @@ It ships as a **Claude Code plugin** (four skills + the MCP server), backed by a
 
 <br/>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) ![Node](https://img.shields.io/badge/node-%E2%89%A520.10-43853d) ![pnpm](https://img.shields.io/badge/pnpm-9-f69220) ![Docker](https://img.shields.io/badge/Docker-compose-2496ed) ![MCP](https://img.shields.io/badge/MCP-Streamable_HTTP-8a63d2)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) ![Node](https://img.shields.io/badge/node-%E2%89%A524-43853d) ![pnpm](https://img.shields.io/badge/pnpm-9-f69220) ![Docker](https://img.shields.io/badge/Docker-compose-2496ed) ![MCP](https://img.shields.io/badge/MCP-Streamable_HTTP-8a63d2)
 
 <br/>
 
@@ -53,7 +53,7 @@ Claude Organizer flips that. **What** to do (the active sprint, cards, backlog, 
 
 ## Quick start
 
-> **Requires** Node 20.10+, pnpm 9+, and Docker.
+> **Requires** Node 24+, pnpm 9+, and Docker.
 
 ### 1. Bring up the stack
 
