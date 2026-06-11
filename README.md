@@ -4,21 +4,13 @@
 
 ### A "Jira" for Claude Code — your agent's project board, exposed over MCP.
 
-Claude Organizer gives Claude Code a real project-management system — cards,
-sprints, comments and docs — as **queryable state over MCP**, instead
-of spec Markdown files that grow without bound and go stale. A clean Nuxt UI
-mirrors the same board for humans, in real time.
+Claude Organizer gives Claude Code a real project-management system — cards, sprints, comments and docs — as **queryable state over MCP**, instead of spec Markdown files that grow without bound and go stale. A clean Nuxt UI mirrors the same board for humans, in real time.
 
-It ships as a **Claude Code plugin** (four skills + the MCP server), backed by a
-pnpm monorepo you run with Docker.
+It ships as a **Claude Code plugin** (four skills + the MCP server), backed by a pnpm monorepo you run with Docker.
 
 <br/>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Node](https://img.shields.io/badge/node-%E2%89%A520.10-43853d)
-![pnpm](https://img.shields.io/badge/pnpm-9-f69220)
-![Docker](https://img.shields.io/badge/Docker-compose-2496ed)
-![MCP](https://img.shields.io/badge/MCP-Streamable_HTTP-8a63d2)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) ![Node](https://img.shields.io/badge/node-%E2%89%A520.10-43853d) ![pnpm](https://img.shields.io/badge/pnpm-9-f69220) ![Docker](https://img.shields.io/badge/Docker-compose-2496ed) ![MCP](https://img.shields.io/badge/MCP-Streamable_HTTP-8a63d2)
 
 <br/>
 
@@ -30,32 +22,21 @@ pnpm monorepo you run with Docker.
 
 ## Why
 
-A long-running coding agent has no memory between sessions. The usual fix —
-piling plans and decisions into ever-growing `.md` files — rots fast: the files
-drift from reality, contradict each other, and bloat the context window.
+A long-running coding agent has no memory between sessions. The usual fix — piling plans and decisions into ever-growing `.md` files — rots fast: the files drift from reality, contradict each other, and bloat the context window.
 
-Claude Organizer flips that. **What** to do (the active sprint, cards, backlog,
-comments, decisions, docs) lives in a database the AI queries on demand through
-MCP tools, and edits as work progresses. The agent orients itself at the start
-of every session by reading the board — not by re-reading stale prose. You watch
-the same board, drag cards, and leave comments the agent reads back.
+Claude Organizer flips that. **What** to do (the active sprint, cards, backlog, comments, decisions, docs) lives in a database the AI queries on demand through MCP tools, and edits as work progresses. The agent orients itself at the start of every session by reading the board — not by re-reading stale prose. You watch the same board, drag cards, and leave comments the agent reads back.
 
 ## Highlights
 
-- 🗂️ **A real board** — projects, sprints, stories and sub-tasks, blockers,
-  tags, priorities. Drag-and-drop UI with live WebSocket updates.
-- 🤖 **Built for the agent** — every entity is a typed MCP tool; prefixed IDs
-  (`prj_`, `crd_`, `spr_`…) tell the AI what it's holding at a glance.
-- 💬 **Comments as the decision log** — the agent records *why* it did something
-  on the card; you reply, it reads your unread comments back next session.
-- 🔗 **Commits attached to cards** — each card keeps the diff that delivered it,
-  captured outside the AI's context (no tokens spent reading patches).
-- 📚 **Docs that don't rot** — architecture, ADRs and patterns live as project
-  docs the agent reads before reinventing.
-- 🔐 **Auth when you want it** — runs open by default, or turn on sign-in
-  (email+password, GitHub optional) with roles and per-project access.
-- 🔌 **One-command install** — the plugin delivers the skills *and* registers the
-  MCP; no `claude mcp add`.
+- 🗂️ **A real board** — projects, sprints, stories and sub-tasks, blockers, tags, priorities. Drag-and-drop UI with live WebSocket updates.
+- 🤖 **Built for the agent** — every entity is a typed MCP tool; prefixed IDs (`prj_`, `crd_`, `spr_`…) tell the AI what it's holding at a glance.
+- 💬 **Comments as the decision log** — the agent records *why* it did something on the card; you reply, it reads your unread comments back next session.
+- 🔗 **Commits attached to cards** — each card keeps the diff that delivered it, captured outside the AI's context (no tokens spent reading patches).
+- 📚 **Docs that don't rot** — architecture, ADRs and patterns live as project docs the agent reads before reinventing.
+- 🔎 **Search by meaning** — cards, comments and docs are searchable with a hybrid of Postgres full-text and **in-process embeddings** (a multilingual model running in-container, no external API), fused by rank (RRF). Pick or swap the embedding model from Settings — or turn it off for lexical-only.
+- 💾 **Portable backups** — export the whole board or a single project to one versioned, self-contained file and import it back (proof-of-work attachments stay out of the envelope — their bytes live on disk).
+- 🔐 **Auth when you want it** — runs open by default, or turn on sign-in (email+password, GitHub optional) with roles and per-project access.
+- 🔌 **One-command install** — the plugin delivers the skills *and* registers the MCP; no `claude mcp add`.
 
 <div align="center">
 <table>
@@ -91,14 +72,11 @@ docker compose up -d --build
 | **API** | http://localhost:4400 |
 | **MCP** (Streamable HTTP) | http://localhost:4402/mcp |
 
-Migrations run automatically before the API and MCP start. Postgres data persists
-under `./docker/data/postgres`. Out of the box the board is **open** (no login) —
-see [Run modes](#run-modes) to turn auth on or to go remote.
+Migrations run automatically before the API and MCP start. Postgres data persists under `./docker/data/postgres`. Out of the box the board is **open** (no login) — see [Run modes](#run-modes) to turn auth on or to go remote.
 
 ### 2. Configure the environment
 
-`cp .env.example .env` already gives you working defaults for local Docker. The
-values worth knowing:
+`cp .env.example .env` already gives you working defaults for local Docker. The values worth knowing:
 
 ```bash
 # Postgres
@@ -116,14 +94,11 @@ NUXT_PUBLIC_API_URL=http://127.0.0.1:4400
 # MCP_PUBLIC_URL=http://127.0.0.1:4402   # public URL clients reach the MCP at
 ```
 
-The MCP is served over **Streamable HTTP** at `/mcp` — that's the transport the
-plugin connects to. Auth is **off by default** (open board, like before it
-landed); turn it on from the in-app setup — see [Authentication](#authentication).
+The MCP is served over **Streamable HTTP** at `/mcp` — that's the transport the plugin connects to. Auth is **off by default** (open board, like before it landed); turn it on from the in-app setup — see [Authentication](#authentication).
 
 ### 3. Install the plugin
 
-The plugin delivers the **skills** *and* registers the **MCP** — no
-`claude mcp add` needed.
+The plugin delivers the **skills** *and* registers the **MCP** — no `claude mcp add` needed.
 
 From a clone:
 
@@ -138,92 +113,57 @@ Or via the marketplace:
 /plugin install claude-organizer@claude-organizer
 ```
 
-The `claude-organizer` tools appear automatically, pointing at
-`${CO_MCP_URL:-http://localhost:4402/mcp}`. To reach a remote host, export
-`CO_MCP_URL` (see [Run modes](#run-modes)); when auth is on, the plugin runs the
-OAuth flow itself — there's no token to paste.
+The `claude-organizer` tools appear automatically, pointing at `${CO_MCP_URL:-http://localhost:4402/mcp}`. To reach a remote host, export `CO_MCP_URL` (see [Run modes](#run-modes)); when auth is on, the plugin runs the OAuth flow itself — there's no token to paste.
 
 ## Run modes
 
-The same stack runs three ways. The only differences are a couple of env vars and,
-for remote, the reverse-proxy overlay.
+The same stack runs three ways. The only differences are a couple of env vars and, for remote, the reverse-proxy overlay.
 
 ### Local, no auth (default)
 
-`docker compose up -d --build` and you're done: an open board on
-`http://localhost:4401` and an open MCP on `http://localhost:4402/mcp`. No login,
-no token — the plugin connects as-is. This matches how the project ran before auth
-existed.
+`docker compose up -d --build` and you're done: an open board on `http://localhost:4401` and an open MCP on `http://localhost:4402/mcp`. No login, no token — the plugin connects as-is. This matches how the project ran before auth existed.
 
 ### Local, with auth
 
-Turn auth on from the **first-boot setup** on the login screen — the first account
-becomes the **admin**; after that, sign-in is required. Accounts use
-email+password by default, with **GitHub OAuth optional** (set `GITHUB_CLIENT_ID` /
-`GITHUB_CLIENT_SECRET`). Set a `BETTER_AUTH_SECRET` in `.env` for anything beyond a
-throwaway local run. The MCP then requires OAuth — the plugin performs the flow for
-you, so `CO_MCP_URL` is still all you set. Details in [Authentication](#authentication).
+Turn auth on from the **first-boot setup** on the login screen — the first account becomes the **admin**; after that, sign-in is required. Accounts use email+password by default, with **GitHub OAuth optional** (set `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`). Set a `BETTER_AUTH_SECRET` in `.env` for anything beyond a throwaway local run. The MCP then requires OAuth — the plugin performs the flow for you, so `CO_MCP_URL` is still all you set. Details in [Authentication](#authentication).
 
 ### Remote (reverse proxy + subdomains)
 
-For a hosted deployment, put the three services behind a single TLS edge on
-**80/443** with **Caddy**, routing one subdomain each. A versioned overlay does this:
+For a hosted deployment, put the three services behind a single TLS edge on **80/443** with **Caddy**, routing one subdomain each. A versioned overlay does this:
 
 ```bash
 cp .env.prod.example .env   # set *_DOMAIN, ACME_EMAIL, BETTER_AUTH_SECRET, public URLs
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-- `app.<domain>` → web, `api.<domain>` → API, `mcp.<domain>` → MCP. Point DNS for
-  all three at the host; Caddy issues and renews TLS automatically (ACME).
-- Only Caddy publishes host ports; postgres/api/web/mcp stay on the internal
-  network. The reverse-proxy config lives in [`deploy/Caddyfile`](deploy/Caddyfile).
+- `app.<domain>` → web, `api.<domain>` → API, `mcp.<domain>` → MCP. Point DNS for all three at the host; Caddy issues and renews TLS automatically (ACME).
+- Only Caddy publishes host ports; postgres/api/web/mcp stay on the internal network. The reverse-proxy config lives in [`deploy/Caddyfile`](deploy/Caddyfile).
 - **Point the plugin at the remote MCP** by its subdomain:
 
   ```bash
   CO_MCP_URL=https://mcp.<domain>/mcp claude
   ```
 
-- `AUTH_COOKIE_DOMAIN=<domain>` shares the session cookie across `app.`/`api.`, and
-  `NUXT_PUBLIC_API_URL` is **baked into the SPA at build time** (`ssr: false`), so
-  set it to `https://api.<domain>` before `up --build`. All values are in
-  [`.env.prod.example`](.env.prod.example).
+- `AUTH_COOKIE_DOMAIN=<domain>` shares the session cookie across `app.`/`api.`, and `NUXT_PUBLIC_API_URL` is **baked into the SPA at build time** (`ssr: false`), so set it to `https://api.<domain>` before `up --build`. All values are in [`.env.prod.example`](.env.prod.example).
 
 ### Two hosts at once (local + company)
 
-`CO_MCP_URL` points the bundled plugin entry at **one** host. To use **two at the
-same time** — say your local board and a company one — register the second host as
-its own MCP server with a distinct name:
+`CO_MCP_URL` points the bundled plugin entry at **one** host. To use **two at the same time** — say your local board and a company one — register the second host as its own MCP server with a distinct name:
 
 ```bash
 claude mcp add --transport http -s user claude-organizer-second https://mcp.company.com/mcp
 ```
 
-(`-s user` keeps it available across repos, like the bundled entry.) Each host is
-independent: its own tool prefix (`mcp__claude-organizer__*` and
-`mcp__claude-organizer-second__*`), its own OAuth session (the plugin runs the flow
-per host when auth is on), and its own set of projects. The skills treat each
-server as one host and never mix their projects — they pick the server whose
-project matches the repo you're in. The bundled plugin ships only the default
-entry; the extra host is this one-time `claude mcp add`.
+(`-s user` keeps it available across repos, like the bundled entry.) Each host is independent: its own tool prefix (`mcp__claude-organizer__*` and `mcp__claude-organizer-second__*`), its own OAuth session (the plugin runs the flow per host when auth is on), and its own set of projects. The skills treat each server as one host and never mix their projects — they pick the server whose project matches the repo you're in. The bundled plugin ships only the default entry; the extra host is this one-time `claude mcp add`.
 
 ## Authentication
 
-Auth is built on [better-auth](https://better-auth.com) and is **off by default**
-(the open board above). When on:
+Auth is built on [better-auth](https://better-auth.com) and is **off by default** (the open board above). When on:
 
-- **Methods** — email+password is the zero-config base; **GitHub OAuth** is
-  optional and only appears when `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` are
-  set (callback `https://api.<domain>/api/auth/callback/github`). No host is forced
-  to register an OAuth app.
-- **First boot** — the first account to sign in claims **admin**; from there,
-  users get **roles** and **per-project access**, and admins manage who can see
-  what.
-- **MCP** — with auth on, `/mcp` is an OAuth 2.1 resource server: the plugin
-  obtains a bearer automatically. With auth off, `/mcp` is open (no login),
-  mirroring the open board.
-- **No-auth mode** — the default; flip it from the setup screen or system
-  settings.
+- **Methods** — email+password is the zero-config base; **GitHub OAuth** is optional and only appears when `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` are set (callback `https://api.<domain>/api/auth/callback/github`). No host is forced to register an OAuth app.
+- **First boot** — the first account to sign in claims **admin**; from there, users get **roles** and **per-project access**, and admins manage who can see what.
+- **MCP** — with auth on, `/mcp` is an OAuth 2.1 resource server: the plugin obtains a bearer automatically. With auth off, `/mcp` is open (no login), mirroring the open board.
+- **No-auth mode** — the default; flip it from the setup screen or system settings.
 
 Relevant env (see `.env.example`):
 
@@ -235,16 +175,11 @@ Relevant env (see `.env.example`):
 | `AUTH_COOKIE_DOMAIN` | Parent domain to share the session cookie across subdomains (remote only). |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Enable GitHub sign-in. |
 
-> **Local gotcha:** the web (`:4401`) and API (`:4400`) are different origins, and
-> the session cookie is `SameSite=Lax` + host-bound. Locally, reach **both on the
-> same host** — use `127.0.0.1`, not `localhost` — or the cookie won't be sent.
-> Behind the reverse proxy, `AUTH_COOKIE_DOMAIN` removes this constraint across the
-> subdomains.
+> **Local gotcha:** the web (`:4401`) and API (`:4400`) are different origins, and the session cookie is `SameSite=Lax` + host-bound. Locally, reach **both on the same host** — use `127.0.0.1`, not `localhost` — or the cookie won't be sent. Behind the reverse proxy, `AUTH_COOKIE_DOMAIN` removes this constraint across the subdomains.
 
 ## The skills
 
-Four skills drive the work — you don't call them by hand, they trigger from what
-you say:
+Four skills drive the work — you don't call them by hand, they trigger from what you say:
 
 | Skill | What it does | Triggers when… |
 | --- | --- | --- |
@@ -259,28 +194,19 @@ Just talk to Claude Code.
 
 **Plan a new demand** — the `plan` skill:
 
-> **You:** I want to add CSV export to the board — a button that downloads the
-> active sprint's cards.
+> **You:** I want to add CSV export to the board — a button that downloads the active sprint's cards.
 >
-> **Claude:** *asks a couple of questions, proposes a breakdown into a sprint +
-> tasks, and on your OK creates the cards.*
+> **Claude:** *asks a couple of questions, proposes a breakdown into a sprint + tasks, and on your OK creates the cards.*
 
-**Continue later** — the `claude-organizer` + `implement` skills. A fresh session
-has no memory, so it reads the board before touching code:
+**Continue later** — the `claude-organizer` + `implement` skills. A fresh session has no memory, so it reads the board before touching code:
 
 > **You:** let's continue — what's next?
 >
-> **Claude:** *reads the active sprint, your unread comments and the in-flight
-> cards, picks the top one, moves it to `in_progress`, implements it, records the
-> decisions as comments, runs the review gate, then moves it to `review` for you.*
+> **Claude:** *reads the active sprint, your unread comments and the in-flight cards, picks the top one, moves it to `in_progress`, implements it, records the decisions as comments, runs the review gate, then moves it to `review` for you.*
 
 ### Inbox
 
-Got an idea mid-flight but don't want to plan it yet? Drop it in the **inbox** — a
-one-line demand captured without breaking it into cards. The agent reads pending
-inbox items when it orients and offers to plan them; the `plan` skill turns a
-demand into the right sprint/stories/tasks and marks it planned. It keeps raw
-intake out of the board until it's actually structured work.
+Got an idea mid-flight but don't want to plan it yet? Drop it in the **inbox** — a one-line demand captured without breaking it into cards. The agent reads pending inbox items when it orients and offers to plan them; the `plan` skill turns a demand into the right sprint/stories/tasks and marks it planned. It keeps raw intake out of the board until it's actually structured work.
 
 ## Architecture
 
@@ -302,8 +228,7 @@ A pnpm monorepo under `packages/`:
 | `api` | Fastify REST + WebSocket. |
 | `web` | Nuxt 4 SPA (the UI talks only to the API, never the MCP). |
 
-Prefixed nanoid IDs (`prj_`, `crd_`, `spr_`…) let the agent recognize an entity's
-type from the ID alone.
+Prefixed nanoid IDs (`prj_`, `crd_`, `spr_`…) let the agent recognize an entity's type from the ID alone.
 
 ## Development (without Docker)
 
@@ -316,8 +241,7 @@ pnpm dev:web                     # :4401
 pnpm dev:mcp                     # :4402/mcp
 ```
 
-Also handy: `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm db:generate`
-after schema changes.
+Also handy: `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm db:generate` after schema changes.
 
 ## License
 
