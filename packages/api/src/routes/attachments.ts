@@ -145,7 +145,10 @@ export function registerAttachmentRoutes(app: FastifyInstance, db: Database) {
   // session or a valid `?sig` attachment token, so the handler just streams.
   app.get<{ Params: { id: string } }>('/attachments/:id', async (req, reply) => {
     const row = await getAttachment(db, req.params.id)
-    if (!row || !row.data) return reply.code(404).send({ error: 'not_found' })
+    if (!row) return reply.code(404).send({ error: 'not_found' })
+    // Row alive but bytes reclaimed (zeroed on archive cleanup): 410 Gone lets
+    // the render show a "removed in cleanup" placeholder, distinct from a 404.
+    if (!row.data) return reply.code(410).send({ error: 'gone' })
     return serveAttachment(reply, row.mime, row.data)
   })
 
