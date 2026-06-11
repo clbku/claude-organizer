@@ -65,14 +65,11 @@ function close() {
 // `ignoreFilter` on every group: results are already filtered server-side, so Fuse
 // must not re-filter them by the raw search term.
 const groups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => {
-  // `snippet` (markdown ts_headline highlight) wins over the plain summary when the
-  // card matched via a comment — rendered through AppMarkdown in #item-description.
   const cardItems: CommandPaletteItem[] = results.value.map(r => ({
     id: r.id,
     label: r.title,
     suffix: r.key,
     description: r.summary ?? undefined,
-    snippet: r.matchedComment?.snippet,
     icon: 'i-lucide-square-kanban',
     onSelect: () => {
       close()
@@ -130,12 +127,7 @@ onBeforeUnmount(() => {
     </template>
 
     <template #item-description="{ item }">
-      <AppMarkdown
-        v-if="item.snippet"
-        :value="item.snippet"
-        class="line-clamp-1 text-xs text-muted [&_p]:m-0 [&_p]:inline"
-      />
-      <span v-else-if="item.description" class="line-clamp-1 text-xs text-muted">{{ item.description }}</span>
+      <span v-if="item.description" class="line-clamp-1 text-xs text-muted">{{ item.description }}</span>
     </template>
   </UDashboardSearch>
 </template>
