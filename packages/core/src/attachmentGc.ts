@@ -183,7 +183,8 @@ export async function gcAttachmentsOnArchive(
   const referencedActive = await activeReferencedIds(
     db,
     scope,
-    eligible.map(a => a.id)
+    eligible.map(a => a.id),
+    { archivedSprintInert: true }
   )
 
   const toClear = eligible
@@ -197,9 +198,12 @@ export async function gcAttachmentsOnArchive(
 }
 
 // Candidates whose owner is archived. "Archived" = the owner's `archivedAt` is
-// set OR the owner belongs to this operation's scope (the sprint case, whose
-// cards keep `archivedAt` null). Resolved in one query per owner type, not per
-// candidate.
+// set, OR the owner belongs to this operation's scope, OR the owner's card sits
+// in an archived sprint (whose cards keep `archivedAt` null — the aggressive
+// sprint-archive drop). The sprint clause is what lets the per-item intake GC
+// fired inside the same sprint-archive free an `owner=card`/`owner=comment`
+// image that an archived inbox still references (the mirror of CO-289). Resolved
+// in one query per owner type, not per candidate.
 async function eligibleByArchivedOwner(
   db: Database,
   cardIds: string[],
@@ -222,22 +226,23 @@ async function eligibleByArchivedOwner(
     live.filter(a => a.ownerType === 'inbox').map(a => a.ownerId)
   ).filter(id => !intakeIds.includes(id))
 
+  const cardArchived = or(
+    isNotNull(schema.cards.archivedAt),
+    isNotNull(schema.sprints.archivedAt)
+  )
   const archivedCards = cardOwnerIds.length
     ? new Set(
         (
           await db
             .select({ id: schema.cards.id })
             .from(schema.cards)
-            .where(
-              and(
-                inArray(schema.cards.id, cardOwnerIds),
-                isNotNull(schema.cards.archivedAt)
-              )
-            )
+            .leftJoin(schema.sprints, eq(schema.cards.sprintId, schema.sprints.id))
+            .where(and(inArray(schema.cards.id, cardOwnerIds), cardArchived))
         ).map(r => r.id)
       )
     : new Set<string>()
-  // A comment is archived when ITS card is archived (comments have no archivedAt).
+  // A comment is archived when ITS card is archived (comments have no archivedAt)
+  // — by the card's own flag or by its sprint being archived.
   const archivedComments = commentOwnerIds.length
     ? new Set(
         (
@@ -248,12 +253,8 @@ async function eligibleByArchivedOwner(
               schema.cards,
               eq(schema.comments.cardId, schema.cards.id)
             )
-            .where(
-              and(
-                inArray(schema.comments.id, commentOwnerIds),
-                isNotNull(schema.cards.archivedAt)
-              )
-            )
+            .leftJoin(schema.sprints, eq(schema.cards.sprintId, schema.sprints.id))
+            .where(and(inArray(schema.comments.id, commentOwnerIds), cardArchived))
         ).map(r => r.id)
       )
     : new Set<string>()
@@ -313,10 +314,18 @@ async function eligibleByArchivedOwner(
 // exclusion is explicit (notInArray) because the entities are inert by scope,
 // not by their flag: the sprint archive leaves its cards' `archivedAt` null, and
 // a destroy hasn't deleted its rows yet when this runs.
+//
+// `archivedSprintInert` (archive GC only) also treats a card in an archived
+// sprint as inert — its `archivedAt` stays null, but the aggressive
+// sprint-archive scope counts it archived — so the per-item intake GC fired
+// during the same sprint-archive can free a shared inbox image (CO-289). The
+// destroy GC must NOT relax this: a hard-delete is permanent while an archived
+// sprint is restorable, so an archived-sprint reference still guards the row.
 async function activeReferencedIds(
   db: Database,
   scope: GcScope,
-  candidateIds: string[]
+  candidateIds: string[],
+  opts: { archivedSprintInert?: boolean } = {}
 ): Promise<Set<string>> {
   const candidate = new Set(candidateIds)
   const referenced = new Set<string>()
@@ -334,10 +343,13 @@ async function activeReferencedIds(
     isNull(schema.cards.archivedAt),
     hasAttToken(schema.cards.descriptionMd)
   ]
+  if (opts.archivedSprintInert)
+    cardConds.push(isNull(schema.sprints.archivedAt))
   if (cardIds.length) cardConds.push(notInArray(schema.cards.id, cardIds))
   for (const r of await db
     .select({ body: schema.cards.descriptionMd })
     .from(schema.cards)
+    .leftJoin(schema.sprints, eq(schema.cards.sprintId, schema.sprints.id))
     .where(and(...cardConds)))
     scan(r.body)
 
@@ -346,11 +358,14 @@ async function activeReferencedIds(
     isNull(schema.cards.archivedAt),
     hasAttToken(schema.comments.bodyMd)
   ]
+  if (opts.archivedSprintInert)
+    commentConds.push(isNull(schema.sprints.archivedAt))
   if (cardIds.length) commentConds.push(notInArray(schema.cards.id, cardIds))
   for (const r of await db
     .select({ body: schema.comments.bodyMd })
     .from(schema.comments)
     .innerJoin(schema.cards, eq(schema.comments.cardId, schema.cards.id))
+    .leftJoin(schema.sprints, eq(schema.cards.sprintId, schema.sprints.id))
     .where(and(...commentConds)))
     scan(r.body)
 

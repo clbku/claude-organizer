@@ -10,6 +10,7 @@ import {
   createIntakeItem,
   createSprint,
   getAttachment,
+  markIntakePlanned,
   setKeepAttachmentsOnArchive,
   updateCard
 } from '../src/index'
@@ -128,6 +129,82 @@ describe('gcAttachmentsOnArchive', () => {
     await archiveSprint(ctx.db, sprint.id)
 
     expect(await dataOf(att.id)).not.toBeNull()
+  })
+
+  it('clears an inbox-owned image reused by a sprint card when the sprint is archived', async () => {
+    const project = await freshProject(ctx.db)
+    const sprint = await createSprint(ctx.db, { projectId: project.id, name: 'S' })
+    const item = await createIntakeItem(ctx.db, {
+      projectId: project.id,
+      bodyMd: 'placeholder'
+    })
+    const att = await createAttachment(ctx.db, {
+      projectId: project.id,
+      mime: 'image/png',
+      data: bytes(),
+      width: 1,
+      height: 1,
+      owner: { ownerType: 'inbox', ownerId: item.id }
+    })
+    const card = await createCard(ctx.db, {
+      projectId: project.id,
+      sprintId: sprint.id,
+      title: 'C'
+    })
+    await updateCard(ctx.db, { id: card.id, descriptionMd: ref(att.id) })
+    await markIntakePlanned(ctx.db, item.id, [card.key])
+
+    await archiveSprint(ctx.db, sprint.id)
+
+    expect(await dataOf(att.id)).toBeNull()
+  })
+
+  it('keeps that inbox image while an active card outside the sprint still refs it', async () => {
+    const project = await freshProject(ctx.db)
+    const sprint = await createSprint(ctx.db, { projectId: project.id, name: 'S' })
+    const item = await createIntakeItem(ctx.db, {
+      projectId: project.id,
+      bodyMd: 'placeholder'
+    })
+    const att = await createAttachment(ctx.db, {
+      projectId: project.id,
+      mime: 'image/png',
+      data: bytes(),
+      width: 1,
+      height: 1,
+      owner: { ownerType: 'inbox', ownerId: item.id }
+    })
+    const sprintCard = await createCard(ctx.db, {
+      projectId: project.id,
+      sprintId: sprint.id,
+      title: 'C'
+    })
+    await updateCard(ctx.db, { id: sprintCard.id, descriptionMd: ref(att.id) })
+    await markIntakePlanned(ctx.db, item.id, [sprintCard.key])
+    const outsider = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'Outsider'
+    })
+    await updateCard(ctx.db, { id: outsider.id, descriptionMd: ref(att.id) })
+
+    await archiveSprint(ctx.db, sprint.id)
+
+    expect(await dataOf(att.id)).not.toBeNull()
+  })
+
+  it('clears a sprint-card image referenced by an inbox archived in the same cascade', async () => {
+    const project = await freshProject(ctx.db)
+    const sprint = await createSprint(ctx.db, { projectId: project.id, name: 'S' })
+    const { card, att } = await ownedImageCard(project.id, { sprintId: sprint.id })
+    const item = await createIntakeItem(ctx.db, {
+      projectId: project.id,
+      bodyMd: ref(att.id)
+    })
+    await markIntakePlanned(ctx.db, item.id, [card.key])
+
+    await archiveSprint(ctx.db, sprint.id)
+
+    expect(await dataOf(att.id)).toBeNull()
   })
 
   it('clears an inbox-owned image when the intake item is archived', async () => {

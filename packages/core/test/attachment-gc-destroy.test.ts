@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   addComment,
+  archiveSprint,
   createAttachment,
   createCard,
   createDoc,
@@ -145,6 +146,28 @@ describe('gcAttachmentsOnDestroy', () => {
     await updateCard(ctx.db, { id: referrer.id, descriptionMd: ref(att.id) })
 
     await destroyCard(ctx.db, referrer.id)
+
+    expect(await exists(att.id)).toBe(true)
+  })
+
+  it('keeps a destroyed image still referenced by a card in an ARCHIVED sprint (restorable)', async () => {
+    const project = await freshProject(ctx.db)
+    const sprint = await createSprint(ctx.db, { projectId: project.id, name: 'S' })
+    const item = await createIntakeItem(ctx.db, {
+      projectId: project.id,
+      bodyMd: 'placeholder'
+    })
+    const att = await image(project.id, { ownerType: 'inbox', ownerId: item.id })
+    await updateIntakeItem(ctx.db, { id: item.id, bodyMd: ref(att.id) })
+    const card = await createCard(ctx.db, {
+      projectId: project.id,
+      sprintId: sprint.id,
+      title: 'C'
+    })
+    await updateCard(ctx.db, { id: card.id, descriptionMd: ref(att.id) })
+
+    await archiveSprint(ctx.db, sprint.id)
+    await destroyIntakeItem(ctx.db, item.id)
 
     expect(await exists(att.id)).toBe(true)
   })
