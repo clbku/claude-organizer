@@ -17,6 +17,8 @@ import {
   getSystemSettings,
   getUserAuthz,
   setAuthEnabled,
+  setEmbeddingDtype,
+  setEmbeddingModel,
   setIncludeAttachmentsInBackup,
   setKeepAttachmentsOnArchive,
   setKeepDiffsOnArchive
@@ -133,7 +135,9 @@ export function registerAuthRoutes(
       .object({
         keepDiffsOnArchive: z.boolean().optional(),
         keepAttachmentsOnArchive: z.boolean().optional(),
-        includeAttachmentsInBackup: z.boolean().optional()
+        includeAttachmentsInBackup: z.boolean().optional(),
+        embeddingModel: z.string().nullable().optional(),
+        embeddingDtype: z.string().nullable().optional()
       })
       .parse(request.body)
     if (body.keepDiffsOnArchive !== undefined) {
@@ -144,6 +148,14 @@ export function registerAuthRoutes(
     }
     if (body.includeAttachmentsInBackup !== undefined) {
       await setIncludeAttachmentsInBackup(db, body.includeAttachmentsInBackup)
+    }
+    // First-boot persists the choice; the service loads it on boot, so no
+    // reconcile/backfill here (there's no content yet to re-embed).
+    if (body.embeddingModel !== undefined) {
+      await setEmbeddingModel(db, body.embeddingModel)
+    }
+    if (body.embeddingDtype !== undefined) {
+      await setEmbeddingDtype(db, body.embeddingDtype)
     }
     return getSystemSettings(db)
   })

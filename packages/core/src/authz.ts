@@ -7,7 +7,7 @@ import type {
   UserRole,
   UserStatus
 } from '@claude-organizer/shared'
-import { EMBEDDING_MODELS } from '@claude-organizer/shared'
+import { EMBEDDING_DTYPES, EMBEDDING_MODELS } from '@claude-organizer/shared'
 
 import { ConflictError, InputError } from './errors'
 
@@ -318,6 +318,29 @@ export async function setEmbeddingModel(db: Database, embeddingModel: string | n
       set: { embeddingModel, updatedAt: sql`now()` }
     })
     .returning({ embeddingModel: schema.systemSettings.embeddingModel })
+  return row!
+}
+
+// Tri-state like the model: null unsets (fall back to env/default), otherwise a
+// fixed-list dtype. Validate at the write boundary so a bad value can't reach the
+// resolver. A dtype change carries no dim change, so it never triggers a reconcile.
+export async function setEmbeddingDtype(db: Database, embeddingDtype: string | null) {
+  if (
+    embeddingDtype !== null
+    && !(EMBEDDING_DTYPES as readonly string[]).includes(embeddingDtype)
+  ) {
+    throw new InputError(
+      `Unknown embedding dtype "${embeddingDtype}". Use one of: ${EMBEDDING_DTYPES.join(', ')}, or null to unset.`
+    )
+  }
+  const [row] = await db
+    .insert(schema.systemSettings)
+    .values({ id: SYSTEM_SETTINGS_ID, embeddingDtype })
+    .onConflictDoUpdate({
+      target: schema.systemSettings.id,
+      set: { embeddingDtype, updatedAt: sql`now()` }
+    })
+    .returning({ embeddingDtype: schema.systemSettings.embeddingDtype })
   return row!
 }
 

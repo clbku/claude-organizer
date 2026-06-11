@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 
 import {
-  applyEmbeddingModel,
+  applyEmbeddingConfig,
   approveUser,
   ConflictError,
   deleteUser,
@@ -35,9 +35,13 @@ const settingsBody = z
     message: 'No setting to update'
   })
 
-// `model` is the registry id, 'none' (off), or null (unset → env/default); the
-// core setter validates the value against the registry.
-const embeddingBody = z.object({ model: z.string().nullable() })
+// `model` is the registry id, 'none' (off), or null (unset → env/default); `dtype`
+// is a fixed-list quantization or null (unset). Both optional — omitting one leaves
+// it untouched. The core setters validate the values; a dtype-only change is lazy.
+const embeddingBody = z.object({
+  model: z.string().nullable().optional(),
+  dtype: z.string().nullable().optional()
+})
 
 export function registerAdminRoutes(app: FastifyInstance, db: Database) {
   app.get('/admin/users', async () => listAllUsers(db))
@@ -83,7 +87,7 @@ export function registerAdminRoutes(app: FastifyInstance, db: Database) {
   app.get('/admin/embedding', async () => getEmbeddingStatus(db))
 
   app.post('/admin/embedding', async (req) => {
-    const { model } = embeddingBody.parse(req.body)
-    return applyEmbeddingModel(db, model)
+    const change = embeddingBody.parse(req.body)
+    return applyEmbeddingConfig(db, change)
   })
 }

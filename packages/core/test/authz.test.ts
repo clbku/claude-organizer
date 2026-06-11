@@ -8,7 +8,7 @@ import { EMBEDDING_RUNTIME_SERVICE } from '@claude-organizer/shared'
 
 import {
   addComment,
-  applyEmbeddingModel,
+  applyEmbeddingConfig,
   approveUser,
   canAccessProject,
   claimOrCreateUserAuthz,
@@ -305,12 +305,12 @@ describe('embedding runtime apply', () => {
 
   it('rejects an unknown model and applies nothing', async () => {
     await setEmbeddingModel(ctx.db, null)
-    await expect(applyEmbeddingModel(ctx.db, 'acme/nope')).rejects.toThrow(InputError)
+    await expect(applyEmbeddingConfig(ctx.db, { model: 'acme/nope' })).rejects.toThrow(InputError)
     expect(await getSystemSettings(ctx.db)).toMatchObject({ embeddingModel: null })
   })
 
   it('applying none persists the choice and settles the backfill', async () => {
-    await applyEmbeddingModel(ctx.db, 'none')
+    await applyEmbeddingConfig(ctx.db, { model: 'none' })
     expect(await getSystemSettings(ctx.db)).toMatchObject({ embeddingModel: 'none' })
     const s = await settle(ctx.db)
     expect(s).toMatchObject({
@@ -325,8 +325,8 @@ describe('embedding runtime apply', () => {
   it('rejects a concurrent apply (the slot is claimed before the first await)', async () => {
     await setEmbeddingModel(ctx.db, null)
     const [a, b] = await Promise.allSettled([
-      applyEmbeddingModel(ctx.db, 'none'),
-      applyEmbeddingModel(ctx.db, 'none')
+      applyEmbeddingConfig(ctx.db, { model: 'none' }),
+      applyEmbeddingConfig(ctx.db, { model: 'none' })
     ])
     expect([a.status, b.status].sort()).toEqual(['fulfilled', 'rejected'])
     const rejected = (a.status === 'rejected' ? a : b) as PromiseRejectedResult

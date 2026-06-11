@@ -3,7 +3,7 @@ import { reconcileEmbeddingDim } from '@claude-organizer/db'
 import type { EmbeddingRuntimeState, EmbeddingRuntimeStatus } from '@claude-organizer/shared'
 import { EMBEDDING_RUNTIME_SERVICE } from '@claude-organizer/shared'
 
-import { getSystemSettings, setEmbeddingModel } from './authz'
+import { getSystemSettings, setEmbeddingDtype, setEmbeddingModel } from './authz'
 import { backfillCardEmbeddings } from './cards'
 import { backfillCommentEmbeddings } from './comments'
 import { backfillDocEmbeddings } from './docs'
@@ -53,17 +53,28 @@ export async function getEmbeddingStatus(db: Database): Promise<EmbeddingRuntime
   }
 }
 
+export interface EmbeddingConfigChange {
+  /** Omit to leave the persisted model untouched; `null` unsets it. */
+  model?: string | null
+  /** Omit to leave the persisted dtype untouched; `null` unsets it. */
+  dtype?: string | null
+}
+
 /**
- * Apply a model change: persist (validated) → reconcile the live pgvector dim
- * (drops vectors on a dim change) → push a `/reload` to the embedding service and
- * wait for it to settle → kick the backfill in the background. The reload BEFORE
- * the backfill guarantees the re-embed runs on the NEW model; a pull/notify would
- * race it. The service-side dispose frees the old model on the swap — there is no
- * in-process model to reset here anymore, and nothing to restart manually.
+ * Apply a model and/or dtype change: persist (validated) → reconcile the live
+ * pgvector dim only when it actually changed → push a `/reload` to the embedding
+ * service and wait for it to settle → backfill (background) only when the model
+ * changed. The reload BEFORE the backfill guarantees the re-embed runs on the NEW
+ * model; a pull/notify would race it. The service-side dispose frees the old
+ * pipeline on the swap — nothing to reset in-process or restart manually.
+ *
+ * Lazy on dtype: a dtype-only change keeps the dim and the vector space, so it
+ * skips the reconcile AND the backfill — existing vectors stay valid (the e5
+ * quantization error is negligible) — and only triggers the service reload.
  */
-export async function applyEmbeddingModel(
+export async function applyEmbeddingConfig(
   db: Database,
-  model: string | null
+  change: EmbeddingConfigChange
 ): Promise<EmbeddingRuntimeStatus> {
   if (isApplying()) {
     throw new ConflictError('An embedding model change is already in progress')
@@ -78,33 +89,54 @@ export async function applyEmbeddingModel(
   }
   progress = slot
 
-  let prevPersisted: string | null = null
-  let persisted = false
+  let prevModel: string | null = null
+  let prevDtype: string | null = null
+  let modelPersisted = false
+  let dtypePersisted = false
+  let modelChanged: boolean
   try {
-    prevPersisted = (await getSystemSettings(db)).embeddingModel
+    const settings = await getSystemSettings(db)
+    prevModel = settings.embeddingModel
+    prevDtype = settings.embeddingDtype
     const prev = await resolveEffectiveEmbeddingConfig(db)
-    await setEmbeddingModel(db, model) // validates registry/'none'/null → InputError
-    persisted = true
+    if (change.model !== undefined) {
+      await setEmbeddingModel(db, change.model) // validates → InputError
+      modelPersisted = true
+    }
+    if (change.dtype !== undefined) {
+      await setEmbeddingDtype(db, change.dtype) // validates → InputError
+      dtypePersisted = true
+    }
     const next = await resolveEffectiveEmbeddingConfig(db)
     slot.dimChanged = prev.dim !== next.dim
+    modelChanged = prev.model !== next.model
 
-    await reconcileEmbeddingDim(db)
+    // A dim change (model swap) recreates the column; a dtype-only change keeps
+    // the dim, so the reconcile would be a no-op — skip it to stay lazy.
+    if (slot.dimChanged) await reconcileEmbeddingDim(db)
   } catch (err) {
-    // Restore the prior model when we'd already persisted (reconcile failed):
-    // otherwise the persisted choice and the live column dim drift apart and
-    // the next boot would embed the new dim into the old column. Best-effort.
-    if (persisted) await setEmbeddingModel(db, prevPersisted).catch(() => {})
+    // Restore the prior choice when we'd already persisted (reconcile failed):
+    // otherwise the persisted choice and the live column dim drift apart and the
+    // next boot would embed the new dim into the old column. Best-effort.
+    if (modelPersisted) await setEmbeddingModel(db, prevModel).catch(() => {})
+    if (dtypePersisted) await setEmbeddingDtype(db, prevDtype).catch(() => {})
     progress = null
     throw err
   }
 
   // Best-effort: if the service is unreachable the persisted choice still wins —
   // the service loads it on its next boot/reload — so a miss must not abort the
-  // apply. It's awaited so the backfill below embeds in the new model, not the old.
+  // apply. Awaited so a backfill below embeds in the new model, not the old.
   await reloadEmbeddingService()
 
-  slot.state = 'backfilling'
-  void runBackfill(db, slot)
+  // Backfill only when the vector space changed (a model swap). A dtype-only
+  // change leaves existing vectors valid — no re-embed.
+  if (modelChanged) {
+    slot.state = 'backfilling'
+    void runBackfill(db, slot)
+  } else {
+    slot.state = 'done'
+  }
   return getEmbeddingStatus(db)
 }
 
