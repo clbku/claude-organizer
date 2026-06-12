@@ -5,14 +5,21 @@
 // separator. Nuxt UI has no diff component and marked can't colorize a patch,
 // so we parse it ourselves. Lines pruned by the capture script
 // (lockfiles/truncated/binary) surface as a muted note on the file block.
+import { diffWordsWithSpace } from 'diff'
+
 const props = defineProps<{ diff: string }>()
 
 type LineKind = 'add' | 'del' | 'context' | 'hunk'
+interface Seg {
+  text: string
+  changed: boolean
+}
 interface DiffLine {
   kind: LineKind
   text: string
   oldNo: number | null
   newNo: number | null
+  segs?: Seg[]
 }
 interface DiffFile {
   path: string
@@ -41,7 +48,10 @@ const files = computed<DiffFile[]>(() => {
   let oldNo = 0
   let newNo = 0
   const flush = () => {
-    if (cur) out.push(cur)
+    if (cur) {
+      annotateIntraline(cur.lines)
+      out.push(cur)
+    }
   }
   for (const raw of props.diff.replace(/\n$/, '').split('\n')) {
     if (raw.startsWith('diff --git ')) {
@@ -109,6 +119,63 @@ const rowClass: Record<Exclude<LineKind, 'hunk'>, string> = {
   context: 'text-dimmed'
 }
 
+// The changed slice within a modified line gets a stronger patch over the row
+// tint — semantic tokens, so dark/light contrast adapts on its own.
+const segClass: Record<'add' | 'del', string> = {
+  add: 'rounded-[2px] bg-success/30',
+  del: 'rounded-[2px] bg-error/30'
+}
+
+// A contiguous run of `-` immediately followed by a run of `+` is a modify
+// block: pair them by index and mark, within each line, only the tokens that
+// actually changed. Lines with no counterpart (pure add/del, or the overflow
+// beyond the shorter run) stay fully tinted.
+function annotateIntraline(lines: DiffLine[]): void {
+  let i = 0
+  while (i < lines.length) {
+    if (lines[i]!.kind !== 'del') {
+      i++
+      continue
+    }
+    let d = i
+    while (d < lines.length && lines[d]!.kind === 'del') d++
+    let a = d
+    while (a < lines.length && lines[a]!.kind === 'add') a++
+    const pairs = Math.min(d - i, a - d)
+    for (let k = 0; k < pairs; k++) {
+      const del = lines[i + k]!
+      const add = lines[d + k]!
+      const segs = intralineSegs(del.text, add.text)
+      if (segs) {
+        del.segs = segs[0]
+        add.segs = segs[1]
+      }
+    }
+    i = a
+  }
+}
+
+// Word-level diff of two modified lines (markers stripped, then re-added as a
+// plain leading seg). Returns null when there's nothing useful to highlight —
+// no shared token, or no change — so the line stays a plain full-line tint.
+function intralineSegs(delText: string, addText: string): [Seg[], Seg[]] | null {
+  const changes = diffWordsWithSpace(delText.slice(1), addText.slice(1))
+  const hasCommon = changes.some(c => !c.added && !c.removed)
+  const hasChange = changes.some(c => c.added || c.removed)
+  if (!hasCommon || !hasChange) return null
+  const delSegs: Seg[] = [{ text: delText.slice(0, 1), changed: false }]
+  const addSegs: Seg[] = [{ text: addText.slice(0, 1), changed: false }]
+  for (const c of changes) {
+    if (c.added) addSegs.push({ text: c.value, changed: true })
+    else if (c.removed) delSegs.push({ text: c.value, changed: true })
+    else {
+      delSegs.push({ text: c.value, changed: false })
+      addSegs.push({ text: c.value, changed: false })
+    }
+  }
+  return [delSegs, addSegs]
+}
+
 // The trailing context after `@@ -a,b +c,d @@` (often a function signature); the
 // line numbers themselves live in the gutter, so the raw `@@` is hidden.
 function hunkContext(text: string): string {
@@ -154,6 +221,16 @@ function hunkContext(text: string): string {
               class="shrink-0 w-9 px-1 text-right text-muted/40 select-none tabular-nums border-r border-default"
             >{{ line.newNo ?? "" }}</span>
             <span
+              v-if="line.segs"
+              class="flex-1 min-w-0 whitespace-pre-wrap break-all pl-2 pr-3"
+            ><span
+              v-for="(seg, si) in line.segs"
+              :key="si"
+              :class="seg.changed ? segClass[line.kind as 'add' | 'del'] : undefined"
+              v-text="seg.text"
+            /></span>
+            <span
+              v-else
               class="flex-1 min-w-0 whitespace-pre-wrap break-all pl-2 pr-3"
               v-text="line.text || ' '"
             />

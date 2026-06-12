@@ -251,6 +251,9 @@ importers:
       '@pinia/nuxt':
         specifier: 0.11.3
         version: 0.11.3(magicast@0.5.3)(pinia@3.0.4(typescript@6.0.3)(vue@3.5.35(typescript@6.0.3)))
+      diff:
+        specifier: 8.0.4
+        version: 8.0.4
       marked:
         specifier: 18.0.5
         version: 18.0.5
