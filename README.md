@@ -6,7 +6,7 @@
 
 Claude Organizer gives Claude Code a real project-management system — cards, sprints, comments and docs — as **queryable state over MCP**, instead of spec Markdown files that grow without bound and go stale. A clean Nuxt UI mirrors the same board for humans, in real time.
 
-It ships as a **Claude Code plugin** (four skills + the MCP server), backed by a pnpm monorepo you run with Docker.
+It ships as a **Claude Code plugin** (five skills + the MCP server), backed by a pnpm monorepo you run with Docker.
 
 <br/>
 
@@ -180,7 +180,7 @@ Relevant env (see `.env.example`):
 
 ## The skills
 
-Four skills drive the work — you don't call them by hand, they trigger from what you say:
+Five skills drive the work — you don't call them by hand, they trigger from what you say:
 
 | Skill | What it does | Triggers when… |
 | --- | --- | --- |
@@ -188,6 +188,7 @@ Four skills drive the work — you don't call them by hand, they trigger from wh
 | **`plan`** | Turn a fuzzy new demand into structured work (sprint → stories → tasks), gets the design approved, then creates the cards. | you describe something new to build, before it's broken down. |
 | **`implement`** | Execute one existing card through its lifecycle: `in_progress` → read comments → implement → review → commit → `done`. | you start/resume work on a specific card — *"work CO-42", "build it"*. |
 | **`review`** | A mandatory review gate (per-task + story-level), run by a fresh subagent: checks acceptance criteria, hunts bugs/security/reuse. | a task or story's last task just finished (fired by `implement`). |
+| **`autopilot`** | Run a whole story, sprint, or set of cards hands-off: a lean orchestrator dispatches a fresh subagent per card (implement → review → fixes), stops to ask you on every decision, commits one-per-card on a single branch, and leaves each card in `review`. | you explicitly opt into an autonomous multi-card run — *"run the sprint by yourself"*. |
 
 ## Using it
 
@@ -204,6 +205,12 @@ Just talk to Claude Code.
 > **You:** let's continue — what's next?
 >
 > **Claude:** *reads the active sprint, your unread comments and the in-flight cards, picks the top one, moves it to `in_progress`, implements it, records the decisions as comments, runs the review gate, then moves it to `review` for you.*
+
+**Run a batch hands-off** — the `autopilot` skill. You opt in explicitly; it works a whole story, sprint, or set of cards on its own, but **stops to ask you on every real decision** and never merges:
+
+> **You:** run story CO-12 on autopilot.
+>
+> **Claude:** *claims the story's cards, gathers the open decisions up front (asking you each), then **per card** implements it in a fresh subagent, runs the review gate, applies fixes, and commits one-per-card onto a single `autopilot/…` branch — leaving every card in `review` for your final validation. It opens no PR and merges nothing.*
 
 ### Inbox
 

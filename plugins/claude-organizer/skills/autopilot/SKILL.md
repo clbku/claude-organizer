@@ -73,6 +73,14 @@ Stop on the branch: N commits, every card in `review`, nothing merged. Then writ
 
 This summary exists to **expose what was left behind, not hide it** — the known failure mode is quietly ignoring a finding and not fixing it. If the fix loop did its job, list (b) is short and every entry has a reason. Keep a running ledger as you go so nothing is lost by the end.
 
+## The run TODO — a Claude Code checklist that mirrors the run
+
+Keep a **`TodoWrite`** checklist in sync with the run so the user watches it advance in real time. It's the orchestrator's job (part of keeping the board honest), never a subagent's.
+
+- **Build it once the scope and order are settled** — after the claim (C) and the chained decisions (D), with the ready order coming from the blocking graph. **One item per card** — *not* a separate implement/review item per card — plus **one dedicated item per story-level review**, slotted in execution order right after that story's last card. Example: `CO-1`, `CO-2`, `CO-3`, `review story A`, `CO-4`, `CO-5`, `review story B`.
+- **Status mirrors the work:** flip a card's item to `in_progress` when you dispatch its implementer (step E.1) and to `completed` when the card reaches `review` (step E.6); flip a story-review item to `in_progress` at the story boundary (step E.7) and to `completed` once that review and its fixes are done.
+- A `blocked` card's item stays open (not `completed`) — the final summary (F) is what accounts for it.
+
 ## The runner-mode return contract — must match `implement`
 
 The implementer's final message is structured data you consume (keep this in exact sync with the _Runner mode_ section of the `implement` skill):
@@ -95,4 +103,4 @@ Claims persist on purpose (a CTRL-C keeps them). A resumed autopilot **re-orient
 
 ## The shape in one line
 
-scope → run branch → claim all → chained decisions → **per card:** implementer (runner-mode) → decision? ask + record → reviewer → fix-loop (too-big → inbox) → commit on branch → `review` + release → **story end:** story review + inbox recheck → **run end:** self-auditing summary, no PR/merge.
+scope → run branch → claim all → chained decisions → build run TODO → **per card:** implementer (runner-mode) → decision? ask + record → reviewer → fix-loop (too-big → inbox) → commit on branch → `review` + release → **story end:** story review + inbox recheck → **run end:** self-auditing summary, no PR/merge.
