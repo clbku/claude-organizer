@@ -43,11 +43,13 @@ Two things specific to execution:
 
 ## The lifecycle — every card, every time, in order
 
+> **Driven by the autopilot?** If the orchestrator's prompt says you're in **runner mode**, read _Runner mode — when the autopilot orchestrator drives_ (below) **first**: you do the build but skip the review gate, the commit, and the status/`done` moves, and you **return** a structured result instead of asking the user or closing the card.
+
 ### 1. Re-read the board, then move the card to `in_progress`
 
 - **Re-read before you start.** Don't trust an earlier read or your memory — between cards the user may have re-prioritized, pulled in work, or left a comment. Re-query the active sprint and the sprint-less `todo`/`backlog` cards, and check `list_unread_comments`, so you act on the **current** state.
 - **`set_card_status(id, "in_progress")` the moment you pick the card up** — before writing a line of code, even for a one-line change. A card being worked while it still reads `todo` is the board lying.
-- **Reserve the card** — `claim_task(<key>, <sessionToken>, <label>)` (advisory — see _Reserving the card_). A **conflict** (held by another session) → **stop and ask** before taking it over; don't just start.
+- **Reserve the work** — `claim_task(<key>, <sessionToken>, <label>)` (advisory — see _Reserving the card_). **When the card belongs to a story, claim the parent story's key**, not just this child: claiming a story cascades the reservation to **all** its `todo` children, so the rest of the story can't be picked up by another session while you work it. (A standalone card claims only itself.) A **conflict** (held by another session) → **stop and ask** before taking it over; don't just start.
 - If it's a sub-task, move its **history** to `in_progress` now too (see _History status_).
 
 ### 2. Read THIS card's comments — `list_comments(cardId)` — even if you read them before
@@ -127,6 +129,24 @@ If this is the **last child of a story**, the **story-level review gate** fires 
 
 At this story boundary — and before advancing to the next card/story or ending the session — re-check the inbox **fresh**: call **`list_inbox` (pending)** again (don't trust the orientation snapshot — the user may have dropped demands while you worked). If it surfaces pending demands the work didn't cover, **stop and ask** whether to review/plan them now (a decision gate — they may **reshape the upcoming stories**). The criterion and wording live in the **`claude-organizer`** skill (_Inbox_).
 
+## Runner mode — when the autopilot orchestrator drives
+
+The **`autopilot`** skill runs a card by dispatching a subagent that invokes this skill. A subagent hits two hard limits the normal lifecycle assumes away: it **cannot spawn another subagent** (so it can't fire the review gate) and **cannot talk to the user** (`AskUserQuestion` is unavailable to it). So **only when the orchestrator says it is driving** (it states so explicitly in the task prompt — never infer runner mode on your own), you do the **build** and the orchestrator owns the **board lifecycle around you**. Concretely:
+
+- **You do:** the orchestrator has already moved the card to `in_progress` and claimed it (the claim is advisory and doesn't move status, so the orchestrator owns that transition) — go straight to reading **this card's comments** (step 2) and the **relevant docs** (step 3), **implement clean** (step 4), and **self-review your own diff** (step 4). Record genuine **signal** as comments (step 5), and **capture durable knowledge in the docs** (step 9) — you can call the doc/comment MCP tools; only subagent-spawn and `AskUserQuestion` are off-limits.
+- **You do NOT:** spawn the review gate (step 7), let the user review the diff (step 8), commit and attach the diff (step 10), or do the `review`/`done` status moves — including step 6's move to `review` with its test-plan comment and worktree-diff attach — or release the claim. The orchestrator runs the reviewer as a **sibling** subagent, applies fixes, commits on the run's single branch, attaches the diff, and moves the card to `review`. Driving any of that yourself collides with the orchestrator.
+- **You never ask — you stop and return.** The instant you hit a decision or ambiguity the card doesn't settle (the _Never assume_ rule still holds — you just can't resolve it via the user yourself), **halt** and **return** it. The orchestrator takes it to the user and re-dispatches you with the answer.
+
+**Return contract** — your final message **is** the orchestrator's input (structured data, not prose for a human). Return exactly one of:
+
+- `{ status: "needs_decision", decision, options, recommendation }` — you hit an unsettled choice. State it, the worked options with trade-offs, and your recommendation (same bar as the _Never assume_ method). You will be re-dispatched with the user's answer.
+- `{ status: "ready_for_review", summary, files, testPlan }` — built and self-reviewed up to the pre-review point, nothing left to decide. `summary` is what you changed and why; `files` the touched paths; `testPlan` how to validate it (what to open, do, expect) — the orchestrator posts it as the card's test-plan comment when it moves the card to `review`.
+- `{ status: "blocked", reason }` — you cannot proceed (a missing dependency, a broken precondition).
+
+Keep this contract in sync with the **`autopilot`** skill, which consumes it.
+
+**Outside runner mode — a normal, user-driven run — this section does not apply:** you own the full lifecycle above, commit after the user confirms, and close the card yourself.
+
 ## Diff-capture scripts — they ship inside this skill
 
 `attach-commit` and `attach-worktree-diff` are **not** an npm package and **not** guaranteed to be a `package.json` script in the repo you're working in. They are **bundled in this skill**, at `scripts/attach-commit.mjs` and `scripts/attach-worktree-diff.mjs` (Python twins `.py` for hosts without Node) — the path is **relative to this skill's own base directory**, not the project's working dir. So locate them under the directory this `SKILL.md` was loaded from and run that copy **by its absolute path**:
@@ -160,7 +180,7 @@ A batch of several cards may mean **several branches** — warn the user you'll 
 The board coordinates parallel sessions/machines with an **advisory** claim: it signals "this card is in my work buffer" so another session doesn't start the same thing. Nothing is locked (the API never blocks on it); the skill is what respects it.
 
 - **One session token per run.** At the start of a run, generate a single opaque `sessionToken` and a readable `label` — the user's name when you know it (auth on), otherwise a generic session label. **Reuse both** for every claim/release/take-over this run; don't mint a new one per card.
-- **Claim when you pick a card up** (step 1): `claim_task(<key>, <sessionToken>, <label>)`. A **story** also reserves its not-yet-started (`todo`) children. Reserved cards show an hourglass on the board.
+- **Claim when you pick a card up** (step 1): `claim_task(<key>, <sessionToken>, <label>)`. Claiming a **story** cascades the reservation to **all** its not-yet-started (`todo`) children — so when the card you start belongs to a story, **claim the parent story's key**, reserving the whole story up front instead of one child at a time (a child already in `in_progress`/`review`/`done` is left untouched). Picking up a **standalone** card claims only that card. Reserved cards show an hourglass on the board.
 - **Conflict = held by another session.** `claim_task` returns `{ ok:false, conflict:true, claim }` **without changing anything**. **Stop and ask the user** — _"`<key>` is reserved by `<claim.ownerLabel>` since `<claim.claimedAt>`; take it over?"_ On **yes**, `take_over_task(<key>, <sessionToken>, <label>)` swaps the token to you; on **no**, don't start that card. **Take-over is always user-confirmed.**
 - **Release.** Completing the card (`done`) **auto-releases** the claim. If you **abandon/cancel** a card without finishing, `release_task(<key>, <sessionToken>)`. A **CTRL-C keeps** the claim on purpose, so you can resume; resuming in a **new run** mints a new token, so your own earlier claim now reads as a conflict → the take-over prompt above retakes it.
 
@@ -172,7 +192,7 @@ A **history** (a parent card with sub-tasks) is a container; its status tracks i
 
 Per card, in order — no step skipped. **Standing rule: never assume — any ambiguity or decision the card doesn't settle goes to the user before you build; for a story, clear all of them up front.**
 
-1. Re-read the board → `claim_task` (conflict → ask, then take-over) → `in_progress` (history too, if a sub-task).
+1. Re-read the board → `claim_task` (a sub-task → claim the parent story; conflict → ask, then take-over) → `in_progress` (history too, if a sub-task).
 2. `list_comments(cardId)` (read-only) — even if read before; `mark_comments_read` once you've addressed them.
 3. Read the relevant docs.
 4. Implement — clean code, no needless comments; hit a doubt → stop and ask; then self-review your own diff with fresh eyes before handing off (doesn't replace the gate).
