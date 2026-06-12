@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Use to EXECUTE a card that already exists on the board in claude-organizer — implement a sprint, a history/story, or a single task. Trigger the moment you start, resume, or carry out development on a specific card ("work CO-42", "let's implement this story", "continue the task", "build it now"). This skill owns the mandatory execution lifecycle: in_progress → read comments → implement → review → commit → done. It NEVER assumes — any ambiguity or open decision the card doesn't settle goes to the user first (options + recommendation, like `plan`), and answers live in comments. To turn a NEW fuzzy demand into cards, use `plan` instead — this includes a task that lives in an external tracker (no local card key yet), which is a planning input you re-map via `plan`, never execute here; to orient/keep the board honest, see `claude-organizer`. Do NOT skip steps.
+description: Use to EXECUTE a card that already exists on the board in claude-organizer — a sprint, a story, or a single task. Trigger the moment you start, resume, or continue development on a specific card ("work CO-42", "implement this story", "continue the task", "build it now"). Owns the mandatory execution lifecycle (in_progress → read comments → implement → review → commit → done) and NEVER assumes — any open decision the card doesn't settle goes to the user first. To break a NEW demand into cards use `plan` instead (including a task from an external tracker — re-map it, don't execute here); to orient, see `claude-organizer`. Do NOT skip steps.
 ---
 
 # Implementing a card
@@ -102,7 +102,7 @@ As you work, **`add_comment(cardId, …)`** for what carries **signal** — deci
 
 ### 7. Per-task review gate — a fresh subagent, **before commit** (skip only if trivial)
 
-With the behavior validated, run the **per-task review** via the **`review`** skill **before** committing — over the **working-tree diff** (`git diff`), so any fixes fold into the change and the card keeps **one clean commit**. It spawns a **fresh subagent** (objective eyes — you just wrote this code, so you're the worst judge of it) that checks **this task's acceptance criteria** and hunts for reuse / dead code / leftover comments, then reports and asks what to do (fix now / follow-up card / other). When fixes fold into the working tree, **re-run the `attach-worktree-diff` script** so the pending diff reflects the adjusted change.
+With the behavior validated, run the **per-task review** via the **`review`** skill **before** committing — over the **working-tree diff** (`git diff`), so any fixes fold into the change and the card keeps **one clean commit**. It spawns a **fresh subagent** (objective eyes — you just wrote this code, so you're the worst judge of it) that checks **this task's acceptance criteria** and hunts for reuse / dead code / leftover comments. The `review` skill then **disposes of every finding** — cheap in-scope ones get fixed, the rest go to the user — and **you don't get to veto a finding because it's `low` or "not worth a cycle"**: severity ranks the list, it doesn't authorize dropping it (the full rule lives in the `review` skill). When fixes fold into the working tree, **re-run the `attach-worktree-diff` script** so the pending diff reflects the adjusted change.
 
 A **trivial** task (one-liner, rename, config — nothing with real logic) may **skip** this by quick judgment; note the skip briefly so it's visible, not silent. For a **standalone** task (no parent), this per-task review *is* the whole review — there's no story layer above it. Skipping the gate (beyond the trivial exception) is a defect.
 
@@ -198,7 +198,7 @@ Per card, in order — no step skipped. **Standing rule: never assume — any am
 4. Implement — clean code, no needless comments; hit a doubt → stop and ask; then self-review your own diff with fresh eyes before handing off (doesn't replace the gate).
 5. Comment the signal.
 6. `review` status + test-plan comment + `attach-worktree-diff` → wait for validation.
-7. Per-task review gate (fresh subagent; skip only if trivial) → fixes fold in → re-run `attach-worktree-diff`.
+7. Per-task review gate (fresh subagent; skip only if trivial) → every finding fixed or surfaced, never dropped on severity → fixes fold in → re-run `attach-worktree-diff`.
 8. Let the user review the diff.
 9. Capture durable knowledge in the docs.
 10. Commit (one per card, key in message) → `attach-commit`.

@@ -1,6 +1,6 @@
 ---
 name: claude-organizer
-description: Use whenever the mcp__claude-organizer__* tools are available and you're about to start or continue work on a project tracked here. This is the entry point and panorama for using the board — consult it at the START of every coding session (before exploring code) to orient, and for how the board, comments and docs work. Trigger even when the user just says "let's continue" or "what's next". It does NOT hold the workflow rules: to turn a NEW fuzzy demand into structured work use the `plan` skill, and to execute a specific card through its lifecycle use the `implement` skill. Do NOT rely on memory; read state from here.
+description: Use whenever the mcp__claude-organizer__* tools are available and you're starting or continuing work on a project tracked here — the entry point and panorama for the board. Consult it at the START of every coding session (before exploring code) to orient, and for how the board, comments and docs work. Trigger even on a bare "let's continue" or "what's next". It does NOT hold the workflow rules: a NEW fuzzy demand → the `plan` skill; executing a specific card → the `implement` skill. Read state from here; don't rely on memory.
 ---
 
 # Using claude-organizer

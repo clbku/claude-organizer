@@ -1,6 +1,6 @@
 ---
 name: review
-description: Use to REVIEW work in claude-organizer with fresh, objective eyes before it's closed — like a senior engineer reviewing a real PR. Two levels, both MANDATORY gates the `implement` skill fires — a per-task review when a task is done (its own diff), and a story-level review when a story's last child is done (the whole PR's cross-cutting concerns: duplication across tasks, coherence, story acceptance criteria). It verifies acceptance criteria are met the right way and hunts for real problems — bugs, security, DB/query and performance issues, outdated/deprecated/vulnerable dependencies, high complexity, missed reuse, unnecessary code and comments. It spawns a FRESH subagent for each pass, reports the findings, then asks what to do next (fix now / follow-up card / other). Trigger whenever a task just finished, a story's last task just finished, or the user asks to review a card/story/PR. Don't review in this context yourself, and don't auto-create cards. A trivial task (one-liner, rename, config) may skip its per-task review by quick judgment.
+description: Use to REVIEW work in claude-organizer with fresh, objective eyes before it closes — like a senior engineer on a real PR. Two MANDATORY gates the `implement` skill fires: a per-task review when a task finishes (its own diff), and a story-level review when a story's last child finishes (cross-cutting concerns a single task can't see). Each pass runs in a FRESH subagent that verifies the acceptance criteria were met the right way and hunts the real problems a reviewer catches — bugs, security, performance, risky deps, complexity, missed reuse, dead code — then disposes of EVERY finding, never dropping one on severity. Trigger when a task or a story's last task just finished, or the user asks to review a card/story/PR. Don't review in this context yourself, and don't auto-create cards. A trivial task may skip its per-task review.
 ---
 
 # Reviewing with fresh eyes
@@ -57,18 +57,21 @@ The agent returns a structured report — **Acceptance criteria** (met/partial/n
 
 > If `subagent_type: "claude-organizer:reviewer"` isn't resolvable in this environment (agent not loaded), fall back to `general-purpose` and paste the mandate from `agents/reviewer.md` into the prompt — but prefer the named agent, so the read-only roster is enforced.
 
-## After the subagent returns — report, then ask
+## After the subagent returns — report, then dispose of every finding
 
-1. **Report** to the user — acceptance-criteria verdict first (this is what the review is *for*), then the improvement findings, concise and grouped. Don't bury the lede: a not-met criterion or a high-severity finding goes up front.
-2. **Ask what to do next — don't act on your own.** Present the options; **do not** auto-create cards and **do not** start fixing unprompted:
-   - **fix now** — apply the changes before the unit closes (they fold into the same PR);
-   - **follow-up card(s)** — capture findings as new cards (via the `plan`/board flow) for later;
-   - **other** — defer, dismiss as won't-fix, accept as partial, etc.
-3. **Act on the choice.** Fixes go back through the `implement` lifecycle; cards get created; then the unit can close.
+<HARD-GATE>
+The report is **input for a disposition that is the user's call, not yours.** You wrote this code, so you are the worst judge of whether a finding is "worth it" — that bias is the entire reason the review ran in a fresh subagent, and letting the writing session veto the findings reintroduces exactly what the gate exists to defeat. So **every finding is either fixed or surfaced — none is silently dropped, and severity never authorizes a drop.** `low` *ranks* a finding (do the high ones first); it does **not** delete it. "Not worth a fix cycle", "the reviewer only flagged low ones", "it's basically fine" — none of those is yours to decide unilaterally; deciding one and committing past it is a **defect**, the same class as skipping the gate.
+</HARD-GATE>
+
+1. **Report** to the user — acceptance-criteria verdict first (this is what the review is *for*), then the findings, concise and grouped. Don't bury the lede: a not-met criterion or a high-severity finding goes up front. Report the **low** ones too — they're in the list, not filtered out.
+2. **Dispose of each finding — route it, never bin it.** Two paths, and **every** finding takes one of them:
+   - **Cheap, in-scope, unambiguous improvement** (a leftover comment, a missed reuse, dead code, a small rename, a tidier shape) → **just fix it.** It folds into the working tree, and the user reviews it in the diff at the next lifecycle step anyway — so this **adds** oversight, it doesn't bypass it. This is the one disposition you may do without asking, precisely because it can only improve the change the user is about to see.
+   - **Everything else** — a real **trade-off**, a finding the **reviewer itself recommends keeping**, a naming/contract call, or anything **too big for this card** (spans many files/systems or a module this card doesn't touch) → **surface it to the user with a recommendation** (options + a recommended marker, same bar as a decision) and let the user dispose: **fix now** / **follow-up card** (via the `plan`/board flow) / **inbox** for later / **dismiss with a stated reason**. Relay the reviewer's own rationale when it recommended keeping. **Don't auto-create cards** — propose, the user chooses.
+3. **Act on the choice.** Fixes go back through the `implement` lifecycle; follow-up cards/inbox items get created once the user says so; then the unit can close.
 4. **Re-review non-trivial fixes before closing.** A fix is itself a change, and a change can introduce new problems. If the fixes you applied were **substantial** — a new function, edits across several files, a reworked code path, anything with real logic — run **one more fresh review pass over the fix diff** before the unit closes. **Skip** the re-review for **obvious** fixes (deleting a comment, a lint/format tweak, a rename, a one-liner) — same trivial-skip judgment as a per-task review. The session that just applied the fix is the worst judge of it.
 
 Record the outcome on the board: a short comment on the card with the criteria verdict and anything deferred, following the signal-vs-noise rule in the `claude-organizer` skill. The full finding list is ephemeral working material — never paste the whole diff or a wall of nitpicks into a comment.
 
 ## Where this sits
 
-Planning (`plan`) → execution (`implement`) → **review (this skill)** → close. The `implement` skill fires the per-task gate as each task wraps up and the story gate when the last child finishes; this skill hands back once findings are reported and the user has chosen what to do, so the task/story can move to `done` and the PR can be merged.
+Planning (`plan`) → execution (`implement`) → **review (this skill)** → close. The `implement` skill fires the per-task gate as each task wraps up and the story gate when the last child finishes; this skill hands back once every finding is disposed — the cheap in-scope ones fixed, the rest decided by the user — so the task/story can move to `done` and the PR can be merged.
