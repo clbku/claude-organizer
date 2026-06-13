@@ -175,7 +175,13 @@ Before implementing a story (or the first card of a batch), get the git flow str
 
 A batch of several cards may mean **several branches** — warn the user you'll need to **switch branches** between cards, and don't pile unrelated work onto one branch. Watch for **conflicts**: don't run far ahead in parallel if the work will collide; sequence dependent cards with the **blockers** system (a card `blocked by` another) so the order is explicit.
 
-**Isolating work in a worktree?** Use the standard location **`.claude/worktrees/<branch>`** (gitignored — add the dir to `.gitignore` if missing), not an ad-hoc `../<name>`: the path is fixed, so don't ask where to put it. **Remove it when you're done** — once the PR is open, and certainly after a merge: `git worktree remove`. Don't leave an orphaned worktree behind. (The `autopilot` skill follows the same convention.)
+**Isolating work in a worktree?** Use the standard location **`.claude/worktrees/<branch>`**, not an ad-hoc `../<name>`: the path is fixed, so don't ask where to put it. Three steps, in order:
+
+1. **Before `git worktree add`, ensure `.claude/worktrees/` is in `.gitignore`** — check it's there and add it if missing. This is a **prerequisite**, not an afterthought folded into the create: the worktree lives inside the repo, so without the ignore already in effect the parent repo sees the directory as untracked, committable content the moment the worktree is born.
+2. **After creating it, install dependencies inside the worktree before any typecheck/lint/build/test** — a fresh worktree has **no `node_modules`**. Install the way the project already installs (e.g. in a pnpm workspace, `pnpm install` is what links the workspace — symlinks + content-addressable store — and populates the worktree's `node_modules`); without it those checks break. This is the **project's own** dependencies — unrelated to the `attach-*` scripts' "don't install anything from npm" rule above, which is only about this skill's bundled scripts.
+3. **Remove it when you're done** — once the PR is open, and certainly after a merge: `git worktree remove`. Don't leave an orphaned worktree behind.
+
+(The `autopilot` skill follows the same convention.)
 
 ## Reserving the card — advisory claim
 
