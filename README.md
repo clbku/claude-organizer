@@ -178,6 +178,20 @@ Relevant env (see `.env.example`):
 
 > **Local gotcha:** the web (`:4401`) and API (`:4400`) are different origins, and the session cookie is `SameSite=Lax` + host-bound. Locally, reach **both on the same host** — use `127.0.0.1`, not `localhost` — or the cookie won't be sent. Behind the reverse proxy, `AUTH_COOKIE_DOMAIN` removes this constraint across the subdomains.
 
+### Signing in from a terminal-only box (WSL, SSH, headless)
+
+With auth **on**, the plugin's MCP client (Claude Code) runs the OAuth flow by **opening a browser and waiting on a local loopback callback** (`http://localhost:<random-port>/…`). On a desktop that's invisible; in a **terminal-only** environment — WSL, SSH, a headless container — it stalls as if "waiting for a code". Two things break, and both have a fix:
+
+- **No browser opens.** Claude Code prints the authorization URL instead — **open it yourself** (copy it into any browser, or set `BROWSER` / use `wslview` so it opens on the host).
+- **The loopback redirect can't get back.** After you sign in, the browser is redirected to `http://localhost:<port>/…` — a server the plugin is listening on **inside** the terminal box. The browser must be able to reach it:
+  - **WSL2** forwards `localhost` between Windows and the distro by default (`localhostForwarding=true` in `%UserProfile%\.wslconfig`) — open the printed URL in the **Windows** browser and the redirect lands back in WSL. If you turned it off, or you're on WSL1, re-enable forwarding (or run a browser inside WSL).
+  - **SSH** — forward the callback port back to where your browser is: `ssh -L <port>:localhost:<port> …` (the `<port>` is the one in the printed URL), then open the URL locally.
+- **Keep one host throughout.** The session cookie is host-bound (the *Local gotcha* above), so don't sign in on `localhost` while the rest of the flow uses `127.0.0.1` — a host mismatch makes the login "not stick" and the authorize never resumes.
+
+**The reliable escape hatch:** auth is **off by default**, and an open board needs **no login at all** — the MCP is open and the plugin connects with no OAuth. For a local/WSL dev box, the simplest path is to leave auth off (or turn it off) and skip the loopback flow entirely; turn auth on where a browser-reachable login exists — e.g. a remote deployment behind the reverse proxy, reached over normal `https://`.
+
+> The loopback OAuth dance is **Claude Code's MCP client** plus your box's networking — Claude Organizer is a standard OAuth 2.1 resource server and can't shortcut it from the server side (the MCP OAuth profile the plugin uses has no device-code path). The steps above are the workarounds.
+
 ## The skills
 
 Five skills drive the work — you don't call them by hand, they trigger from what you say:
