@@ -40,7 +40,7 @@ Order is always by the **blocking graph**: a card is **ready** when every blocke
 Before opening anything, judge whether the run's cards form **one coherent theme** or **scopes too distinct to share a single PR** (e.g. "login system" and "PDF export" have nothing to do with each other). Judge by area/tags/story themes — it's judgment, not a rigid rule. Then confirm the git flow with the user:
 
 - **One coherent scope** (the common case) → **one branch for the whole run** (e.g. `autopilot/<sprint-or-topic>`); every card commits onto it, one commit per card.
-- **Distinct scopes** → **stop and ask** how to split, with worked options + a recommendation (the never-assume method): **one PR** (everything on one branch — when the coupling justifies it); **stacked PRs** (one branch atop another — when the scopes depend in sequence); **separate PRs off `main`** (build one, return to `main`, build the next — when they're independent); or **separate worktrees** (one per scope/story — when the user wants them in parallel / distinct sessions). Recommend the split that best fits the coupling you detected.
+- **Distinct scopes** → **stop and ask** how to split, with worked options + a recommendation (the never-assume method): **one PR** (everything on one branch — when the coupling justifies it); **stacked PRs** (one branch atop another — when the scopes depend in sequence); **separate PRs off `main`** (build one, return to `main`, build the next — when they're independent); or **separate worktrees** (one per scope/story — when the user wants them in parallel / distinct sessions; the orchestrator itself still runs one series, the worktrees being a hand-off for the user to drive separately). Recommend the split that best fits the coupling you detected.
 
 Either way you do **not** open a PR and do **not** merge here — that's the run's close (section G), only on the user's say-so; the run otherwise ends on the branch(es) for the user to validate.
 
@@ -92,7 +92,7 @@ When the user asks to open a PR and/or merge:
 3. **Don't skip the gates the close implies.** If a story's **story-level review** never ran (its last child only reached `review` at run's end), run it before closing that story; move each **history** to `done` only once all its children are `done`; and **re-check the inbox fresh** (`list_inbox` pending) at the boundary, surfacing anything the run didn't cover.
 
 <HARD-GATE>
-**After a merge, cards do not stay in `review`.** Moving every merged card to `done` is mandatory — it is the step this skill has dropped before. "The run leaves cards in `review`" is the **default-stop** behavior (no PR/merge); the instant the user takes you through a merge, `done` is owed on every card that merged. Never end a merge with a merged card still sitting in `review`.
+**After a merge, cards do not stay in `review`.** Moving every merged card to `done` is mandatory — it is the step this skill has dropped before. "The run leaves cards in `review`" is the **default-stop** behavior (no PR/merge); the instant the user takes you through a merge, `done` is owed on every card that merged (and the histories they complete). Never end a merge with a merged card still sitting in `review`.
 </HARD-GATE>
 
 ## The run TODO — a Claude Code checklist that mirrors the run
