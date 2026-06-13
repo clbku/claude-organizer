@@ -118,7 +118,7 @@ The session-start scan **`list_unhandled_comments(projectId)`** returns everythi
 
 **To create cards, use the `plan` skill — not `create_card` from here.** This section is **only** a field reference (so you understand the shape of a card and can keep existing ones honest with `update_card`, status moves, tags, blockers); it is **not** a licence to mint new cards directly.
 
-- **`summary`** — one line (~100 chars) describing _what_ the card is about. It's what shows on the board and in `list_cards`.
+- **`summary`** — one line (~100 chars) describing _what_ the card is about. It's what shows on the board and in `list_cards`. **Required on creation:** `create_card` rejects a missing/blank/whitespace-only summary, so every new card is born with one.
 - **`descriptionMd`** — the spec: _behavior and intent_, acceptance criteria, decisions — **not** implementation code.
 - **Sprint and status together decide where a card shows.** A card with **no `sprintId`** is sprint-less: in the **`backlog`** status it sits in the backlog; in a board status (`todo`…`done`) it's a **standalone card on the board**. A card in a sprint shows on the board while that sprint is active. New cards default to `backlog` when created with no sprint, `todo` when created in a sprint.
 - **`parentId`** makes a card a sub-task of a **history** (one level). A card can be **blocked by** others (add/remove blockers) — the board flags it while a blocker isn't `done`.
@@ -161,7 +161,7 @@ Writing a doc is a **default action, not a favor the user has to request**. Appl
 Rules of thumb:
 
 - **Default to acting, not asking.** Recording is the normal path when the content is durable; only ask the user in a real doubt (e.g. creating a brand-new doc _group_).
-- **Always set `summary` when creating a doc.** A new doc (`write_doc` with no `id`) must be born with a one-line `summary` — never null. It's what shows in `list_docs` and feeds search, so apply the same signal-vs-noise criterion as a comment: say what the doc is about in one tight line, no noise.
+- **Always set `summary` when creating a doc — it's required, not just recommended.** A new doc (`write_doc` with no `id`) must be born with a one-line `summary`: `write_doc` **rejects a missing/blank/whitespace-only summary on creation** (on **update** — with `id` — it stays optional, so a partial edit never has to resend it). It's what shows in `list_docs` and feeds search, so apply the same signal-vs-noise criterion as a comment: say what the doc is about in one tight line, no noise.
 - **Update > duplicate.** If a doc for the area already exists, edit it (pass its `id`) — don't create a second one that drifts.
 - **No doc spam** — the same signal-vs-noise discipline as comments. Durable and non-deducible → record. Ephemeral, obvious, or deducible from the code/board → leave it out. If it would rot on the next refactor or just restate the obvious, it's not a doc.
 - **Retire a `note` when its issue is resolved — don't mark it "resolved".** A `note` capturing a pending item / gap is **transient**: once the work lands, move whatever durable knowledge it holds into the right `module`/`adr` (the permanent home) and then **delete or archive the note**. Leaving a note that says "resolved" is doc spam — a future reader has to open it to learn it no longer matters. If nothing durable survives, just delete it.
