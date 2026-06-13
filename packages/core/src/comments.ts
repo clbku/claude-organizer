@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { createId, type Database, schema } from '@claude-organizer/db'
@@ -30,14 +30,50 @@ const commentReturnColumns = {
   author: schema.comments.author,
   userId: schema.comments.userId,
   bodyMd: schema.comments.bodyMd,
-  readByAi: schema.comments.readByAi,
+  aiStatus: schema.comments.aiStatus,
   createdAt: schema.comments.createdAt
+}
+
+/**
+ * Advance the `unread` user comments among `rows` to `read`, in place. Only
+ * unread → read: never demotes a handled comment nor re-touches a read one.
+ * Emits `comment.read` once per affected card; emits nothing when none advanced
+ * (the spurious-emit guard). Rows are mutated to reflect the new state, since
+ * the pre-update payload is stale once the column changes. Shared by the
+ * single-card thread read and the project-wide orientation scan.
+ */
+async function advanceUnreadToRead(
+  db: Database,
+  rows: { id: string, cardId: string, author: 'ai' | 'user', aiStatus: 'unread' | 'read' | 'handled' }[]
+) {
+  const unreadIds = rows
+    .filter(r => r.author === 'user' && r.aiStatus === 'unread')
+    .map(r => r.id)
+  if (!unreadIds.length) return
+  await db
+    .update(schema.comments)
+    .set({ aiStatus: 'read' })
+    .where(inArray(schema.comments.id, unreadIds))
+  const advanced = new Set(unreadIds)
+  for (const r of rows) if (advanced.has(r.id)) r.aiStatus = 'read'
+  const cardIds = [...new Set(rows.filter(r => advanced.has(r.id)).map(r => r.cardId))]
+  const cards = await db
+    .select({ id: schema.cards.id, projectId: schema.cards.projectId })
+    .from(schema.cards)
+    .where(inArray(schema.cards.id, cardIds))
+  for (const card of cards) {
+    await notify(db, {
+      type: 'comment.read',
+      projectId: card.projectId,
+      cardId: card.id
+    })
+  }
 }
 
 export async function listComments(
   db: Database,
   cardId: string,
-  options: { markAsRead?: boolean, limit?: number, offset?: number } = {}
+  options: { advanceToRead?: boolean, limit?: number, offset?: number } = {}
 ) {
   const rows = await paginate(
     db
@@ -47,7 +83,7 @@ export async function listComments(
         author: schema.comments.author,
         userId: schema.comments.userId,
         bodyMd: schema.comments.bodyMd,
-        readByAi: schema.comments.readByAi,
+        aiStatus: schema.comments.aiStatus,
         createdAt: schema.comments.createdAt,
         authorName: schema.users.name,
         authorImage: schema.users.image
@@ -61,29 +97,7 @@ export async function listComments(
     options.offset
   )
 
-  if (options.markAsRead) {
-    const unreadIds = rows
-      .filter(r => r.author === 'user' && !r.readByAi)
-      .map(r => r.id)
-    if (unreadIds.length) {
-      await db
-        .update(schema.comments)
-        .set({ readByAi: true })
-        .where(inArray(schema.comments.id, unreadIds))
-      const [card] = await db
-        .select({ projectId: schema.cards.projectId })
-        .from(schema.cards)
-        .where(eq(schema.cards.id, cardId))
-        .limit(1)
-      if (card) {
-        await notify(db, {
-          type: 'comment.read',
-          projectId: card.projectId,
-          cardId
-        })
-      }
-    }
-  }
+  if (options.advanceToRead) await advanceUnreadToRead(db, rows)
   return rows
 }
 
@@ -99,7 +113,7 @@ export async function addComment(db: Database, input: AddCommentInput) {
         author: parsed.author,
         userId: parsed.userId ?? null,
         bodyMd: parsed.bodyMd,
-        readByAi: parsed.author === 'ai'
+        aiStatus: parsed.author === 'ai' ? 'handled' : 'unread'
       })
       .returning(commentReturnColumns)
     if (inserted[0])
@@ -182,17 +196,18 @@ export async function updateComment(db: Database, input: UpdateCommentInput) {
   return row ?? null
 }
 
-export async function listUnreadCommentsForProject(
+export async function listUnhandledCommentsForProject(
   db: Database,
   projectId: string,
-  limit?: number,
-  offset?: number
+  options: { advanceToRead?: boolean, limit?: number, offset?: number } = {}
 ) {
-  return paginate(
+  const rows = await paginate(
     db
       .select({
         id: schema.comments.id,
         cardId: schema.comments.cardId,
+        author: schema.comments.author,
+        aiStatus: schema.comments.aiStatus,
         bodyMd: schema.comments.bodyMd,
         createdAt: schema.comments.createdAt,
         cardTitle: schema.cards.title
@@ -203,14 +218,17 @@ export async function listUnreadCommentsForProject(
         and(
           eq(schema.cards.projectId, projectId),
           eq(schema.comments.author, 'user'),
-          eq(schema.comments.readByAi, false)
+          ne(schema.comments.aiStatus, 'handled')
         )
       )
       .orderBy(asc(schema.comments.createdAt))
       .$dynamic(),
-    limit,
-    offset
+    options.limit,
+    options.offset
   )
+
+  if (options.advanceToRead) await advanceUnreadToRead(db, rows)
+  return rows
 }
 
 export async function deleteComment(db: Database, id: string) {
@@ -260,15 +278,15 @@ export function backfillCommentEmbeddings(db: Database, batchSize = 50): Promise
   )
 }
 
-export async function markCommentsAsRead(db: Database, commentIds: string[]) {
+export async function markCommentsHandled(db: Database, commentIds: string[]) {
   if (!commentIds.length) return 0
   const rows = await db
     .update(schema.comments)
-    .set({ readByAi: true })
+    .set({ aiStatus: 'handled' })
     .where(inArray(schema.comments.id, commentIds))
     .returning({ id: schema.comments.id, cardId: schema.comments.cardId })
   // Comments may span multiple cards; notify each affected card so open card
-  // views drop the "unread by AI" badge live.
+  // views refresh their badges live.
   const cardIds = [...new Set(rows.map(r => r.cardId))]
   if (cardIds.length) {
     const cards = await db
@@ -277,7 +295,7 @@ export async function markCommentsAsRead(db: Database, commentIds: string[]) {
       .where(inArray(schema.cards.id, cardIds))
     for (const card of cards) {
       await notify(db, {
-        type: 'comment.read',
+        type: 'comment.handled',
         projectId: card.projectId,
         cardId: card.id
       })
