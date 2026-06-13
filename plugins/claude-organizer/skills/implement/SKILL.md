@@ -175,6 +175,8 @@ Before implementing a story (or the first card of a batch), get the git flow str
 
 A batch of several cards may mean **several branches** — warn the user you'll need to **switch branches** between cards, and don't pile unrelated work onto one branch. Watch for **conflicts**: don't run far ahead in parallel if the work will collide; sequence dependent cards with the **blockers** system (a card `blocked by` another) so the order is explicit.
 
+**Isolating work in a worktree?** Use the standard location **`.claude/worktrees/<branch>`** (gitignored — add the dir to `.gitignore` if missing), not an ad-hoc `../<name>`: the path is fixed, so don't ask where to put it. **Remove it when you're done** — once the PR is open, and certainly after a merge: `git worktree remove`. Don't leave an orphaned worktree behind. (The `autopilot` skill follows the same convention.)
+
 ## Reserving the card — advisory claim
 
 The board coordinates parallel sessions/machines with an **advisory** claim: it signals "this card is in my work buffer" so another session doesn't start the same thing. Nothing is locked (the API never blocks on it); the skill is what respects it.
