@@ -18,7 +18,7 @@
     "@pinia/nuxt": "0.11.3",
     "diff": "8.0.4",
     "marked": "18.0.5",
-    "nuxt": "4.4.7",
+    "nuxt": "4.4.8",
     "pinia": "3.0.4",
     "vue": "3.5.35",
     "vue-draggable-plus": "0.6.1"
