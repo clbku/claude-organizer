@@ -31,3 +31,6 @@ docker/data
 
 # Local, non-committed project memory (board binding, deployment-specific config)
 CLAUDE.local.md
+
+# Autopilot worktrees (local, per-run isolation)
+.claude/worktrees/
