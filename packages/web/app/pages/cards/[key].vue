@@ -631,9 +631,9 @@ const providerIcon = computed(() =>
                       v-if="commitFiles[c.id]?.length"
                       class="text-muted/70"
                     >
-                      {{ viewedCount(c) }} of {{ commitFiles[c.id]?.length }} viewed
+                      {{ viewedCount(c) }} of {{ commitFiles[c.id]?.length }} {{ commitFiles[c.id]?.length === 1 ? "file" : "files" }} viewed
                     </span>
-                    <span v-if="commitStats[c.id]?.files" class="text-muted/70">
+                    <span v-else-if="commitStats[c.id]?.files" class="text-muted/70">
                       {{ commitStats[c.id]?.files }} {{ commitStats[c.id]?.files === 1 ? "file" : "files" }}
                     </span>
                     <span
