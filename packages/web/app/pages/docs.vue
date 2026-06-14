@@ -27,6 +27,8 @@ const treeWidth = useCookie<number>('organizer.docsTreeWidth', {
 let resizing = false
 let startX = 0
 let startWidth = 0
+let stopMove: (() => void) | undefined
+let stopUp: (() => void) | undefined
 
 function onResizeMove(e: MouseEvent) {
   if (!resizing) return
@@ -35,8 +37,8 @@ function onResizeMove(e: MouseEvent) {
 }
 function stopResize() {
   resizing = false
-  window.removeEventListener('mousemove', onResizeMove)
-  window.removeEventListener('mouseup', stopResize)
+  stopMove?.()
+  stopUp?.()
   document.body.style.userSelect = ''
 }
 function startResize(e: MouseEvent) {
@@ -44,8 +46,8 @@ function startResize(e: MouseEvent) {
   startX = e.clientX
   startWidth = treeWidth.value
   document.body.style.userSelect = 'none'
-  window.addEventListener('mousemove', onResizeMove)
-  window.addEventListener('mouseup', stopResize)
+  stopMove = useEventListener(window, 'mousemove', onResizeMove)
+  stopUp = useEventListener(window, 'mouseup', stopResize)
   e.preventDefault()
 }
 onScopeDispose(stopResize)
@@ -63,9 +65,11 @@ const searched = ref(false)
 // A monotonic ticket discards out-of-order responses (same guard as search.vue).
 let ticket = 0
 let selectTicket = 0
-let searchTimer: ReturnType<typeof setTimeout> | undefined
 
 async function runDocSearch(value: string, projectId: string) {
+  // A debounced call can't be cancelled, so drop it if the term moved on before
+  // it fired.
+  if (value !== term.value) return
   const mine = ++ticket
   searching.value = true
   try {
@@ -85,8 +89,12 @@ async function runDocSearch(value: string, projectId: string) {
   }
 }
 
+const debouncedDocSearch = useDebounceFn(
+  (value: string, projectId: string) => void runDocSearch(value, projectId),
+  250
+)
+
 watch(term, (value) => {
-  if (searchTimer) clearTimeout(searchTimer)
   const projectId = currentProjectId.value
   if (!value || !projectId) {
     ticket++
@@ -96,7 +104,7 @@ watch(term, (value) => {
     return
   }
   searching.value = true
-  searchTimer = setTimeout(() => void runDocSearch(value, projectId), 250)
+  void debouncedDocSearch(value, projectId)
 })
 
 // Switching project must not leave another project's results — or a doc id from
@@ -104,10 +112,6 @@ watch(term, (value) => {
 watch(currentProjectId, () => {
   search.value = ''
   clearSelection()
-})
-
-onBeforeUnmount(() => {
-  if (searchTimer) clearTimeout(searchTimer)
 })
 
 async function loadDocs() {
