@@ -6,7 +6,7 @@
 
 Claude Organizer gives Claude Code a real project-management system — cards, sprints, comments and docs — as **queryable state over MCP**, instead of spec Markdown files that grow without bound and go stale. A clean Nuxt UI mirrors the same board for humans, in real time.
 
-It ships as a **Claude Code plugin** (five skills + the MCP server), backed by a pnpm monorepo you run with Docker.
+It ships as a **Claude Code plugin** (five skills + the MCP server), backed by a pnpm monorepo you run with Docker — one command delivers the skills *and* registers the MCP, no `claude mcp add`.
 
 <br/>
 
@@ -30,13 +30,10 @@ Claude Organizer flips that. **What** to do (the active sprint, cards, backlog, 
 
 - 🗂️ **A real board** — projects, sprints, stories and sub-tasks, blockers, tags, priorities. Drag-and-drop UI with live WebSocket updates.
 - 🤖 **Built for the agent** — every entity is a typed MCP tool; prefixed IDs (`prj_`, `crd_`, `spr_`…) tell the AI what it's holding at a glance.
-- 💬 **Comments as the decision log** — the agent records *why* it did something on the card; you reply, it reads your unread comments back next session.
+- 💬 **Comments as the decision log** — the agent records *why* on the card; you reply, it reads your unread comments back next session.
 - 🔗 **Commits attached to cards** — each card keeps the diff that delivered it, captured outside the AI's context (no tokens spent reading patches).
 - 📚 **Docs that don't rot** — architecture, ADRs and patterns live as project docs the agent reads before reinventing.
-- 🔎 **Search by meaning** — cards, comments and docs are searchable with a hybrid of Postgres full-text and **in-process embeddings** (a multilingual model running in-container, no external API), fused by rank (RRF). Pick or swap the embedding model from Settings — or turn it off for lexical-only.
-- 💾 **Portable backups** — export the whole board or a single project to one versioned, self-contained file and import it back (attachments ride along; toggle them off to keep the envelope small).
-- 🔐 **Auth when you want it** — runs open by default, or turn on sign-in (email+password, GitHub optional) with roles and per-project access.
-- 🔌 **One-command install** — the plugin delivers the skills *and* registers the MCP; no `claude mcp add`.
+- 🔎 **Search by meaning** — cards, comments and docs are searchable with a hybrid of Postgres full-text and in-process embeddings (a multilingual model in-container, no external API), fused by rank (RRF).
 
 <div align="center">
 <table>
@@ -51,7 +48,7 @@ Claude Organizer flips that. **What** to do (the active sprint, cards, backlog, 
 </table>
 </div>
 
-## Quick start
+## Setup
 
 > **Requires** Node 24+, pnpm 9+, and Docker.
 
@@ -73,31 +70,22 @@ docker compose up -d --build
 | **MCP** (Streamable HTTP) | http://localhost:4402/mcp |
 | **Embedding service** | http://localhost:4403 |
 
-The embedding model loads in its own `embedding` service; the API and MCP call it over HTTP and fall back to lexical search if it's down. Migrations run automatically before the API and MCP start, and a one-shot `backfill` service then (re)builds the semantic search vectors for any content that's missing them — so upgrading is just `docker compose up -d --build`, with no manual step. It's idempotent and runs in the background, so the app stays up (search is lexical for not-yet-indexed content until it finishes). Postgres data persists under `./docker/data/postgres`. Out of the box the board is **open** (no login) — see [Run modes](#run-modes) to turn auth on or to go remote.
-
-### 2. Configure the environment
-
-`cp .env.example .env` already gives you working defaults for local Docker. The values worth knowing:
+`cp .env.example .env` already ships working defaults for local Docker; the values worth knowing:
 
 ```bash
-# Postgres
 POSTGRES_USER=organizer
 POSTGRES_PASSWORD=organizer
 POSTGRES_DB=organizer
-POSTGRES_PORT=5544                 # host port (in-container is 5432)
-
-# API & Web
+POSTGRES_PORT=5544                       # host port (in-container is 5432)
 API_PORT=4400
 NUXT_PUBLIC_API_URL=http://127.0.0.1:4400
-
-# MCP transport (Streamable HTTP at /mcp)
-# MCP_HTTP_PORT=4402               # override the port (default 4402)
-# MCP_PUBLIC_URL=http://127.0.0.1:4402   # public URL clients reach the MCP at
+# MCP_HTTP_PORT=4402                      # MCP port (Streamable HTTP at /mcp)
+# MCP_PUBLIC_URL=http://127.0.0.1:4402    # public URL clients reach the MCP at
 ```
 
-The MCP is served over **Streamable HTTP** at `/mcp` — that's the transport the plugin connects to. Auth is **off by default** (open board, like before it landed); turn it on from the in-app setup — see [Authentication](#authentication).
+Migrations run automatically before the API and MCP start, and a one-shot `backfill` then (re)builds the semantic-search vectors for any content missing them — so upgrading is just `docker compose up -d --build`, no manual step. The embedding model loads in its own `embedding` service; the API and MCP call it over HTTP and fall back to lexical search if it's down. Postgres data persists under `./docker/data/postgres`. Out of the box the board is **open** (no login) — see [Authentication](#authentication) to turn sign-in on.
 
-### 3. Install the plugin
+### 2. Install the plugin
 
 The plugin delivers the **skills** *and* registers the **MCP** — no `claude mcp add` needed.
 
@@ -114,57 +102,51 @@ Or via the marketplace:
 /plugin install claude-organizer@claude-organizer
 ```
 
-The `claude-organizer` tools appear automatically, pointing at `${CO_MCP_URL:-http://localhost:4402/mcp}`. To reach a remote host, export `CO_MCP_URL` (see [Run modes](#run-modes)); when auth is on, the plugin runs the OAuth flow itself — there's no token to paste.
+The `claude-organizer` tools appear automatically, pointing at local Docker (`http://localhost:4402/mcp`). Local Docker needs nothing more; to reach another host, see the next section.
 
-## Run modes
+### 3. Configure the MCP for a remote host
 
-The same stack runs three ways. The only differences are a couple of env vars and, for remote, the reverse-proxy overlay.
-
-### Local, no auth (default)
-
-`docker compose up -d --build` and you're done: an open board on `http://localhost:4401` and an open MCP on `http://localhost:4402/mcp`. No login, no token — the plugin connects as-is. This matches how the project ran before auth existed.
-
-### Local, with auth
-
-Turn auth on from the **first-boot setup** on the login screen — the first account becomes the **admin**; after that, sign-in is required. Accounts use email+password by default, with **GitHub OAuth optional** (set `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`). Set a `BETTER_AUTH_SECRET` in `.env` for anything beyond a throwaway local run. The MCP then requires OAuth — the plugin performs the flow for you, so `CO_MCP_URL` is still all you set. Details in [Authentication](#authentication).
-
-### Remote (reverse proxy + subdomains)
-
-For a hosted deployment, put the three services behind a single TLS edge on **80/443** with **Caddy**, routing one subdomain each. A versioned overlay does this:
+Local Docker is the default — nothing to do: the bundled plugin already registers a `claude-organizer` server at `http://localhost:4402/mcp`. To reach a remote host, register it as an **additional** server with a name **other than `claude-organizer`** (that one is the plugin's — reusing it clashes):
 
 ```bash
-cp .env.prod.example .env   # set *_DOMAIN, ACME_EMAIL, BETTER_AUTH_SECRET, public URLs
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+claude mcp add --transport http -s user claude-organizer-remote https://mcp.<domain>/mcp
 ```
 
-- `app.<domain>` → web, `api.<domain>` → API, `mcp.<domain>` → MCP. Point DNS for all three at the host; Caddy issues and renews TLS automatically (ACME).
-- Only Caddy publishes host ports; postgres/api/web/mcp stay on the internal network. The reverse-proxy config lives in [`deploy/Caddyfile`](deploy/Caddyfile).
-- **Point the plugin at the remote MCP** by its subdomain:
+Each server gets its own tool prefix (here `mcp__claude-organizer-remote__*`), OAuth session and projects; the skills pick the one whose project matches the repo and never mix them. `-s user` makes it available across all repos — to bind **a single project** to a specific server instead, scope it to the repo with `-s project` (a shared `.mcp.json` committed in the repo) or `-s local` (only you, only this repo).
 
-  ```bash
-  CO_MCP_URL=https://mcp.<domain>/mcp claude
-  ```
+## Usage
 
-- `AUTH_COOKIE_DOMAIN=<domain>` shares the session cookie across `app.`/`api.`, and `NUXT_PUBLIC_API_URL` is **baked into the SPA at build time** (`ssr: false`), so set it to `https://api.<domain>` before `up --build`. All values are in [`.env.prod.example`](.env.prod.example).
+**You drive everything through one skill** — the main `claude-organizer` command — and it routes to plan / implement / autopilot for you. No five entry points to learn:
 
-### Two hosts at once (local + company)
-
-`CO_MCP_URL` points the bundled plugin entry at **one** host. To use **two at the same time** — say your local board and a company one — register the second host as its own MCP server with a distinct name:
-
-```bash
-claude mcp add --transport http -s user claude-organizer-second https://mcp.company.com/mcp
+```text
+/claude-organizer:claude-organizer plan github authentication
+/claude-organizer:claude-organizer implement task CO-123
+/claude-organizer:claude-organizer implement story CO-127 on autopilot
 ```
 
-(`-s user` keeps it available across repos, like the bundled entry.) Each host is independent: its own tool prefix (`mcp__claude-organizer__*` and `mcp__claude-organizer-second__*`), its own OAuth session (the plugin runs the flow per host when auth is on), and its own set of projects. The skills treat each server as one host and never mix their projects — they pick the server whose project matches the repo you're in. The bundled plugin ships only the default entry; the extra host is this one-time `claude mcp add`.
+Pass it your intent in plain language (any language) and it picks the right skill. The five skills behind it:
+
+| Skill | What it does | Triggers when… |
+| --- | --- | --- |
+| **`claude-organizer`** | Orient & operate the board: read the active sprint, unread comments, keep statuses honest, write docs. | the start of any session — *"let's continue", "what's next?"* |
+| **`plan`** | Turn a fuzzy new demand into structured work (sprint → stories → tasks), get the design approved, then create the cards. | you describe something new to build, before it's broken down. |
+| **`implement`** | Execute one existing card through its lifecycle: `in_progress` → read comments → implement → review → commit → `done`. | you start/resume work on a specific card — *"work CO-42", "build it"*. |
+| **`review`** | A mandatory review gate (per-task + story-level), run by a fresh subagent: checks acceptance criteria, hunts bugs/security/reuse. | a task or story's last task just finished (fired by `implement`). |
+| **`autopilot`** | Run a whole story, sprint, or set of cards hands-off: a lean orchestrator dispatches a fresh subagent per card (implement → review → fixes), stops to ask you on every decision, commits one-per-card on a single branch, and leaves each card in `review`. | you explicitly opt into an autonomous multi-card run — *"run the sprint by yourself"*. |
+
+A fresh session has no memory, so it always reads the board before touching code: it picks the top card, moves it to `in_progress`, implements it, records decisions as comments, runs the review gate, then moves it to `review` for you. Autopilot does the same per card across a batch — but **stops to ask you on every real decision** and never merges (no PR), leaving each card in `review` for your final validation.
+
+### Inbox
+
+Got an idea mid-flight but don't want to plan it yet? Drop it in the **inbox** — a one-line demand captured without breaking it into cards. The agent reads pending inbox items when it orients and offers to plan them; the `plan` skill turns a demand into the right sprint/stories/tasks and marks it planned. It keeps raw intake out of the board until it's actually structured work.
 
 ## Authentication
 
-Auth is built on [better-auth](https://better-auth.com) and is **off by default** (the open board above). When on:
+Auth is built on [better-auth](https://better-auth.com) and is **off by default** — the open board above, no login, an open MCP the plugin connects to as-is. Turn it on from the **first-boot setup** on the login screen; the first account becomes the **admin**, and after that sign-in is required.
 
 - **Methods** — email+password is the zero-config base; **GitHub OAuth** is optional and only appears when `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` are set (callback `https://api.<domain>/api/auth/callback/github`). No host is forced to register an OAuth app.
-- **First boot** — the first account to sign in claims **admin**; from there, users get **roles** and **per-project access**, and admins manage who can see what.
-- **MCP** — with auth on, `/mcp` is an OAuth 2.1 resource server: the plugin obtains a bearer automatically. With auth off, `/mcp` is open (no login), mirroring the open board.
-- **No-auth mode** — the default; flip it from the setup screen or system settings.
+- **Access** — users get **roles** and **per-project access**; admins manage who can see what.
+- **MCP** — with auth on, `/mcp` is an OAuth 2.1 resource server and the plugin obtains a bearer automatically (so `CO_MCP_URL` is still all you set). With auth off, `/mcp` is open, mirroring the open board.
 
 Relevant env (see `.env.example`):
 
@@ -178,57 +160,22 @@ Relevant env (see `.env.example`):
 
 > **Local gotcha:** the web (`:4401`) and API (`:4400`) are different origins, and the session cookie is `SameSite=Lax` + host-bound. Locally, reach **both on the same host** — use `127.0.0.1`, not `localhost` — or the cookie won't be sent. Behind the reverse proxy, `AUTH_COOKIE_DOMAIN` removes this constraint across the subdomains.
 
+### Remote deployment (reverse proxy)
+
+A versioned overlay puts the three services behind one TLS edge (**Caddy**, ports 80/443), a subdomain each (`app.`/`api.`/`mcp.<domain>`):
+
+```bash
+cp .env.prod.example .env   # set *_DOMAIN, ACME_EMAIL, BETTER_AUTH_SECRET, public URLs
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Point DNS for the three subdomains at the host; Caddy issues/renews TLS (ACME). Set `NUXT_PUBLIC_API_URL=https://api.<domain>` **before** building (it's baked into the SPA) and `AUTH_COOKIE_DOMAIN=<domain>` to share the session cookie. Details: [`deploy/Caddyfile`](deploy/Caddyfile), [`.env.prod.example`](.env.prod.example).
+
 ### Signing in from a terminal-only box (WSL, SSH, headless)
 
-With auth **on**, the plugin's MCP client (Claude Code) runs the OAuth flow by **opening a browser and waiting on a local loopback callback** (`http://localhost:<random-port>/…`). On a desktop that's invisible; in a **terminal-only** environment — WSL, SSH, a headless container — it stalls as if "waiting for a code". Two things break, and both have a fix:
+With auth on, Claude Code runs the OAuth flow by opening a browser and waiting on a **local loopback callback** (`http://localhost:<random-port>/…`). In a terminal-only environment that stalls — no browser opens (Claude Code prints the URL instead — open it yourself), and the loopback redirect must be able to reach back into the box (WSL2 forwards `localhost` by default; over SSH, forward the port with `ssh -L <port>:localhost:<port> …`). Keep one host throughout — don't mix `localhost` and `127.0.0.1`, or the login won't stick.
 
-- **No browser opens.** Claude Code prints the authorization URL instead — **open it yourself** (copy it into any browser, or set `BROWSER` / use `wslview` so it opens on the host).
-- **The loopback redirect can't get back.** After you sign in, the browser is redirected to `http://localhost:<port>/…` — a server the plugin is listening on **inside** the terminal box. The browser must be able to reach it:
-  - **WSL2** forwards `localhost` between Windows and the distro by default (`localhostForwarding=true` in `%UserProfile%\.wslconfig`) — open the printed URL in the **Windows** browser and the redirect lands back in WSL. If you turned it off, or you're on WSL1, re-enable forwarding (or run a browser inside WSL).
-  - **SSH** — forward the callback port back to where your browser is: `ssh -L <port>:localhost:<port> …` (the `<port>` is the one in the printed URL), then open the URL locally.
-- **Keep one host throughout.** The session cookie is host-bound (the *Local gotcha* above), so don't sign in on `localhost` while the rest of the flow uses `127.0.0.1` — a host mismatch makes the login "not stick" and the authorize never resumes.
-
-**The reliable escape hatch:** auth is **off by default**, and an open board needs **no login at all** — the MCP is open and the plugin connects with no OAuth. For a local/WSL dev box, the simplest path is to leave auth off (or turn it off) and skip the loopback flow entirely; turn auth on where a browser-reachable login exists — e.g. a remote deployment behind the reverse proxy, reached over normal `https://`.
-
-> The loopback OAuth dance is **Claude Code's MCP client** plus your box's networking — Claude Organizer is a standard OAuth 2.1 resource server and can't shortcut it from the server side (the MCP OAuth profile the plugin uses has no device-code path). The steps above are the workarounds.
-
-## The skills
-
-Five skills drive the work — you don't call them by hand, they trigger from what you say:
-
-| Skill | What it does | Triggers when… |
-| --- | --- | --- |
-| **`claude-organizer`** | Orient & operate the board: read the active sprint, unread comments, keep statuses honest, write docs. | the start of any session — *"let's continue", "what's next?"* |
-| **`plan`** | Turn a fuzzy new demand into structured work (sprint → stories → tasks), gets the design approved, then creates the cards. | you describe something new to build, before it's broken down. |
-| **`implement`** | Execute one existing card through its lifecycle: `in_progress` → read comments → implement → review → commit → `done`. | you start/resume work on a specific card — *"work CO-42", "build it"*. |
-| **`review`** | A mandatory review gate (per-task + story-level), run by a fresh subagent: checks acceptance criteria, hunts bugs/security/reuse. | a task or story's last task just finished (fired by `implement`). |
-| **`autopilot`** | Run a whole story, sprint, or set of cards hands-off: a lean orchestrator dispatches a fresh subagent per card (implement → review → fixes), stops to ask you on every decision, commits one-per-card on a single branch, and leaves each card in `review`. | you explicitly opt into an autonomous multi-card run — *"run the sprint by yourself"*. |
-
-## Using it
-
-Just talk to Claude Code.
-
-**Plan a new demand** — the `plan` skill:
-
-> **You:** I want to add CSV export to the board — a button that downloads the active sprint's cards.
->
-> **Claude:** *asks a couple of questions, proposes a breakdown into a sprint + tasks, and on your OK creates the cards.*
-
-**Continue later** — the `claude-organizer` + `implement` skills. A fresh session has no memory, so it reads the board before touching code:
-
-> **You:** let's continue — what's next?
->
-> **Claude:** *reads the active sprint, your unread comments and the in-flight cards, picks the top one, moves it to `in_progress`, implements it, records the decisions as comments, runs the review gate, then moves it to `review` for you.*
-
-**Run a batch hands-off** — the `autopilot` skill. You opt in explicitly; it works a whole story, sprint, or set of cards on its own, but **stops to ask you on every real decision** and never merges:
-
-> **You:** run story CO-12 on autopilot.
->
-> **Claude:** *claims the story's cards, gathers the open decisions up front (asking you each), then **per card** implements it in a fresh subagent, runs the review gate, applies fixes, and commits one-per-card onto a single `autopilot/…` branch — leaving every card in `review` for your final validation. It opens no PR and merges nothing.*
-
-### Inbox
-
-Got an idea mid-flight but don't want to plan it yet? Drop it in the **inbox** — a one-line demand captured without breaking it into cards. The agent reads pending inbox items when it orients and offers to plan them; the `plan` skill turns a demand into the right sprint/stories/tasks and marks it planned. It keeps raw intake out of the board until it's actually structured work.
+**The reliable escape hatch:** auth is **off by default** and an open board needs no login at all. For a local/WSL dev box, leave auth off and skip the loopback flow entirely; turn auth on where a browser-reachable login exists — e.g. a remote deployment behind the reverse proxy, reached over normal `https://`. The loopback dance is Claude Code's MCP client plus your box's networking; Claude Organizer is a standard OAuth 2.1 resource server and can't shortcut it server-side.
 
 ## Architecture
 
