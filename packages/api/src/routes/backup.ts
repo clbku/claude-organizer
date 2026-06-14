@@ -10,7 +10,7 @@ import type { Database } from '@claude-organizer/db'
 
 // A full export gzips small, but `card_commits.diff` can push it past Fastify's
 // 1MB default; size the upload ceiling for real backups.
-const BACKUP_BODY_LIMIT = 256 * 1024 * 1024
+const BACKUP_BODY_LIMIT = 1024 * 1024 * 1024
 
 function sendBackup(reply: FastifyReply, filename: string, payload: Buffer) {
   reply.header('Content-Type', 'application/gzip')
