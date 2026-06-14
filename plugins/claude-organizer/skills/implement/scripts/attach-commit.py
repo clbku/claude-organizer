@@ -21,6 +21,14 @@ import sys
 import urllib.error
 import urllib.request
 
+# Windows' cp1252 console can't encode the ✓/✗/→ glyphs; force UTF-8 so the
+# final print doesn't crash after the POST already succeeded.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
+
 API_URL = os.environ.get("CO_API_URL", "http://127.0.0.1:4400").rstrip("/")
 
 # Card-scoped token minted by the MCP (issue_commit_token); only needed when the

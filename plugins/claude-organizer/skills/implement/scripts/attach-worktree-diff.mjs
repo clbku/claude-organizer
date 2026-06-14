@@ -20,6 +20,11 @@
 
 import { execFileSync } from 'node:child_process'
 
+// Windows' cp1252 console can't encode the ✓/✗/→ glyphs; force UTF-8 so the
+// final log doesn't crash after the POST already succeeded.
+process.stdout.setDefaultEncoding?.('utf8')
+process.stderr.setDefaultEncoding?.('utf8')
+
 const API_URL = (process.env.CO_API_URL || 'http://127.0.0.1:4400').replace(/\/$/, '')
 
 // Card-scoped token minted by the MCP (issue_commit_token); only needed when the
