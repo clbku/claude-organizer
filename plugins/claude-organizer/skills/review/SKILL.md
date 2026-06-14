@@ -1,6 +1,6 @@
 ---
 name: review
-description: Use to REVIEW work in claude-organizer with fresh, objective eyes before it closes — like a senior engineer on a real PR. Two MANDATORY gates the `implement` skill fires: a per-task review when a task finishes (its own diff), and a story-level review when a story's last child finishes (cross-cutting concerns a single task can't see). Each pass runs in a FRESH subagent that verifies the acceptance criteria were met the right way and hunts the real problems a reviewer catches — bugs, security, performance, risky deps, complexity, missed reuse, dead code — then disposes of EVERY finding, never dropping one on severity. Trigger when a task or a story's last task just finished, or the user asks to review a card/story/PR. Don't review in this context yourself, and don't auto-create cards. A trivial task may skip its per-task review.
+description: Use to REVIEW work in claude-organizer with fresh, objective eyes before it closes — like a senior engineer on a real PR. Two MANDATORY gates the `implement` skill fires: a per-task review when a task finishes (its own diff), and a story-level review when a story's last child finishes (cross-cutting concerns a single task can't see). Each pass runs in a FRESH subagent that verifies the acceptance criteria were met the right way and hunts the real problems a reviewer catches — bugs, security, performance, risky deps, complexity, missed reuse, dead code — then disposes of EVERY finding, never dropping one on severity. Trigger when a task or a story's last task just finished, or the user asks to review a card/story/PR. Don't review in this context yourself, and don't auto-create cards. Only a no-logic change may skip its per-task review (and the skip is recorded on the card).
 ---
 
 # Reviewing with fresh eyes
@@ -20,7 +20,7 @@ Fires when a **task** is done, **before it closes**. Reviews **just that task's 
 - the **task's own acceptance criteria** — met / partial / not-met, with evidence;
 - **reuse, dead code, and comments** *within that task's change*.
 
-**A trivial task may skip it.** A one-liner, a rename, a config tweak, a pure copy move — nothing with real logic — isn't worth a subagent. Use quick judgment; when you skip, say so briefly (a short note/comment on the card) so the skip is visible, not silent. When in doubt, review.
+**Only a no-logic change may skip it.** A one-liner, a rename, a config tweak, a pure copy move — nothing with real logic — isn't worth a subagent. **Anything with real logic is reviewed, every time** — "it looks fine" is never a reason to skip (that confidence is exactly what the gate tests). When you do skip a no-logic change, **record the skip and its reason as a comment on the card** so it's visible and auditable. When in doubt, review.
 
 ### Story-level review — cross-cutting scope
 
@@ -34,10 +34,10 @@ It does **not** re-review each task line-by-line — that's already done. Review
 
 ### Standalone task
 
-A task with **no parent** is its own unit (≈ its own PR). It gets a **single review at completion** — the per-task review *is* the whole review, since there's no story layer above it. (Trivial-skip still applies.)
+A task with **no parent** is its own unit (≈ its own PR). It gets a **single review at completion** — the per-task review *is* the whole review, since there's no story layer above it. (The no-logic skip still applies — and even then the skip is recorded on the card.)
 
 <HARD-GATE>
-Both gates are **mandatory** and the `implement` skill fires them automatically — they are **not** optional and **not** skippable because the work "looks fine" (trivial tasks are the only exception, and only at the per-task level). The point is exactly that the implementing session's confidence is unreliable; an independent pass catches what it's blind to. Run the gate **before** the unit closes (`done`). Skipping it is a defect.
+Both gates are **mandatory** and the `implement` skill fires them automatically — they are **not** optional and **not** skippable because the work "looks fine" (a **no-logic change** is the only exception, and only at the per-task level — and even then the skip is **recorded on the card**). The point is exactly that the implementing session's confidence is unreliable; an independent pass catches what it's blind to. Run the gate **before** the unit closes (`done`). Skipping it is a defect.
 </HARD-GATE>
 
 > **On comments:** the `implement` skill already requires code to be written without needless comments from the start, so the reviewer treats comment noise as a **safety net** — flagging what slipped through, not running a cleanup the implementer should never have left for it.
