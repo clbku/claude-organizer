@@ -256,6 +256,74 @@ async function withMatchedComments<T extends { id: string, parentId: string | nu
 }
 
 /**
+ * When the whole trimmed query is a card-key reference — a full key (`CO-375`,
+ * case-insensitive) or a bare number (`375`, resolved via the project's
+ * keyPrefix) — return that card's id IF it still passes the active search
+ * filters, so the caller can pin it first. A partial number (`37`) resolves to
+ * `<prefix>-37`, never `CO-375`; any query with text past the key matches
+ * neither pattern and yields no pin.
+ */
+async function exactKeyMatchId(
+  db: Database,
+  projectId: string,
+  q: string,
+  filters: CardFilters
+): Promise<string | null> {
+  let key: string | null = null
+  if (/^[a-z0-9]+-\d+$/i.test(q)) {
+    key = q
+  } else if (/^\d+$/.test(q)) {
+    const [project] = await db
+      .select({ keyPrefix: schema.projects.keyPrefix })
+      .from(schema.projects)
+      .where(eq(schema.projects.id, projectId))
+      .limit(1)
+    if (!project) return null
+    key = `${project.keyPrefix}-${q}`
+  }
+  if (!key) return null
+  const conditions = cardFilterConditions(db, projectId, filters)
+  conditions.push(ilike(schema.cards.key, key))
+  const [row] = await db
+    .select({ id: schema.cards.id })
+    .from(schema.cards)
+    .where(and(...conditions))
+    .limit(1)
+  return row?.id ?? null
+}
+
+/**
+ * Prepend the exact-key match (deduping it from wherever else it ranked), then
+ * paginate the full ordered id list and load the page rows in order. The pin is
+ * applied AFTER ordering and BEFORE pagination, so it only ever lands on the
+ * first page.
+ */
+async function pinnedPage(
+  db: Database,
+  orderedIds: string[],
+  pinnedId: string | null,
+  filters: CardFilters,
+  tsQuery: SQL,
+  param?: string
+) {
+  const ids = pinnedId
+    ? [pinnedId, ...orderedIds.filter(id => id !== pinnedId)]
+    : orderedIds
+  const start = filters.offset ?? 0
+  const pageIds = ids.slice(start, start + (filters.limit ?? 50))
+  if (pageIds.length === 0) return []
+  const rows = await db
+    .select(cardSummaryColumns)
+    .from(schema.cards)
+    .where(inArray(schema.cards.id, pageIds))
+  const byId = new Map(rows.map(r => [r.id, r]))
+  const orderedRows = pageIds
+    .map(id => byId.get(id))
+    .filter((row): row is (typeof rows)[number] => row !== undefined)
+  return withMatchedComments(db, orderedRows, tsQuery, param)
+}
+
+/**
  * Hybrid search over cards AND their comments. The lexical ranking (card/comment
  * FTS + substring/typo + `-exclude`, unchanged from CO-239) is fused by RRF with a
  * vector KNN — a card's vector distance OR its nearest comment's, whichever is
@@ -315,18 +383,21 @@ export async function searchCards(
   lexicalConditions.push(notExcluded)
   const lexicalOrder = [desc(rank), desc(trgmSim), desc(schema.cards.updatedAt)]
 
-  const queryVec = await embed(q, 'query')
-  // Lexical-only (model off/unavailable): the original behavior, untouched.
+  const [queryVec, pinnedId] = await Promise.all([
+    embed(q, 'query'),
+    exactKeyMatchId(db, projectId, q, filters)
+  ])
+  // Lexical-only (model off/unavailable): the original ranking, with the
+  // exact-key pin applied before pagination.
   if (!queryVec) {
-    let search = db
-      .select(cardSummaryColumns)
+    const start = filters.offset ?? 0
+    const lexRows = await db
+      .select({ id: schema.cards.id })
       .from(schema.cards)
       .where(and(...lexicalConditions))
       .orderBy(...lexicalOrder)
-      .limit(filters.limit ?? 50)
-      .$dynamic()
-    if (filters.offset !== undefined) search = search.offset(filters.offset)
-    return withMatchedComments(db, await search, tsQuery)
+      .limit(start + (filters.limit ?? 50) + 1)
+    return pinnedPage(db, lexRows.map(r => r.id), pinnedId, filters, tsQuery)
   }
 
   // Hybrid: bounded lexical pool ⊕ vector top-K (card OR comment KNN), fused by RRF.
@@ -373,18 +444,7 @@ export async function searchCards(
     lexRows.map(r => r.id),
     vecRows.map(r => r.id)
   )
-  const start = filters.offset ?? 0
-  const pageIds = ordered.slice(start, start + (filters.limit ?? 50))
-  if (pageIds.length === 0) return []
-  const rows = await db
-    .select(cardSummaryColumns)
-    .from(schema.cards)
-    .where(inArray(schema.cards.id, pageIds))
-  const byId = new Map(rows.map(r => [r.id, r]))
-  const orderedRows = pageIds
-    .map(id => byId.get(id))
-    .filter(row => row !== undefined)
-  return withMatchedComments(db, orderedRows, tsQuery, param)
+  return pinnedPage(db, ordered, pinnedId, filters, tsQuery, param)
 }
 
 /** Best-ranked matching comment per card, with a highlighted snippet. */

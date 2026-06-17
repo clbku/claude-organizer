@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   addComment,
   addTagToCard,
+  archiveCard,
   createCard,
   createTag,
   searchCards
@@ -200,5 +201,134 @@ describe('searchCards', () => {
     })
     expect(tagged.map(r => r.id)).toContain(open!.id)
     expect(tagged.map(r => r.id)).not.toContain(done!.id)
+  })
+
+  it('pins the exact-key card first, ahead of cards that only mention the key', async () => {
+    const project = await freshProject(ctx.db)
+    const target = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'Alvo do match exato'
+    })
+    await createCard(ctx.db, {
+      projectId: project.id,
+      title: `Depende de ${target!.key}`,
+      descriptionMd: `bloqueado por ${target!.key}, ver ${target!.key}`
+    })
+
+    const results = await searchCards(ctx.db, project.id, target!.key)
+    expect(results[0]?.id).toBe(target!.id)
+    expect(results.length).toBeGreaterThan(1)
+  })
+
+  it('pins by a bare number resolved through the project keyPrefix', async () => {
+    const project = await freshProject(ctx.db)
+    const target = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'Alvo por número puro'
+    })
+    const seq = target!.key.split('-')[1]!
+
+    const results = await searchCards(ctx.db, project.id, seq)
+    expect(results[0]?.id).toBe(target!.id)
+  })
+
+  it('matches the exact key case-insensitively', async () => {
+    const project = await freshProject(ctx.db)
+    const target = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'Alvo case-insensitive'
+    })
+
+    const results = await searchCards(
+      ctx.db,
+      project.id,
+      target!.key.toLowerCase()
+    )
+    expect(results[0]?.id).toBe(target!.id)
+  })
+
+  it('does not pin the exact-key card when it is filtered out (archived)', async () => {
+    const project = await freshProject(ctx.db)
+    const target = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'Alvo arquivado'
+    })
+    await archiveCard(ctx.db, target!.id)
+
+    const results = await searchCards(ctx.db, project.id, target!.key)
+    expect(results.map(r => r.id)).not.toContain(target!.id)
+  })
+
+  it('does not pin when a bare number resolves to a non-existent key', async () => {
+    const project = await freshProject(ctx.db)
+    const mention = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'Tarefa 999 de teste'
+    })
+
+    // No card with key <prefix>-999 exists, so nothing is pinned; the card that
+    // merely contains "999" still surfaces by normal full-text rank.
+    const results = await searchCards(ctx.db, project.id, '999')
+    expect(results.map(r => r.id)).toContain(mention!.id)
+  })
+
+  it('pins under an active filter when the exact-key card passes it', async () => {
+    const project = await freshProject(ctx.db)
+    const tag = await createTag(ctx.db, { projectId: project.id, name: 'rel' })
+    const target = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'Alvo com tag',
+      status: 'in_progress'
+    })
+    await addTagToCard(ctx.db, target!.id, tag!.id)
+    await createCard(ctx.db, {
+      projectId: project.id,
+      title: `menciona ${target!.key}`,
+      status: 'in_progress'
+    })
+
+    const results = await searchCards(ctx.db, project.id, target!.key, {
+      tag: 'rel'
+    })
+    expect(results[0]?.id).toBe(target!.id)
+  })
+
+  it('keeps the pinned card on the first page only (no leak to page 2)', async () => {
+    const project = await freshProject(ctx.db)
+    const target = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'Alvo paginado'
+    })
+    await createCard(ctx.db, {
+      projectId: project.id,
+      title: `liga a ${target!.key}`,
+      descriptionMd: `${target!.key} ${target!.key}`
+    })
+
+    const page1 = await searchCards(ctx.db, project.id, target!.key, {
+      limit: 1
+    })
+    expect(page1.map(r => r.id)).toEqual([target!.id])
+
+    const page2 = await searchCards(ctx.db, project.id, target!.key, {
+      limit: 1,
+      offset: 1
+    })
+    expect(page2.map(r => r.id)).not.toContain(target!.id)
+  })
+
+  it('treats a key with trailing text as a normal query, not an exact-key pin', async () => {
+    const project = await freshProject(ctx.db)
+    const target = await createCard(ctx.db, {
+      projectId: project.id,
+      title: 'Alvo com texto extra'
+    })
+
+    const results = await searchCards(
+      ctx.db,
+      project.id,
+      `${target!.key} bug`
+    )
+    expect(results.map(r => r.id)).toContain(target!.id)
   })
 })
