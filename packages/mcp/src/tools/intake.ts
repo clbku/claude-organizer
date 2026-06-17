@@ -14,8 +14,6 @@ import type { Database } from '@claude-organizer/db'
 import { attachmentsByItem } from '../attachments'
 import { asJson, pageEnvelope, pageInputs } from './index'
 
-// Mutations echoed the whole item (with bodyMd) back; return a minimal ack — the
-// agent has the demand text; use list_inbox when the full item is needed.
 type IntakeAckRow = { id: string, status: string, plannedCardKeys: string | null }
 function intakeAck(item: IntakeAckRow | null | undefined) {
   if (!item) return null

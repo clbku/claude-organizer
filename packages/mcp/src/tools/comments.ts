@@ -14,8 +14,6 @@ import type { Database } from '@claude-organizer/db'
 import { attachmentsByItem } from '../attachments'
 import { asJson, pageEnvelope, pageInputs } from './index'
 
-// add/update/delete echoed the whole comment (with bodyMd) back; the agent wrote
-// the body, so a minimal ack confirms the write without re-bloating its context.
 type CommentAckRow = { id: string, cardId: string, createdAt: Date | string }
 function commentAck(comment: CommentAckRow | null | undefined) {
   if (!comment) return null

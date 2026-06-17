@@ -17,8 +17,6 @@ import type { Database } from '@claude-organizer/db'
 
 import { asJson, pageEnvelope, pageInputs } from './index'
 
-// Mutations echoed the whole sprint (with goal) back; return a minimal ack — use
-// list_sprints / get_active_sprint when the full sprint is needed.
 type SprintAckRow = { id: string, name: string, status: string }
 function sprintAck(s: SprintAckRow | null | undefined) {
   if (!s) return null

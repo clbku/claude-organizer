@@ -16,8 +16,6 @@ import type { Database } from '@claude-organizer/db'
 import { filterProjectsByScope, type McpScope } from '../scope'
 import { asJson, pageInputs } from './index'
 
-// Mutations echoed the whole project (with description) back; return a minimal
-// ack — use get_project / list_projects when the full project is needed.
 type ProjectAckRow = {
   id: string
   slug: string

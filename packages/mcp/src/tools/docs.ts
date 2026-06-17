@@ -18,9 +18,6 @@ import { asJson, pageEnvelope, pageInputs } from './index'
 
 const docKind = z.enum(['module', 'adr', 'guide', 'note'])
 
-// Trivial doc mutations return a minimal ack, not the full doc: echoing the whole
-// bodyMd back only bloats the agent's context (it already has what it sent). Use
-// read_doc when the full doc is actually needed.
 type DocAckRow = {
   id: string
   title: string
@@ -145,7 +142,8 @@ export function registerDocTools(server: McpServer, db: Database) {
               bodyMd: input.bodyMd,
               kind: input.kind,
               parentId: input.parentId
-            })
+            }),
+            'parentId'
           )
         )
       }

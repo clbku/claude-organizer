@@ -58,9 +58,6 @@ async function withCommitsAndAttachments(
   return { ...card, commits, attachments }
 }
 
-// Trivial card mutations return a minimal ack, not the full card: echoing the
-// whole descriptionMd back only bloats the agent's context (it already has what
-// it sent). Use get_card when the full card is actually needed.
 type CardAckRow = {
   id: string
   key: string
