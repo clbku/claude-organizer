@@ -36,6 +36,7 @@ export interface CardRow {
   createdAt: string
   updatedAt: string
   archivedAt: string | null
+  doneAt: string | null
 }
 
 export interface SprintRow {
@@ -178,6 +179,8 @@ export interface SystemSettingsRow {
   embeddingDtype: string | null
   includeAttachmentsInBackup: boolean
   keepAttachmentsOnArchive: boolean
+  hideLooseDoneEnabled: boolean
+  hideLooseDoneAfterDays: number
   createdAt: string
   updatedAt: string
 }

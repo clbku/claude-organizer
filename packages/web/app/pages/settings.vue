@@ -48,7 +48,7 @@ const togglingImages = ref(false)
 const togglingBackup = ref(false)
 
 async function updateSetting(
-  body: Record<string, boolean>,
+  body: Record<string, boolean | number>,
   loading: Ref<boolean>,
   failTitle: string
 ) {
@@ -74,6 +74,35 @@ const toggleIncludeImages = (next: boolean) =>
     togglingBackup,
     'Failed to update backup setting'
   )
+
+const hideLooseDoneEnabled = computed(
+  () => capabilities.value?.hideLooseDoneEnabled ?? true
+)
+const hideLooseDoneAfterDays = computed(
+  () => capabilities.value?.hideLooseDoneAfterDays ?? 7
+)
+const togglingHideLooseDone = ref(false)
+const savingHideDays = ref(false)
+const boardFail = 'Failed to update board setting'
+const toggleHideLooseDone = (next: boolean) =>
+  updateSetting({ hideLooseDoneEnabled: next }, togglingHideLooseDone, boardFail)
+
+// Local draft drives the stepper so +/- updates instantly, decoupled from the
+// save round-trip (POST + capabilities refetch). Re-syncs if the server value
+// changes (reload, another client).
+const daysDraft = ref(hideLooseDoneAfterDays.value)
+watch(hideLooseDoneAfterDays, (v) => {
+  daysDraft.value = v
+})
+// Debounced so holding the stepper doesn't POST per click. UInputNumber emits
+// null when the field is cleared.
+const persistHideDays = useDebounceFn((value: number) =>
+  updateSetting({ hideLooseDoneAfterDays: value }, savingHideDays, boardFail), 600)
+function onHideDaysInput(value: number | null) {
+  if (value === null || !Number.isInteger(value) || value < 0) return
+  daysDraft.value = value
+  if (value !== hideLooseDoneAfterDays.value) persistHideDays(value)
+}
 
 const embedding = computed(() => capabilities.value?.embedding ?? null)
 const { modelItems: embeddingModelItems, dtypeItems: embeddingDtypeItems }
@@ -287,6 +316,53 @@ onUnmounted(() => {
                 :loading="togglingBackup"
                 class="shrink-0"
                 @update:model-value="toggleIncludeImages"
+              />
+            </div>
+          </UPageCard>
+        </div>
+
+        <div v-if="adminOrOpenMode">
+          <UPageCard
+            title="Board"
+            description="How completed standalone cards behave on the board."
+            variant="naked"
+            class="mb-4"
+          />
+          <UPageCard
+            variant="subtle"
+            :ui="{ container: 'gap-4', wrapper: 'mb-0' }"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm font-medium">
+                  Auto-hide completed loose cards
+                </p>
+                <p class="mt-0.5 text-xs text-muted">
+                  Hide standalone done cards from the board once they've been completed for a while. They stay active, searchable, and visible to the MCP.
+                </p>
+              </div>
+              <USwitch
+                :model-value="hideLooseDoneEnabled"
+                :loading="togglingHideLooseDone"
+                class="shrink-0"
+                @update:model-value="toggleHideLooseDone"
+              />
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm font-medium">
+                  Hide after (days)
+                </p>
+                <p class="mt-0.5 text-xs text-muted">
+                  Days a completed card stays on the board before it's hidden (0 = hide immediately).
+                </p>
+              </div>
+              <UInputNumber
+                :model-value="daysDraft"
+                :min="0"
+                :disabled="!hideLooseDoneEnabled"
+                class="w-32 shrink-0"
+                @update:model-value="onHideDaysInput"
               />
             </div>
           </UPageCard>
