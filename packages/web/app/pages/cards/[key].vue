@@ -12,6 +12,7 @@ import { diffFileSignatures } from '~/utils/diffFiles'
 const route = useRoute()
 const router = useRouter()
 const api = useApi()
+const toast = useToast()
 const cardKey = computed(() => String(route.params.key))
 
 useHead({ title: cardKey })
@@ -320,6 +321,17 @@ async function saveEditComment() {
     cancelEditComment()
   } finally {
     savingCommentEdit.value = false
+  }
+}
+
+// On failure the source stays untouched, so AppMarkdown re-renders the original
+// checkbox state — a failed toggle never leaves the UI inconsistent.
+async function toggleCommentTask(id: string, bodyMd: string) {
+  try {
+    await api(`/comments/${id}`, { method: 'PATCH', body: { bodyMd } })
+    await refreshComments()
+  } catch (e) {
+    toast.add({ title: 'Failed to update comment', description: resolveError(e), color: 'error' })
   }
 }
 
@@ -888,7 +900,13 @@ const providerIcon = computed(() =>
                     />
                   </div>
                 </div>
-                <AppMarkdown v-else :value="c.bodyMd" :class="PROSE" />
+                <AppMarkdown
+                  v-else
+                  :value="c.bodyMd"
+                  :class="PROSE"
+                  interactive
+                  @update:value="(v) => toggleCommentTask(c.id, v)"
+                />
               </li>
             </ul>
 
