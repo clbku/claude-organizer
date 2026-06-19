@@ -14,7 +14,9 @@ This skill only tells you **which skill to use** and **how to find the project**
 - **Test-plan / QA steps** — the steps to verify a card, ticked as each one passes (the primary case).
 - **Manual runbooks** — release/deploy/rollback, data migration, env setup, onboarding.
 
-Don't use them for prose or non-actionable lists (use plain bullets), for specs/conditions like acceptance criteria or a definition-of-done (those are descriptions, not things to do), or to track real units of work — that's what cards and sub-tasks are for.
+**The single test: would the user physically click this checkbox to mark it done?** If yes → task list. If it's anything else — prose, a non-actionable list, a spec the system or the AI satisfies — use **plain bullets** (`- `), never `- [ ]`. When unsure, it's a plain bullet.
+
+Don't use them for prose or non-actionable lists, or to track real units of work — that's what cards and sub-tasks are for. In particular, **acceptance criteria and definition-of-done are NEVER task lists**: they are specs/conditions (descriptions of *what must be true*), not steps the user carries out — a clickable checkbox there is wrong, since it invites the user to "complete" a spec by ticking it. Reserve `- [ ]` for runbooks and QA test-plans the user actually walks through.
 
 ## The skills — pick by what the user asks
 

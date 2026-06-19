@@ -51,7 +51,7 @@ Don't let a decision live only in the chat — it's gone next session.
 Write each card so a fresh agent with **zero chat context** can execute it from its contents alone. Describe **behavior and intent, not code** — never write the implementation (naming a real endpoint/table is fine; function bodies aren't), unless it's a real constraint or an already-diagnosed bug. Use the sections that fit:
 
 - **Objective** — what and why.
-- **Acceptance criteria** — how to know it's done (concrete, testable — not "add validation").
+- **Acceptance criteria** — how to know it's done (concrete, testable — not "add validation"). Write them as **plain bullets** (`- `), **never** as a task list (`- [ ]`): acceptance criteria are conditions/specs, not manual steps the user ticks off. Checkboxes render as interactive clickable items and are reserved for runbooks / QA test-plans the user actually carries out — see the task-list rule in the `claude-organizer` skill. The same goes for a **definition-of-done** or any conditions list: plain bullets.
 - **Expected behavior**, **Decisions** settled during clarification, and constraints / out-of-scope / references _as needed_.
 
 The test: *could a fresh session build this from the card alone?* If not, it's underspecified — keep refining.
