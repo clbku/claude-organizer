@@ -9,7 +9,7 @@ Execute a card that already exists on the board — a task, a story, or a sprint
 
 > **Load the `claude-organizer` skill first.** If it hasn't been loaded in this conversation, invoke it (Skill tool) before anything below — it covers what the board is, the project binding, and the comment/doc conventions this skill relies on. If it's already loaded, just continue.
 
-**Hard rule:** the per-card lifecycle below runs **every card, in order** — trivial or not. Never assume past an open decision; never move a card to `done` without the user's explicit approval. Leaving a card in `review` is the correct resting state, not a defect.
+**Hard rule:** the per-card lifecycle below runs **every card, in order** — trivial or not. Never assume past an open decision; never move a **work** card to `done` without the user's explicit approval. The **one** exception is a **parent story** whose every child is already approved and `done`: closing it is derived bookkeeping, not a work approval — the session that lands the last child closes it automatically (see _Closing a story — cross-session_). Leaving a card in `review` is the correct resting state, not a defect.
 
 ## Never assume — ask the user
 
@@ -28,7 +28,7 @@ When the user points you at more than one card (a whole story, several cards or 
    - **Run it all at once (batch)** — execute every card autonomously, leaving each in `review`, and validate the whole batch at the end (commit directly per card).
 2. **Agree the git flow** for the run — unless `CLAUDE.md` already defines one (then follow it, don't ask). In batch mode the options matter most: one PR for everything, straight commits, or a stack of branches (see _Git flow_).
 3. **Track the run with a tasklist** (`TaskCreate` / `TaskUpdate`) mirroring the cards in execution order — in **both** modes, so you and the user always see where the run is. Update each item as its card moves (`in_progress` → `review` → `done`).
-4. **Loop the lifecycle** per card, in order; respect blockers (don't start a card whose blocker isn't `done`). The **story-level review fires in both modes** (see the lifecycle).
+4. **Loop the lifecycle** per card, in order; respect blockers (don't start a card whose blocker isn't `done`). The **story-level review fires in both modes**, and across sessions — whichever session lands the last child runs it (see _Closing a story — cross-session_).
 
 ## Git flow — agree before you start
 
@@ -55,7 +55,18 @@ Mirror what the user already does; factor in parallel work / worktrees for scope
    - **Batch mode (run-it-all-at-once):** the agreed git flow is your authorization — commit each card **before starting the next** (so its working-tree diff stays isolated for that card's review gate), **one per card**, + `attach-commit <sha>`, then **release the claim** (`release_task(<key>, <sessionToken>)`), leave the card in `review`, update the tasklist, and **continue to the next**. The whole batch is approved together at the end of the run.
    - **Auth on:** each attach needs its **own** token, so the review-each-card path mints **two** (`issue_commit_token(<key>)` for `attach-worktree-diff`, then a fresh one for `attach-commit`); batch mints one per card. See _Diff capture_.
 
-When a **story's last child** reaches `review` — **in both modes** — run one extra reviewer pass over the **whole story** for cross-cutting issues a single task can't see (duplication across tasks, PR coherence) before the story is considered ready. Changeset: **batch mode** has every child committed → `git diff <base>...HEAD`; **review-each-card mode** still has the last child uncommitted → `git diff <base>` so the working tree is included. Keep the **history status** honest: `in_progress` once any child starts, `done` only when every child is done.
+## Closing a story — cross-session
+
+A story's tasks may run in **different Claude Code sessions** (and machines), so the session finishing its card can't assume what the siblings did. **Re-check the board, never your session's memory.**
+
+- **On every child you move to `review` or `done`, re-fetch the story's children from the board** (`get_card_by_key`/`get_card` on the parent) and read their **real current status** — don't infer the story's state from what this session happened to build. This keeps the **history status** honest: the story is `in_progress` once any child starts, `done` only when **every** child is `done`.
+- **Whoever lands the last child owns the close.** When you move a child to `done` and the re-query shows **every sibling is already `done`** (you just closed the last open one), you take over closing the story — even if this session never touched the other tasks:
+  - **First make the whole story reviewable locally.** Sibling sessions may have committed on **another machine**, so before reviewing, ensure every child's commit is present and reachable from `HEAD` (`git fetch`, then pull/merge the shared run branch). If the commits can't be assembled locally, you **can't** run a faithful story review — surface that to the user and **don't auto-close**.
+  - Run **one story-level reviewer pass** over the **whole story changeset** (`git diff <base>...HEAD` — with all children `done` and assembled locally, every task is committed) for the cross-cutting issues a single task can't see (duplication across tasks, PR coherence). The `reviewer` agent reads code + git from the context you curate, so it doesn't matter which session wrote each task.
+  - **Clean review → move the story to `done` automatically**, no extra question. This is the lone `done` not gated on a fresh approval: each child was already approved before its own `done`, so closing the derived parent is bookkeeping, not a work decision (the hard rule's exception).
+  - **Review with findings → keep the story `in_progress`** (no transition — it's already there) and bring each finding to the user, offering **per finding**: **fix it now** (if trivial), **send it to the inbox** (run the `claude-organizer` dedup-check first — search the board + pending inbox; reference an existing card/item instead of duplicating), or **create a follow-up card**. The story stays open until the findings are resolved.
+
+This holds in **both run modes** — review-each-card commits each child as the user approves it, batch commits each child before the next; either way the story closes once its final child reaches `done` **and the story review is clean**, whichever session gets there.
 
 ## Dispatching the reviewer
 
