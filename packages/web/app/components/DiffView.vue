@@ -7,6 +7,8 @@
 // (lockfiles/truncated/binary) surface as a muted note on the file block.
 import { diffWordsWithSpace } from 'diff'
 
+import { parseDiffImageSentinel } from '@claude-organizer/shared'
+
 import { diffFileSignatures } from '~/utils/diffFiles'
 
 const props = defineProps<{ diff: string, cardId: string, sha: string }>()
@@ -23,14 +25,26 @@ const signatures = computed(() => diffFileSignatures(props.diff))
 // shifted position when the same instance gets a new diff.
 const collapseOverride = ref<Record<number, boolean>>({})
 
+// Byte size of each image file's representative image (new side, else old),
+// reported by DiffImage once resolved — shown in the file header. Survives a
+// collapse, so the size stays visible after the block is folded.
+const imageSizes = ref<Record<number, number>>({})
+
 watch(
   signatures,
   (sigs) => {
     reconcile(props.cardId, props.sha, sigs)
     collapseOverride.value = {}
+    imageSizes.value = {}
   },
   { immediate: true }
 )
+
+function humanBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / 1024 / 1024).toFixed(1)} MB`
+}
 
 function fileViewed(i: number): boolean {
   const sig = signatures.value[i]
@@ -102,6 +116,8 @@ interface DiffFile {
   additions: number
   deletions: number
   note: string | null
+  // Each side is null when absent: added → no old, deleted → no new.
+  image: { old: string | null, new: string | null } | null
   lines: DiffLine[]
 }
 
@@ -138,6 +154,7 @@ const files = computed<DiffFile[]>(() => {
         additions: 0,
         deletions: 0,
         note: null,
+        image: null,
         lines: []
       }
       oldNo = 0
@@ -155,9 +172,12 @@ const files = computed<DiffFile[]>(() => {
       cur.note = 'Binary file — diff not shown'
       continue
     }
-    // Notes the capture script wrote in place of a pruned/truncated body.
+    // Notes the capture script wrote in place of a pruned/truncated body; an
+    // image sentinel is parsed out instead of shown as a note.
     if (raw.startsWith('# ')) {
-      cur.note = raw.slice(2)
+      const refs = parseDiffImageSentinel(raw)
+      if (refs) cur.image = { old: refs.old ?? null, new: refs.new ?? null }
+      else cur.note = raw.slice(2)
       continue
     }
     if (raw.startsWith('@@')) {
@@ -293,19 +313,45 @@ function hunkContext(text: string): string {
             v-if="file.deletions"
             class="text-error bg-error/10 rounded px-1"
           >-{{ file.deletions }}</span>
-          <UCheckbox
-            :model-value="fileViewed(fi)"
-            label="Viewed"
-            size="sm"
-            :ui="{ label: 'text-muted' }"
-            @update:model-value="toggleViewed(fi, $event === true)"
-          />
+          <span
+            v-if="imageSizes[fi] != null"
+            class="text-muted"
+          >{{ humanBytes(imageSizes[fi]!) }}</span>
+          <button
+            type="button"
+            class="flex items-center gap-1.5 -my-1 px-1.5 py-1 rounded-md cursor-pointer text-muted hover:bg-default hover:text-default transition-colors"
+            @click="toggleViewed(fi, !fileViewed(fi))"
+          >
+            <UIcon
+              :name="fileViewed(fi) ? 'i-lucide-square-check' : 'i-lucide-square'"
+              class="size-4 shrink-0"
+              :class="fileViewed(fi) ? 'text-primary' : 'text-dimmed'"
+            />
+            <span class="leading-none">Viewed</span>
+          </button>
         </span>
       </div>
 
       <div v-if="!isCollapsed(fi)" class="overflow-hidden rounded-b-md">
         <div
-          v-if="file.lines.length"
+          v-if="file.image"
+          class="flex flex-wrap items-start justify-center gap-4 p-4"
+        >
+          <DiffImage
+            v-if="file.image.old"
+            :id="file.image.old"
+            :label="file.image.new ? 'Before' : 'Deleted'"
+            @loaded="!file.image.new && (imageSizes[fi] = $event.bytes)"
+          />
+          <DiffImage
+            v-if="file.image.new"
+            :id="file.image.new"
+            :label="file.image.old ? 'After' : 'Added'"
+            @loaded="imageSizes[fi] = $event.bytes"
+          />
+        </div>
+        <div
+          v-else-if="file.lines.length"
           class="text-xs font-mono leading-relaxed"
         >
           <template v-for="(line, li) in file.lines" :key="li">
