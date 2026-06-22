@@ -109,13 +109,21 @@ The `claude-organizer` tools appear automatically, pointing at local Docker (`ht
 
 ### 3. Configure the MCP for a remote host
 
-Local Docker is the default — nothing to do: the bundled plugin already registers a `claude-organizer` server at `http://localhost:4402/mcp`. To reach a remote host, register it as an **additional** server with a name **other than `claude-organizer`** (that one is the plugin's — reusing it clashes):
+Local Docker is the default — nothing to do: the bundled plugin already registers a `claude-organizer` server at `http://localhost:4402/mcp`.
+
+**Repoint the bundled entry with `CO_MCP_URL`.** To make the **primary** board live on another machine — sharing one board across several computers — just export `CO_MCP_URL` before starting Claude Code; the plugin's `claude-organizer` server uses it instead of `http://localhost:4402/mcp`, keeping the same tool prefix. Reach it over a stable hostname (a Tailscale MagicDNS name like `host.tailnet.ts.net`, a LAN host, or a remote domain):
+
+```bash
+export CO_MCP_URL=http://host.tailnet.ts.net:4402/mcp
+```
+
+**Or register an additional named server.** To run another board *alongside* the bundled one, register it as an **additional** server with a name **other than `claude-organizer`** (that one is the plugin's — reusing it clashes):
 
 ```bash
 claude mcp add --transport http -s user claude-organizer-remote https://mcp.<domain>/mcp
 ```
 
-Each server gets its own tool prefix (the bundled plugin board is `mcp__plugin_claude-organizer_claude-organizer__*`; this added one is `mcp__claude-organizer-remote__*`), OAuth session and projects; the skills pick the one whose project matches the repo and never mix them. `-s user` makes it available across all repos — to bind **a single project** to a specific server instead, scope it to the repo with `-s project` (a shared `.mcp.json` committed in the repo) or `-s local` (only you, only this repo). A remote **primary** board needs no named server at all — just point the bundled entry at it with `CO_MCP_URL`.
+Each server gets its own tool prefix (the bundled plugin board is `mcp__plugin_claude-organizer_claude-organizer__*`; this added one is `mcp__claude-organizer-remote__*`), OAuth session and projects; the skills pick the one whose project matches the repo and never mix them. `-s user` makes it available across all repos — to bind **a single project** to a specific server instead, scope it to the repo with `-s project` (a shared `.mcp.json` committed in the repo) or `-s local` (only you, only this repo).
 
 ## Usage
 
