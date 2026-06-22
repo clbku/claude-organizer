@@ -111,10 +111,11 @@ The `claude-organizer` tools appear automatically, pointing at local Docker (`ht
 
 Local Docker is the default — nothing to do: the bundled plugin already registers a `claude-organizer` server at `http://localhost:4402/mcp`.
 
-**Repoint the bundled entry with `CO_MCP_URL`.** To make the **primary** board live on another machine — sharing one board across several computers — just export `CO_MCP_URL` before starting Claude Code; the plugin's `claude-organizer` server uses it instead of `http://localhost:4402/mcp`, keeping the same tool prefix. Reach it over a stable hostname (a Tailscale MagicDNS name like `host.tailnet.ts.net`, a LAN host, or a remote domain):
+**Repoint the bundled entry with `CO_MCP_URL`.** To make the **primary** board live on another machine — sharing one board across several computers — just export `CO_MCP_URL` before starting Claude Code; the plugin's `claude-organizer` server uses it instead of `http://localhost:4402/mcp`, keeping the same tool prefix. Reach it over a stable hostname (a Tailscale MagicDNS name like `host.tailnet.ts.net`, a LAN host, or a remote domain). Pair it with **`CO_API_URL`** (default `http://127.0.0.1:4400`) pointed at the same host — the diff-capture scripts (`attach-commit` / `attach-worktree-diff`) post to the API directly, so without it they'd hit the client machine's own `localhost` and fail:
 
 ```bash
 export CO_MCP_URL=http://host.tailnet.ts.net:4402/mcp
+export CO_API_URL=http://host.tailnet.ts.net:4400
 ```
 
 **Or register an additional named server.** To run another board *alongside* the bundled one, register it as an **additional** server with a name **other than `claude-organizer`** (that one is the plugin's — reusing it clashes):
